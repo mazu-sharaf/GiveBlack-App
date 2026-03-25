@@ -1,0 +1,403 @@
+Build a **modern Charity / Organization Dashboard Web App** for a donation platform.
+The **donor interface and donation flow already exist**, so this project must focus only on the **charity / organization side** including authentication, campaign management, donations analytics, and subscription-based limits.
+
+The design must be **premium, modern, clean, and responsive**, similar to **Stripe Dashboard, Notion, and Linear UI quality**.
+
+Use a **tabbed application layout with bottom navigation (mobile) and sidebar navigation (desktop)**.
+
+Tech stack preference:
+React + Tailwind + Vite
+Firebase or Supabase for auth and database
+Stripe for subscriptions and billing
+
+---
+
+## 1. Authentication and Organization Approval
+
+Create an authentication system specifically for **charity organizations**.
+
+Signup fields:
+Organization Name
+Category
+Organization Description
+Website
+Contact Person Name
+Email
+Password
+Optional fields:
+Organization Address
+Phone Number
+Registration Number / Legal ID
+
+Signup flow:
+
+When an organization signs up, store their account with status **pending**.
+
+Admin must review the request and either **approve or reject**.
+
+When approved:
+Create an **Organization record**
+Link the user account to that organization.
+
+Only **approved organizations can access the dashboard**.
+
+If the account is still pending show:
+
+"Your organization request is under review. You will receive an email once approved."
+
+---
+
+## 2. Dashboard Layout
+
+The organization dashboard must contain **5 main tabs**:
+
+Dashboard
+Campaigns
+Donations
+Subscriptions
+Settings
+
+Use the same **bottom navigation style used in the donor app**.
+
+Desktop layout:
+Sidebar navigation + content panel
+
+Mobile layout:
+Bottom navigation + full screen pages
+
+All data must be automatically filtered using the **organization ID linked to the logged in user**.
+
+---
+
+## 3. Subscription Tiers
+
+Organizations operate under **subscription plans**.
+
+Create three tiers:
+
+Free Plan
+
+Price: $0
+Campaign Limit: 2
+Maximum Goal per Campaign: $5,000
+Basic analytics
+
+Growth Plan
+
+Price: $29/month
+Campaign Limit: 10
+Maximum Goal per Campaign: $50,000
+Advanced analytics
+Campaign updates
+Priority support
+
+Institutional Plan
+
+Price: $99/month
+Unlimited campaigns
+Unlimited campaign goals
+Advanced analytics
+Team members
+Priority support
+
+Store subscription data in the organization record.
+
+Important limits:
+
+Campaign creation must stop when limit reached.
+Campaign goal cannot exceed plan max goal.
+
+Payments handled through **Stripe Checkout**.
+
+Billing management handled through **Stripe Customer Portal**.
+
+---
+
+## 4. Dashboard (Home)
+
+Show a welcome section:
+
+Welcome back
+Organization name
+
+Main summary card displaying:
+
+Current Plan
+Subscription Status
+Campaign Usage (X / Limit)
+Max Goal per Campaign
+
+Quick action buttons:
+
+Create Campaign
+View Campaigns
+Upgrade Plan (if on Free)
+
+Add a **Recent Activity section** showing latest campaigns:
+
+Campaign title
+Status
+Raised vs Goal
+
+Clicking a campaign opens edit page.
+
+Add additional analytics cards:
+
+Total Raised Lifetime
+Total Raised This Month
+Total Donors
+Active Campaigns
+
+---
+
+## 5. Campaigns Tab
+
+Display all campaigns belonging to the organization.
+
+Campaign card fields:
+
+Campaign title
+Status (Draft, Active, Paused, Completed)
+Raised amount
+Goal amount
+Progress bar
+
+Actions:
+
+Create Campaign
+Edit Campaign
+Pause Campaign
+Delete Campaign
+Duplicate Campaign
+
+Campaign creation form fields:
+
+Title
+Short Description
+Goal Amount
+Location (optional)
+Main Image URL
+Story (long text)
+About section
+Gallery (multiple image URLs + captions)
+
+Subscription usage info must appear above the form:
+
+"You are using X / Y campaigns. Max goal per campaign: $Z"
+
+Campaign status logic:
+
+Draft
+Active
+Paused
+Completed
+
+When raised amount reaches or exceeds goal:
+
+System automatically marks campaign as **Completed** after Stripe webhook confirms payment.
+
+---
+
+## 6. Campaign Advanced Features
+
+Add advanced campaign tools:
+
+Schedule publish date
+Schedule end date
+Campaign updates posts (visible to donors)
+Rich text formatting for story
+
+Optional analytics:
+
+Views
+Unique visitors
+Conversion rate
+
+Allow **image upload** instead of only URL.
+
+---
+
+## 7. Donations Tab
+
+Display donation analytics for the organization.
+
+Filters:
+
+Last 7 days
+Last 30 days
+Last 90 days
+
+Show summary:
+
+Total raised in selected period
+
+Charts:
+
+Daily donations bar chart
+Monthly donations chart
+
+Donation list fields:
+
+Campaign name
+Donor name (or Anonymous)
+Date
+Amount
+Optional donor message
+
+Add filters:
+
+Search by donor name
+Filter by campaign
+
+Export actions:
+
+Download CSV
+Download PDF
+
+Files generated from server using selected date range.
+
+---
+
+## 8. Subscriptions Tab
+
+Display subscription information.
+
+Show:
+
+Current Plan
+Status
+Next Billing Date
+Usage Limits
+
+Display **three plan cards**:
+
+Free
+Growth
+Institutional
+
+Highlight current plan.
+
+Actions:
+
+Upgrade Plan → opens Stripe Checkout
+Manage Billing → opens Stripe Customer Portal
+
+Add FAQ accordion:
+
+What happens when upgrading
+How to cancel
+How to update payment method
+
+---
+
+## 9. Settings Tab
+
+Profile section:
+
+Organization Name
+User Email
+
+Editable organization profile:
+
+Organization Name
+Description
+Logo
+Contact Email
+Website
+
+Settings options:
+
+Notifications
+Theme (Light / Dark / System)
+About App (version + terms)
+Logout
+
+Logout requires confirmation.
+
+---
+
+## 10. Advanced Features (Premium Level)
+
+Add these advanced features to improve the product:
+
+Notifications system
+
+New donation alert
+Campaign goal reached alert
+Subscription renewal reminder
+
+Team member management
+
+Invite team members
+Role permissions
+
+Campaign sharing tools
+
+Share link
+Social share buttons
+
+Campaign followers
+
+Donors can follow a campaign.
+
+Recurring donations
+
+Allow monthly recurring donations.
+
+---
+
+## 11. Admin Panel Integration
+
+Admins must be able to:
+
+Approve or reject charity requests
+View organization profiles
+View campaigns
+View donations
+Export data
+Change subscription tier
+Cancel subscription
+
+Admins can manually adjust organization plan limits.
+
+---
+
+## 12. UI Design Requirements
+
+Use a **premium SaaS dashboard design**.
+
+Design inspiration:
+
+Stripe Dashboard
+Linear App
+Notion
+
+Design details:
+
+Rounded cards
+Smooth animations
+Clean typography
+Modern charts
+Progress bars for campaigns
+Soft shadows
+Gradient accent colors
+
+Mobile-first design.
+
+---
+
+## 13. System Logic Requirements
+
+Campaign limits must follow subscription plan.
+
+Goal limits must follow subscription plan.
+
+Campaign completion triggered automatically after payment.
+
+Donation totals must update via **Stripe webhook**.
+
+All data queries must be scoped to **organization ID**.
+
+---
+
+Build the dashboard so it is **scalable for thousands of organizations and campaigns** while maintaining fast performance and clean UI.

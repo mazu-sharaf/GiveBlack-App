@@ -1,0 +1,363 @@
+Logs for your project will appear below. Press Ctrl+C to exit.
+iOS Bundled 3752ms node_modules/expo-router/entry.js (1752 modules)
+ WARN  Supabase URL or Anon Key is missing. Check EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY env vars.
+ WARN  Route "./(auth)/charity-bank-details.tsx" is missing the required default export. Ensure a React component is exported as default.
+ ERROR  [Error: supabaseUrl is required.] 
+
+Code: supabase.ts
+  15 | };
+  16 |
+> 17 | export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+     |                                     ^
+  18 |   auth: {
+  19 |     storage: AsyncStorage,
+  20 |     autoRefreshToken: true,
+Call Stack
+  <global> (lib/supabase.ts:17:37)
+  <global> (context/AuthContext.tsx:3)
+  <global> (app/(auth)/charity-bank-details.tsx:20)
+ WARN  Route "./(auth)/charity-login.tsx" is missing the required default export. Ensure a React component is exported as default.
+ WARN  Route "./(auth)/charity-signup.tsx" is missing the required default export. Ensure a React component is exported as default.
+ WARN  Route "./(auth)/donor-login.tsx" is missing the required default export. Ensure a React component is exported as default.
+ WARN  Route "./(auth)/donor-signup.tsx" is missing the required default export. Ensure a React component is exported as default.
+ WARN  Route "./(auth)/signup-success.tsx" is missing the required default export. Ensure a React component is exported as default.
+ WARN  Route "./(charity)/donations.tsx" is missing the required default export. Ensure a React component is exported as default.
+ WARN  Route "./(charity)/fee-settings.tsx" is missing the required default export. Ensure a React component is exported as default.
+ ERROR  [Error: supabaseUrl is required.] 
+
+Code: supabase.ts
+  15 | };
+  16 |
+> 17 | export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+     |                                     ^
+  18 |   auth: {
+  19 |     storage: AsyncStorage,
+  20 |     autoRefreshToken: true,
+Call Stack
+  <global> (lib/supabase.ts:17:37)
+  <global> (context/AuthContext.tsx:3)
+  <global> (app/(auth)/charity-bank-details.tsx:20)
+ ERROR  [Error: supabaseUrl is required.] 
+
+Code: supabase.ts
+  15 | };
+  16 |
+> 17 | export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+     |                                     ^
+  18 |   auth: {
+  19 |     storage: AsyncStorage,
+  20 |     autoRefreshToken: true,
+Call Stack
+  <global> (lib/supabase.ts:17:37)
+  <global> (context/AuthContext.tsx:3)
+  <global> (app/(auth)/charity-bank-details.tsx:20)
+ ERROR  [Error: supabaseUrl is required.] 
+
+Code: supabase.ts
+  15 | };
+  16 |
+> 17 | export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+     |                                     ^
+  18 |   auth: {
+  19 |     storage: AsyncStorage,
+  20 |     autoRefreshToken: true,
+Call Stack
+  <global> (lib/supabase.ts:17:37)
+  <global> (context/AuthContext.tsx:3)
+  <global> (app/(auth)/charity-bank-details.tsx:20)
+ WARN  Route "./(charity)/index.tsx" is missing the required default export. Ensure a React component is exported as default.
+ WARN  Route "./(charity)/settings.tsx" is missing the required default export. Ensure a React component is exported as default.
+ WARN  Route "./(tabs)/account.tsx" is missing the required default export. Ensure a React component is exported as default.
+ WARN  Route "./(tabs)/categories.tsx" is missing the required default export. Ensure a React component is exported as default.
+ WARN  Route "./(tabs)/favourite.tsx" is missing the required default export. Ensure a React component is exported as default.
+ WARN  Route "./(tabs)/index.tsx" is missing the required default export. Ensure a React component is exported as default.
+ WARN  Route "./_layout.tsx" is missing the required default export. Ensure a React component is exported as default.
+ WARN  Route "./all-campaigns.tsx" is missing the required default export. Ensure a React component is exported as default.
+ WARN  Route "./campaign/[id].tsx" is missing the required default export. Ensure a React component is exported as default.
+ ERROR  [Error: supabaseUrl is required.] 
+
+Code: supabase.ts
+  15 | };
+  16 |
+> 17 | export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+     |                                     ^
+  18 |   auth: {
+  19 |     storage: AsyncStorage,
+  20 |     autoRefreshToken: true,
+Call Stack
+  <global> (lib/supabase.ts:17:37)
+  <global> (context/AuthContext.tsx:3)
+  <global> (app/(auth)/charity-bank-details.tsx:20)
+ ERROR  [Error: supabaseUrl is required.] 
+
+Code: supabase.ts
+  15 | };
+  16 |
+> 17 | export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+     |                                     ^
+  18 |   auth: {
+  19 |     storage: AsyncStorage,
+  20 |     autoRefreshToken: true,
+Call Stack
+  <global> (lib/supabase.ts:17:37)
+  <global> (context/AuthContext.tsx:3)
+  <global> (app/(auth)/charity-bank-details.tsx:20)
+ ERROR  [Error: supabaseUrl is required.] 
+
+Code: supabase.ts
+  15 | };
+  16 |
+> 17 | export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+     |                                     ^
+  18 |   auth: {
+  19 |     storage: AsyncStorage,
+  20 |     autoRefreshToken: true,
+Call Stack
+  <global> (lib/supabase.ts:17:37)
+  <global> (context/AuthContext.tsx:3)
+  <global> (app/(auth)/charity-bank-details.tsx:20)
+ ERROR  [Error: supabaseUrl is required.] 
+
+Code: supabase.ts
+  15 | };
+  16 |
+> 17 | export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+     |                                     ^
+  18 |   auth: {
+  19 |     storage: AsyncStorage,
+  20 |     autoRefreshToken: true,
+Call Stack
+  <global> (lib/supabase.ts:17:37)
+  <global> (context/AuthContext.tsx:3)
+  <global> (app/(auth)/charity-bank-details.tsx:20)
+ ERROR  [Error: supabaseUrl is required.] 
+
+Code: supabase.ts
+  15 | };
+  16 |
+> 17 | export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+     |                                     ^
+  18 |   auth: {
+  19 |     storage: AsyncStorage,
+  20 |     autoRefreshToken: true,
+Call Stack
+  <global> (lib/supabase.ts:17:37)
+  <global> (context/AuthContext.tsx:3)
+  <global> (app/(auth)/charity-bank-details.tsx:20)
+ ERROR  [Error: supabaseUrl is required.] 
+
+Code: supabase.ts
+  15 | };
+  16 |
+> 17 | export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+     |                                     ^
+  18 |   auth: {
+  19 |     storage: AsyncStorage,
+  20 |     autoRefreshToken: true,
+Call Stack
+  <global> (lib/supabase.ts:17:37)
+  <global> (context/AuthContext.tsx:3)
+  <global> (app/(auth)/charity-bank-details.tsx:20)
+ ERROR  [Error: supabaseUrl is required.] 
+
+Code: supabase.ts
+  15 | };
+  16 |
+> 17 | export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+     |                                     ^
+  18 |   auth: {
+  19 |     storage: AsyncStorage,
+  20 |     autoRefreshToken: true,
+Call Stack
+  <global> (lib/supabase.ts:17:37)
+  <global> (context/AuthContext.tsx:3)
+  <global> (app/(auth)/charity-bank-details.tsx:20)
+ ERROR  [Error: supabaseUrl is required.] 
+
+Code: supabase.ts
+  15 | };
+  16 |
+> 17 | export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+     |                                     ^
+  18 |   auth: {
+  19 |     storage: AsyncStorage,
+  20 |     autoRefreshToken: true,
+Call Stack
+  <global> (lib/supabase.ts:17:37)
+  <global> (context/AuthContext.tsx:3)
+  <global> (app/(auth)/charity-bank-details.tsx:20)
+ ERROR  [Error: supabaseUrl is required.] 
+
+Code: supabase.ts
+  15 | };
+  16 |
+> 17 | export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+     |                                     ^
+  18 |   auth: {
+  19 |     storage: AsyncStorage,
+  20 |     autoRefreshToken: true,
+Call Stack
+  <global> (lib/supabase.ts:17:37)
+  <global> (context/AuthContext.tsx:3)
+  <global> (app/(auth)/charity-bank-details.tsx:20)
+ ERROR  [Error: supabaseUrl is required.] 
+
+Code: supabase.ts
+  15 | };
+  16 |
+> 17 | export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+     |                                     ^
+  18 |   auth: {
+  19 |     storage: AsyncStorage,
+  20 |     autoRefreshToken: true,
+Call Stack
+  <global> (lib/supabase.ts:17:37)
+  <global> (context/AuthContext.tsx:3)
+  <global> (app/(auth)/charity-bank-details.tsx:20)
+ ERROR  [Error: supabaseUrl is required.] 
+
+Code: supabase.ts
+  15 | };
+  16 |
+> 17 | export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+     |                                     ^
+  18 |   auth: {
+  19 |     storage: AsyncStorage,
+  20 |     autoRefreshToken: true,
+Call Stack
+  <global> (lib/supabase.ts:17:37)
+  <global> (context/AuthContext.tsx:3)
+  <global> (app/(auth)/charity-bank-details.tsx:20)
+ WARN  Route "./category/[id].tsx" is missing the required default export. Ensure a React component is exported as default.
+ WARN  Route "./donate/[orgId].tsx" is missing the required default export. Ensure a React component is exported as default.
+ WARN  Route "./notifications.tsx" is missing the required default export. Ensure a React component is exported as default.
+ WARN  Route "./search.tsx" is missing the required default export. Ensure a React component is exported as default.
+ WARN  Route "./settings/[page].tsx" is missing the required default export. Ensure a React component is exported as default.
+ WARN  Route "./topup.tsx" is missing the required default export. Ensure a React component is exported as default.
+ WARN  Route "./volunteer/[orgId].tsx" is missing the required default export. Ensure a React component is exported as default.
+ ERROR  [Error: supabaseUrl is required.] 
+
+Code: supabase.ts
+  15 | };
+  16 |
+> 17 | export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+     |                                     ^
+  18 |   auth: {
+  19 |     storage: AsyncStorage,
+  20 |     autoRefreshToken: true,
+Call Stack
+  <global> (lib/supabase.ts:17:37)
+  <global> (context/AuthContext.tsx:3)
+  <global> (app/(auth)/charity-bank-details.tsx:20)
+ ERROR  [Error: supabaseUrl is required.] 
+
+Code: supabase.ts
+  15 | };
+  16 |
+> 17 | export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+     |                                     ^
+  18 |   auth: {
+  19 |     storage: AsyncStorage,
+  20 |     autoRefreshToken: true,
+Call Stack
+  <global> (lib/supabase.ts:17:37)
+  <global> (context/AuthContext.tsx:3)
+  <global> (app/(auth)/charity-bank-details.tsx:20)
+ ERROR  [Error: supabaseUrl is required.] 
+
+Code: supabase.ts
+  15 | };
+  16 |
+> 17 | export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+     |                                     ^
+  18 |   auth: {
+  19 |     storage: AsyncStorage,
+  20 |     autoRefreshToken: true,
+Call Stack
+  <global> (lib/supabase.ts:17:37)
+  <global> (context/AuthContext.tsx:3)
+  <global> (app/(auth)/charity-bank-details.tsx:20)
+ ERROR  [Error: supabaseUrl is required.] 
+
+Code: supabase.ts
+  15 | };
+  16 |
+> 17 | export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+     |                                     ^
+  18 |   auth: {
+  19 |     storage: AsyncStorage,
+  20 |     autoRefreshToken: true,
+Call Stack
+  <global> (lib/supabase.ts:17:37)
+  <global> (context/AuthContext.tsx:3)
+  <global> (app/(auth)/charity-bank-details.tsx:20)
+ ERROR  [Error: supabaseUrl is required.] 
+
+Code: supabase.ts
+  15 | };
+  16 |
+> 17 | export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+     |                                     ^
+  18 |   auth: {
+  19 |     storage: AsyncStorage,
+  20 |     autoRefreshToken: true,
+Call Stack
+  <global> (lib/supabase.ts:17:37)
+  <global> (context/AuthContext.tsx:3)
+  <global> (app/(auth)/charity-bank-details.tsx:20)
+ ERROR  [Error: supabaseUrl is required.] 
+
+Code: supabase.ts
+  15 | };
+  16 |
+> 17 | export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+     |                                     ^
+  18 |   auth: {
+  19 |     storage: AsyncStorage,
+  20 |     autoRefreshToken: true,
+Call Stack
+  <global> (lib/supabase.ts:17:37)
+  <global> (context/AuthContext.tsx:3)
+  <global> (app/(auth)/charity-bank-details.tsx:20)
+ ERROR  [Error: supabaseUrl is required.] 
+
+Code: supabase.ts
+  15 | };
+  16 |
+> 17 | export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+     |                                     ^
+  18 |   auth: {
+  19 |     storage: AsyncStorage,
+  20 |     autoRefreshToken: true,
+Call Stack
+  <global> (lib/supabase.ts:17:37)
+  <global> (context/AuthContext.tsx:3)
+  <global> (app/(auth)/charity-bank-details.tsx:20)
+ ERROR  [Error: supabaseUrl is required.] 
+
+Code: supabase.ts
+  15 | };
+  16 |
+> 17 | export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+     |                                     ^
+  18 |   auth: {
+  19 |     storage: AsyncStorage,
+  20 |     autoRefreshToken: true,
+Call Stack
+  <global> (lib/supabase.ts:17:37)
+  <global> (context/AuthContext.tsx:3)
+  <global> (app/(auth)/charity-bank-details.tsx:20)
+ ERROR  [Error: supabaseUrl is required.] 
+
+Code: supabase.ts
+  15 | };
+  16 |
+> 17 | export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+     |                                     ^
+  18 |   auth: {
+  19 |     storage: AsyncStorage,
+  20 |     autoRefreshToken: true,
+Call Stack
+  <global> (lib/supabase.ts:17:37)
+  <global> (context/AuthContext.tsx:3)
+  <global> (app/(auth)/charity-bank-details.tsx:20)

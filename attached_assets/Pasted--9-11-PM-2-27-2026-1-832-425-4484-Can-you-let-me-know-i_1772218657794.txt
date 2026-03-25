@@ -1,0 +1,54 @@
+[9:11 PM, 2/27/2026] +1 (832) 425-4484: Can you let me know if the following can be built into this next version?
+
+First, I would like the ability to split donations automatically. For example
+The majority goes directly to the school or organization
+Around 3 percent goes to Give Black as a platform fee
+An optional additional percentage, default 5 percent, labeled Reinvest in Black Education that donors can adjust or turn off
+
+This would replace the traditional tip model with something that is mission aligned and transparent.
+
+Second, we need recurring subscription billing that is paid by the schools and organizations using the platform, not donors.
+
+The idea would be
+Free tier with basic access
+Growth tier at 99 dollars per month
+Institutional tier at 249 dollars per month
+
+So we would need
+Recurring billing capability
+Plan based feature access control
+An admin dashboard to manage subscriptions
+
+Third, I would like the option to create a pooled Education Endowment allocation, 1 to 2 percent optional from donations, that is tracked separately in the ledger.
+
+Transparency is important. Donor receipts should clearly show
+Amount to the school
+Processing fees
+Platform fee
+Ecosystem contribution if selected
+
+On the organization dashboard, they should be able to
+Toggle whether they absorb fees or pass them to donors
+Toggle participation in the ecosystem contribution
+See a clear gross versus net breakdown
+
+We will also need clean ledger separation between
+Platform revenue
+Education Endowment funds
+Organization payouts
+
+On the feature side, I also want to add
+
+A dark mode option like the demo I previously showed you
+Automatic social media announcements after a donation is completed, with donor permission
+A clear pathway for companies to sign up with a separate onboarding flow for corporate partners
+Sharable crowdfunding links for campaigns so each school or organization has a custom campaign URL they can send out
+A section where supporters can sign up to volunteer, not just donate money, so schools can capture both financial and human capital support
+A push notification feature where we can send announcements to users. This would allow us to highlight an organization of the month or week, promote campaigns, announce milestones, or share important updates. Ideally there would be an admin panel where we can draft and schedule push notifications, with user level opt in controls
+
+Can you let me know what is feasible in this upgrade and what would require a larger architectural shift. I want to make sure we build the right foundation while we are already in development.
+[9:14 PM, 2/27/2026] +1 (832) 425-4484: Also, I would like to explore adding an NIL category inside the app.
+
+This would allow athletes, collectives, and HBCU programs to create fundraising campaigns under a dedicated Athlete and NIL section. It should function similarly to schools and organizations, with campaign pages, donation tracking, and reporting.
+
+Can we structure the platform so NIL campaigns are just another category within the existing infrastructure, without requiring a full rebuild?

@@ -1,0 +1,78 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 210 20% 96%;
+    --foreground: 207 28% 10%;
+    --card: 0 0% 100%;
+    --card-foreground: 207 28% 10%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 207 28% 10%;
+    --primary: 152 55% 40%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 210 18% 90%;
+    --secondary-foreground: 207 28% 10%;
+    --muted: 210 15% 92%;
+    --muted-foreground: 207 12% 45%;
+    --accent: 44 66% 52%;
+    --accent-foreground: 207 28% 8%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 210 12% 87%;
+    --input: 210 12% 87%;
+    --ring: 152 55% 40%;
+    --radius: 0.75rem;
+    --sidebar-background: 207 28% 8%;
+    --sidebar-foreground: 210 20% 80%;
+    --sidebar-primary: 152 55% 40%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 207 18% 14%;
+    --sidebar-accent-foreground: 210 20% 90%;
+    --sidebar-border: 207 12% 18%;
+    --sidebar-ring: 152 55% 40%;
+  }
+
+  .dark {
+    --background: 207 28% 8%;
+    --foreground: 210 20% 92%;
+    --card: 207 22% 12%;
+    --card-foreground: 210 20% 92%;
+    --popover: 207 22% 12%;
+    --popover-foreground: 210 20% 92%;
+    --primary: 152 55% 40%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 207 18% 18%;
+    --secondary-foreground: 210 20% 85%;
+    --muted: 207 15% 16%;
+    --muted-foreground: 210 12% 55%;
+    --accent: 44 66% 52%;
+    --accent-foreground: 207 28% 8%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 207 12% 20%;
+    --input: 207 12% 20%;
+    --ring: 152 55% 40%;
+    --sidebar-background: 207 28% 6%;
+    --sidebar-foreground: 210 20% 80%;
+    --sidebar-primary: 152 55% 40%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 207 18% 12%;
+    --sidebar-accent-foreground: 210 20% 90%;
+    --sidebar-border: 207 12% 15%;
+    --sidebar-ring: 152 55% 40%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground font-sans;
+    font-family: 'Inter', sans-serif;
+  }
+}

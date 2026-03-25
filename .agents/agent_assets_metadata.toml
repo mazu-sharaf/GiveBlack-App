@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "qeXUmi93-xiUfGBcxDoGZ"
+uri = "file://DEPLOYMENT.md"
+type = "text"
+title = "GiveBlack VPS Deployment Guide"

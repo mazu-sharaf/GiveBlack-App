@@ -1,0 +1,41 @@
+import { z } from "zod";
+
+const schema = z.object({
+  NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
+  PORT: z.coerce.number().default(5000),
+  API_HOST: z.string().default("0.0.0.0"),
+  DATABASE_URL: z.string().default(""),
+  JWT_ACCESS_SECRET: z.string().min(32, "JWT_ACCESS_SECRET must be at least 32 characters"),
+  JWT_REFRESH_SECRET: z.string().min(32, "JWT_REFRESH_SECRET must be at least 32 characters"),
+  JWT_ACCESS_TTL: z.string().default("15m"),
+  JWT_REFRESH_TTL_DAYS: z.coerce.number().default(30),
+  CORS_ORIGINS: z.string().default("*"),
+  STRIPE_SECRET_KEY: z.string().optional(),
+  STRIPE_WEBHOOK_SECRET: z.string().optional(),
+  STRIPE_PRICE_GROWTH: z.string().default("price_1TA2CPBk2z7Pp8h03aNgWKxt"),
+  STRIPE_PRICE_INSTITUTIONAL: z.string().default("price_1TA2DnBk2z7Pp8h0GFcDMfQ3"),
+  STRIPE_PRODUCT_GROWTH: z.string().default("prod_U8Iotu17CesgKO"),
+  STRIPE_PRODUCT_INSTITUTIONAL: z.string().default("prod_U8IpZXR2R0SNHb"),
+  BREVO_API_KEY: z.string().optional(),
+  BREVO_SENDER_EMAIL: z.string().email().optional(),
+  BREVO_SENDER_NAME: z.string().default("GiveBlack"),
+  ADMIN_EMAIL: z.string().email().optional(),
+  APP_URL: z.string().url().optional(),
+  SUPPORT_EMAIL: z.string().email().optional(),
+  EMAIL_LOGO_URL: z.string().url().optional(),
+  EXPO_ACCESS_TOKEN: z.string().optional(),
+  EXPO_PUBLIC_API_URL: z.string().optional()
+});
+
+const parsed = schema.safeParse(process.env);
+if (!parsed.success) {
+  const issues = parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("\n");
+  throw new Error(`Invalid API environment variables:\n${issues}`);
+}
+
+export const env = parsed.data;
+
+export function getCorsOrigins(): string[] | true {
+  if (env.CORS_ORIGINS.trim() === "*") return true;
+  return env.CORS_ORIGINS.split(",").map((v) => v.trim()).filter(Boolean);
+}

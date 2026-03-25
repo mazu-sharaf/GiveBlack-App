@@ -1,0 +1,23 @@
+{
+  "name": "Give Black Admin",
+  "short_name": "Give Black",
+  "description": "Secure operations hub for Give Black—manage organizations, campaigns, donations, and community impact.",
+  "start_url": "/admin/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#004010",
+  "icons": [
+    {
+      "src": "giveblack-icon.jpg",
+      "sizes": "512x512",
+      "type": "image/jpeg",
+      "purpose": "any"
+    },
+    {
+      "src": "giveblack-icon.jpg",
+      "sizes": "512x512",
+      "type": "image/jpeg",
+      "purpose": "maskable"
+    }
+  ]
+}

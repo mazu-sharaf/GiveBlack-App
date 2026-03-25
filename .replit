@@ -1,0 +1,147 @@
+entrypoint = "README.md"
+modules = ["nodejs-22", "postgresql-16"]
+
+[nix]
+channel = "stable-24_05"
+
+[deployment]
+deploymentTarget = "autoscale"
+build = ["bash", "scripts/production-build.sh"]
+run = ["bash", "-c", "NODE_ENV=production node apps/api/dist/index.js"]
+
+[[ports]]
+localPort = 5000
+externalPort = 5000
+
+[[ports]]
+localPort = 5001
+externalPort = 3000
+
+[[ports]]
+localPort = 5002
+externalPort = 3001
+
+[[ports]]
+localPort = 5003
+externalPort = 3003
+
+[[ports]]
+localPort = 8080
+externalPort = 8080
+
+[[ports]]
+localPort = 8081
+externalPort = 80
+
+[[ports]]
+localPort = 8082
+externalPort = 3002
+
+[[ports]]
+localPort = 8083
+externalPort = 4200
+
+[env]
+PORT = "5000"
+
+[agent]
+stack = "EXPO"
+expertMode = true
+
+[workflows]
+runButton = "Project"
+
+[[workflows.workflow]]
+name = "Project"
+mode = "parallel"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Start App"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Start Backend"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Start Admin"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Start Frontend"
+
+[[workflows.workflow]]
+name = "Start App"
+author = "agent"
+mode = "parallel"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Start Backend"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Start Frontend"
+
+[[workflows.workflow]]
+name = "Start Backend"
+author = "agent"
+mode = "sequential"
+
+[workflows.workflow.metadata]
+outputType = "console"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "node_modules/.bin/tsx watch apps/api/src/index.ts"
+waitForPort = 5000
+
+[[workflows.workflow]]
+name = "Start Frontend"
+author = "agent"
+mode = "sequential"
+
+[workflows.workflow.metadata]
+outputType = "console"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "EXPO_PACKAGER_PROXY_URL=https://$REPLIT_DEV_DOMAIN REACT_NATIVE_PACKAGER_HOSTNAME=$REPLIT_DEV_DOMAIN EXPO_PUBLIC_DOMAIN=$REPLIT_DEV_DOMAIN:5000 node_modules/.bin/expo start --localhost --clear"
+waitForPort = 8081
+
+[[workflows.workflow]]
+name = "Start Admin"
+author = "agent"
+
+[workflows.workflow.metadata]
+outputType = "console"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd apps/admin && ../../node_modules/.bin/vite --port 8080 --host"
+waitForPort = 8080
+
+[userenv]
+
+[userenv.shared]
+EXPO_PUBLIC_SUPABASE_URL = "https://mwapnzwgusstkgjguhur.supabase.co"
+EXPO_PUBLIC_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im13YXBuendndXNzdGtnamd1aHVyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE2Nzc5ODYsImV4cCI6MjA4NzI1Mzk4Nn0.5KxPMx4k5g4TsaQG6zXCTGVHuR0Us7uHgk45QPL5KY8"
+SUPABASE_URL = "https://mwapnzwgusstkgjguhur.supabase.co"
+SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im13YXBuendndXNzdGtnamd1aHVyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE2Nzc5ODYsImV4cCI6MjA4NzI1Mzk4Nn0.5KxPMx4k5g4TsaQG6zXCTGVHuR0Us7uHgk45QPL5KY8"
+EXPO_PUBLIC_DOMAIN = "giveblack.mawa.pro"
+EXPO_PUBLIC_API_URL = "http://localhost:5000"
+BREVO_SENDER_EMAIL = "mazu@mawamedia.com"
+NODE_ENV = "development"
+ADMIN_EMAIL = "mazu@mawamedia.com"
+APP_URL = "https://giveblackapp.com"
+SUPPORT_EMAIL = "info@giveblackapp.com"
+STRIPE_PRICE_GROWTH = "price_1TA2CPBk2z7Pp8h03aNgWKxt"
+STRIPE_PRICE_INSTITUTIONAL = "price_1TA2DnBk2z7Pp8h0GFcDMfQ3"
+VITE_API_URL = "https://giveblack.mawa.pro"
+CORS_ORIGINS = "*"
+JWT_ACCESS_TTL = "15m"
+JWT_REFRESH_TTL_DAYS = "30"
+API_HOST = "0.0.0.0"
+PORT = "5000"
