@@ -1,0 +1,43 @@
+---
+description: GiveBlack monorepo — layout, commands, env, conventions, Git
+alwaysApply: true
+---
+
+# GiveBlack — local dev context
+
+You are helping on **GiveBlack**, a monorepo for a philanthropy app (Black-led orgs, donations, campaigns, volunteers).
+
+## Repo layout
+
+- **Root**: Expo / React Native app (Expo Router, `app/`, `components/`, `lib/`).
+- **`apps/api`**: Node API (`@giveblack/api`) — Fastify-style server, Postgres, Stripe, push notifications.
+- **`apps/admin`**: Vite/React admin panel (`npm run dev:admin` from root or `apps/admin`).
+- **`deploy/`**: nginx, PM2/ecosystem hints, VPS scripts.
+
+## Commands (from repository root)
+
+- Install: `npm install`
+- Mobile: `npm start` / `npx expo start`
+- API: `npm run api:dev`
+- Admin: `npm run dev:admin`
+
+## Environment
+
+- **`.env` is gitignored.** Use `.env.example` as a template — never commit secrets. Local API URLs: `EXPO_PUBLIC_API_URL`, `VITE_API_URL` (follow existing patterns).
+- Production domain context: **giveblackapp.com** (verify in env examples, not hardcoded unless already in code).
+
+## Conventions
+
+- **Minimal, task-focused** changes; no unrelated refactors or unsolicited docs.
+- Match existing **naming, types, and patterns** in the touched package.
+- **Stripe**: prefer Checkout / PaymentIntents / Billing, not legacy Charges.
+- **Mobile**: bundle id **`com.giveblack.app`**; EAS via `app.json` `extra.eas.projectId`; iOS builds need Apple credentials on EAS.
+
+## Git
+
+- **GitHub**: `mazu-sharaf/GiveBlack-App` (often `origin` after clone).
+- **GitLab** may exist as another remote — do not remove remotes without being asked.
+
+## When unsure
+
+- Read **nearby files** and **`apps/api/README.md`** / admin patterns before inventing new structure.
