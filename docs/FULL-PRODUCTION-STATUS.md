@@ -195,7 +195,7 @@ POST /api/admin/storage/upload       - Admin file upload
 - Auto-login after successful signup
 
 ### Admin Panel
-**URL**: https://giveblackhub.mawa.pro/admin/
+**URL**: https://giveblackapp.com/admin/
 
 **Credentials:**
 - Email: `admin@giveblackapp.com`
@@ -207,15 +207,14 @@ POST /api/admin/storage/upload       - Admin file upload
 ## 🌐 Domains & URLs
 
 ### Production URLs
-- **Mobile App API**: `https://giveblack.mawa.pro`
-- **Admin Panel**: `https://giveblackhub.mawa.pro/admin/`
-- **File Uploads**: `https://giveblackhub.mawa.pro/uploads/`
-- **Health Check**: `https://giveblack.mawa.pro/health`
+- **Mobile App API**: `https://giveblackapp.com/app`
+- **Admin Panel**: `https://giveblackapp.com/admin/`
+- **File Uploads**: `https://giveblackapp.com/uploads/`
+- **Health Check**: `https://giveblackapp.com/app/health`
 
 ### Nginx Configuration
 ```
-/etc/nginx/sites-available/giveblack      - API & app domain
-/etc/nginx/sites-available/giveblackhub   - Admin panel domain
+/etc/nginx/sites-available/giveblackapp.com   - Landing /, API /app/, admin /admin/
 ```
 
 ---
@@ -243,8 +242,8 @@ POST /api/admin/storage/upload       - Admin file upload
 ### Required Environment Variables ✓
 ```bash
 # Domain & URLs
-EXPO_PUBLIC_DOMAIN=giveblack.mawa.pro
-EXPO_PUBLIC_API_URL=https://giveblack.mawa.pro
+EXPO_PUBLIC_DOMAIN=giveblackapp.com
+EXPO_PUBLIC_API_URL=https://giveblackapp.com/app
 
 # Database
 DATABASE_URL=postgresql://giveblack:***@localhost:5432/giveblack_db
@@ -448,7 +447,7 @@ Then:
 - Scan QR code with Expo Go app
 
 ### Access Admin Panel
-1. Open: https://giveblackhub.mawa.pro/admin/
+1. Open: https://giveblackapp.com/admin/
 2. Login: `admin@giveblackapp.com` / `Admin@123`
 3. Manage campaigns, donations, users
 
@@ -485,7 +484,7 @@ pm2 monit
 
 Start testing:
 1. Mobile: `npm start` in `/var/www/giveblack`
-2. Admin: https://giveblackhub.mawa.pro/admin/
-3. API: https://giveblack.mawa.pro/health
+2. Admin: https://giveblackapp.com/admin/
+3. API: https://giveblackapp.com/app/health
 
 **All systems are GO! 🚀**

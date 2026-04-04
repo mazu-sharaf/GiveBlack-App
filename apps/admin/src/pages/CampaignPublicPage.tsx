@@ -13,16 +13,12 @@ import { Label } from "@/components/ui/label";
 import { DonationSplitPreview } from "@/components/DonationSplitPreview";
 import { Heart, Users, Share2, Copy, Check, ExternalLink, Loader2, Twitter, Facebook, MessageCircle } from "lucide-react";
 import { toast } from "sonner";
+import { resolveImageUrl } from "@/lib/api";
 
 const API_URL = (import.meta.env.VITE_API_URL || "").replace(/\/$/, "");
 
 /** Default share image when a campaign has no hero or org artwork (matches `index.html` OG). */
 const DEFAULT_SHARE_OG = "https://giveblackapp.com/admin/giveblack-og.png";
-
-function resolveMediaUrl(url: string | null): string | null {
-  if (!url) return null;
-  return url.startsWith("http") ? url : `${API_URL}${url}`;
-}
 
 interface Campaign {
   id: string;
@@ -67,6 +63,13 @@ export default function CampaignPublicPage() {
   const [donorMessage, setDonorMessage] = useState("");
   const [isAnonymous, setIsAnonymous] = useState(false);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
+  const [donorFlow, setDonorFlow] = useState<"guest" | "account">("guest");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [accountEmail, setAccountEmail] = useState("");
+  const [accountPassword, setAccountPassword] = useState("");
+  const [signupLoading, setSignupLoading] = useState(false);
+  const [accessToken, setAccessToken] = useState<string | null>(null);
 
   useEffect(() => {
     const load = async () => {
@@ -92,13 +95,76 @@ export default function CampaignPublicPage() {
     }
   }, [searchParams]);
 
-  const handleDonate = async () => {
-    if (!campaign) return;
-    setCheckoutLoading(true);
+  const handleSignup = async () => {
+    const name = `${firstName.trim()} ${lastName.trim()}`.trim();
+    if (name.length < 2) {
+      toast.error("Please enter your first and last name.");
+      return;
+    }
+    if (!accountEmail.trim()) {
+      toast.error("Email is required.");
+      return;
+    }
+    if (accountPassword.length < 6) {
+      toast.error("Password must be at least 6 characters.");
+      return;
+    }
+    setSignupLoading(true);
     try {
-      const res = await fetch(`${API_URL}/api/payments/public-donate-checkout`, {
+      const res = await fetch(`${API_URL}/api/auth/signup/donor`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: accountEmail.trim(),
+          password: accountPassword,
+          name,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(data.error || "Sign up failed");
+        return;
+      }
+      if (data.accessToken) {
+        setAccessToken(data.accessToken);
+        setDonorEmail(accountEmail.trim());
+        toast.success("Account created. Continue to donate.");
+      } else {
+        toast.error("Sign up did not return a session. Try logging in.");
+      }
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Sign up failed");
+    } finally {
+      setSignupLoading(false);
+    }
+  };
+
+  const handleDonate = async () => {
+    if (!campaign) return;
+    if (!isAnonymous) {
+      if (donorFlow === "account") {
+        if (!accessToken) {
+          toast.error("Create your account first, or switch to guest checkout.");
+          return;
+        }
+        if (!donorEmail.trim()) {
+          toast.error("Your account email is missing. Try signing up again or use guest checkout.");
+          return;
+        }
+      } else if (!donorEmail.trim()) {
+        toast.error("Please enter your email or choose anonymous donation.");
+        return;
+      }
+    }
+    setCheckoutLoading(true);
+    try {
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (accessToken && !isAnonymous && donorFlow === "account") {
+        headers.Authorization = `Bearer ${accessToken}`;
+      }
+      const res = await fetch(`${API_URL}/api/payments/public-donate-checkout`, {
+        method: "POST",
+        headers,
         body: JSON.stringify({
           campaignId: campaign.id,
           orgId: campaign.organization_id,
@@ -161,8 +227,8 @@ export default function CampaignPublicPage() {
     : `Support ${campaign.title} on Give Black — $${Number(campaign.raised).toLocaleString()} raised so far.`;
 
   const shareOgImage =
-    resolveMediaUrl(campaign.main_image_url) ||
-    resolveMediaUrl(campaign.org_image_url) ||
+    resolveImageUrl(campaign.main_image_url) ||
+    resolveImageUrl(campaign.org_image_url) ||
     DEFAULT_SHARE_OG;
 
   return (
@@ -206,9 +272,9 @@ export default function CampaignPublicPage() {
           <div className="lg:col-span-3 space-y-6">
             <div className="relative rounded-2xl overflow-hidden aspect-video">
               {campaign.main_image_url ? (
-                <img src={campaign.main_image_url?.startsWith("http") ? campaign.main_image_url : `${API_URL}${campaign.main_image_url}`} alt={campaign.title} className="w-full h-full object-cover" />
+                <img src={resolveImageUrl(campaign.main_image_url)} alt={campaign.title} className="w-full h-full object-cover" />
               ) : campaign.org_image_url ? (
-                <img src={campaign.org_image_url?.startsWith("http") ? campaign.org_image_url : `${API_URL}${campaign.org_image_url}`} alt={campaign.org_name} className="w-full h-full object-cover" />
+                <img src={resolveImageUrl(campaign.org_image_url)} alt={campaign.org_name} className="w-full h-full object-cover" />
               ) : (
                 <div
                   className="w-full h-full flex items-center justify-center"
@@ -225,7 +291,7 @@ export default function CampaignPublicPage() {
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                   {campaign.gallery.map((img) => (
                     <div key={img.id} className="rounded-lg overflow-hidden aspect-square bg-muted">
-                      <img src={img.image_url?.startsWith("http") ? img.image_url : `${API_URL}${img.image_url}`} alt={img.caption || "Campaign photo"} className="h-full w-full object-cover" />
+                      <img src={resolveImageUrl(img.image_url)} alt={img.caption || "Campaign photo"} className="h-full w-full object-cover" />
                     </div>
                   ))}
                 </div>
@@ -382,8 +448,84 @@ export default function CampaignPublicPage() {
                   <Separator />
 
                   <div className="space-y-3">
-                    <p className="text-sm font-medium">Your information</p>
-                    {!isAnonymous && (
+                    <p className="text-sm font-medium">Checkout</p>
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        variant={donorFlow === "guest" ? "default" : "outline"}
+                        size="sm"
+                        className="flex-1"
+                        onClick={() => {
+                          setDonorFlow("guest");
+                          setAccessToken(null);
+                        }}
+                      >
+                        Guest
+                      </Button>
+                      <Button
+                        type="button"
+                        variant={donorFlow === "account" ? "default" : "outline"}
+                        size="sm"
+                        className="flex-1"
+                        onClick={() => setDonorFlow("account")}
+                      >
+                        Create account &amp; donate
+                      </Button>
+                    </div>
+                    {donorFlow === "account" && (
+                      <div className="space-y-2 rounded-lg border border-border p-3 bg-muted/30">
+                        <p className="text-xs text-muted-foreground">
+                          Sign up once, then pay. Your donation will show in the app under your account.
+                        </p>
+                        {!accessToken ? (
+                          <>
+                            <div className="grid grid-cols-2 gap-2">
+                              <Input
+                                placeholder="First name *"
+                                value={firstName}
+                                onChange={(e) => setFirstName(e.target.value)}
+                              />
+                              <Input
+                                placeholder="Last name *"
+                                value={lastName}
+                                onChange={(e) => setLastName(e.target.value)}
+                              />
+                            </div>
+                            <Input
+                              placeholder="Email *"
+                              type="email"
+                              value={accountEmail}
+                              onChange={(e) => setAccountEmail(e.target.value)}
+                            />
+                            <Input
+                              placeholder="Password (min 6 chars) *"
+                              type="password"
+                              value={accountPassword}
+                              onChange={(e) => setAccountPassword(e.target.value)}
+                              autoComplete="new-password"
+                            />
+                            <Button
+                              type="button"
+                              className="w-full"
+                              variant="secondary"
+                              disabled={signupLoading}
+                              onClick={handleSignup}
+                            >
+                              {signupLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Create account"}
+                            </Button>
+                          </>
+                        ) : (
+                          <p className="text-xs font-medium text-emerald-600">Signed in. Add an optional message below, then donate.</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="space-y-3">
+                    <p className="text-sm font-medium">
+                      {donorFlow === "account" ? "Optional details" : "Your information"}
+                    </p>
+                    {donorFlow === "guest" && !isAnonymous && (
                       <>
                         <Input
                           placeholder="Email address *"

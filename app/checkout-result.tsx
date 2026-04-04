@@ -183,7 +183,19 @@ export default function CheckoutResultScreen() {
         document.body.removeChild(link);
         setTimeout(() => URL.revokeObjectURL(url), 5000);
       } else {
-        Alert.alert("Downloaded", `Receipt saved to ${pdf.uri}`);
+        const canShare = await Sharing.isAvailableAsync();
+        if (!canShare) {
+          Alert.alert(
+            "Could not open save sheet",
+            "Sharing is not available on this device. Try the Share button, or take a screenshot of your receipt."
+          );
+          return;
+        }
+        await Sharing.shareAsync(pdf.uri, {
+          mimeType: "application/pdf",
+          dialogTitle: "Save receipt",
+          UTI: "com.adobe.pdf",
+        });
       }
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Could not generate receipt";
@@ -211,7 +223,10 @@ export default function CheckoutResultScreen() {
       } else {
         const canShare = await Sharing.isAvailableAsync();
         if (!canShare) {
-          Alert.alert("Sharing unavailable", `Receipt saved to ${pdf.uri}`);
+          Alert.alert(
+            "Sharing unavailable",
+            "The system share sheet could not be opened on this device."
+          );
           return;
         }
         await Sharing.shareAsync(pdf.uri, {

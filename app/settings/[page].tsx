@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
+import { useFocusEffect } from "@react-navigation/native";
 import {
   View,
   Text,
@@ -19,7 +20,7 @@ import { useSafeInsets } from "@/lib/safe-area";
 import { Ionicons } from "@expo/vector-icons";
 import Colors from "@/constants/colors";
 import { APP_VERSION } from "@/constants/version";
-import { apiPost, apiGet, getApiUrl } from "@/lib/query-client";
+import { apiPost, apiGet, apiPatch, getApiUrl } from "@/lib/query-client";
 import { useTheme, useThemeColors } from "@/context/ThemeContext";
 import { useAuth } from "@/context/AuthContext";
 import { useApp } from "@/context/AppContext";
@@ -64,58 +65,164 @@ function InfoSection({ title, children }: { title: string; children: React.React
   );
 }
 
+type NotifPrefs = {
+  donor_receipts: boolean;
+  org_donations: boolean;
+  org_volunteers: boolean;
+  org_campaign_status: boolean;
+  donor_new_campaigns_from_orgs_i_supported: boolean;
+};
+
 function NotificationsPage() {
   const c = useThemeColors();
-  const [pushEnabled, setPushEnabled] = useState(true);
+  const { session, user } = useAuth();
+  const [prefs, setPrefs] = useState<NotifPrefs | null>(null);
+  const [loading, setLoading] = useState(true);
   const [emailEnabled, setEmailEnabled] = useState(true);
-  const [donationAlerts, setDonationAlerts] = useState(true);
-  const [newOrgs, setNewOrgs] = useState(false);
   const [weeklyDigest, setWeeklyDigest] = useState(true);
-  const [impactUpdates, setImpactUpdates] = useState(true);
+
+  useEffect(() => {
+    if (!session?.accessToken) {
+      setLoading(false);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const data = await apiGet<{ preferences: NotifPrefs }>(
+          "/api/me/notification-settings",
+          session.accessToken
+        );
+        if (!cancelled && data.preferences) setPrefs(data.preferences);
+      } catch {
+        if (!cancelled) setPrefs(null);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [session?.accessToken]);
+
+  async function patchPref(key: keyof NotifPrefs, value: boolean) {
+    if (!session?.accessToken || !prefs) return;
+    const next = { ...prefs, [key]: value };
+    setPrefs(next);
+    try {
+      const res = await apiPatch<{ preferences: NotifPrefs }>(
+        "/api/me/notification-settings",
+        { [key]: value },
+        session.accessToken
+      );
+      if (res.preferences) setPrefs(res.preferences);
+    } catch {
+      setPrefs(prefs);
+    }
+  }
+
+  const isCharity = user?.type === "charity";
 
   return (
     <>
-      <InfoSection title="Push Notifications">
-        <SettingRow
-          icon="notifications-outline"
-          label="Enable Push Notifications"
-          description="Receive alerts on your device"
-          right={<Switch value={pushEnabled} onValueChange={setPushEnabled} trackColor={{ true: Colors.green }} />}
-        />
-        <View style={[styles.sep, { backgroundColor: c.border }]} />
-        <SettingRow
-          icon="heart-outline"
-          label="Donation Confirmations"
-          description="Get notified when your donation is processed"
-          right={<Switch value={donationAlerts} onValueChange={setDonationAlerts} trackColor={{ true: Colors.green }} />}
-        />
-        <View style={[styles.sep, { backgroundColor: c.border }]} />
-        <SettingRow
-          icon="add-circle-outline"
-          label="New Organizations"
-          description="Alert when new charities are added"
-          right={<Switch value={newOrgs} onValueChange={setNewOrgs} trackColor={{ true: Colors.green }} />}
-        />
-        <View style={[styles.sep, { backgroundColor: c.border }]} />
-        <SettingRow
-          icon="trending-up-outline"
-          label="Impact Updates"
-          description="See how your donations make a difference"
-          right={<Switch value={impactUpdates} onValueChange={setImpactUpdates} trackColor={{ true: Colors.green }} />}
-        />
+      <InfoSection title="Push notifications">
+        {loading || !prefs ? (
+          <Text style={[styles.legalText, { color: c.textMuted, padding: 16 }]}>
+            {session?.accessToken ? "Loading…" : "Sign in to manage notification preferences."}
+          </Text>
+        ) : (
+          <>
+            {user?.type === "donor" && (
+              <>
+                <SettingRow
+                  icon="heart-outline"
+                  label="Donation confirmations"
+                  description="When your gift is successfully processed"
+                  right={
+                    <Switch
+                      value={prefs.donor_receipts}
+                      onValueChange={(v) => void patchPref("donor_receipts", v)}
+                      trackColor={{ true: Colors.green }}
+                    />
+                  }
+                />
+                <View style={[styles.sep, { backgroundColor: c.border }]} />
+                <SettingRow
+                  icon="megaphone-outline"
+                  label="New campaigns from orgs you supported"
+                  description="When a charity you gave to launches a campaign"
+                  right={
+                    <Switch
+                      value={prefs.donor_new_campaigns_from_orgs_i_supported}
+                      onValueChange={(v) => void patchPref("donor_new_campaigns_from_orgs_i_supported", v)}
+                      trackColor={{ true: Colors.green }}
+                    />
+                  }
+                />
+              </>
+            )}
+            {isCharity && (
+              <>
+                <SettingRow
+                  icon="cash-outline"
+                  label="New donations"
+                  description="When someone donates to your campaigns"
+                  right={
+                    <Switch
+                      value={prefs.org_donations}
+                      onValueChange={(v) => void patchPref("org_donations", v)}
+                      trackColor={{ true: Colors.green }}
+                    />
+                  }
+                />
+                <View style={[styles.sep, { backgroundColor: c.border }]} />
+                <SettingRow
+                  icon="hand-left-outline"
+                  label="Volunteer signups"
+                  description="When someone applies to volunteer"
+                  right={
+                    <Switch
+                      value={prefs.org_volunteers}
+                      onValueChange={(v) => void patchPref("org_volunteers", v)}
+                      trackColor={{ true: Colors.green }}
+                    />
+                  }
+                />
+                <View style={[styles.sep, { backgroundColor: c.border }]} />
+                <SettingRow
+                  icon="rocket-outline"
+                  label="Campaign status"
+                  description="When your campaign goes live on GiveBlack"
+                  right={
+                    <Switch
+                      value={prefs.org_campaign_status}
+                      onValueChange={(v) => void patchPref("org_campaign_status", v)}
+                      trackColor={{ true: Colors.green }}
+                    />
+                  }
+                />
+              </>
+            )}
+            {!isCharity && user?.type !== "donor" && (
+              <Text style={[styles.legalText, { color: c.textMuted, padding: 16 }]}>
+                Notification categories are available for donor and charity accounts.
+              </Text>
+            )}
+          </>
+        )}
       </InfoSection>
-      <InfoSection title="Email Notifications">
+      <InfoSection title="Email (local)">
         <SettingRow
           icon="mail-outline"
-          label="Email Notifications"
-          description="Receive updates via email"
+          label="Email notifications"
+          description="Preference for email is stored on this device only"
           right={<Switch value={emailEnabled} onValueChange={setEmailEnabled} trackColor={{ true: Colors.green }} />}
         />
         <View style={[styles.sep, { backgroundColor: c.border }]} />
         <SettingRow
           icon="calendar-outline"
-          label="Weekly Giving Digest"
-          description="Summary of your weekly giving activity"
+          label="Weekly giving digest"
+          description="Local reminder preference"
           right={<Switch value={weeklyDigest} onValueChange={setWeeklyDigest} trackColor={{ true: Colors.green }} />}
         />
       </InfoSection>
@@ -1103,9 +1210,15 @@ function TransactionRow({ t, onPress, expanded }: { t: any; onPress: () => void;
 
 function TransactionsPage() {
   const c = useThemeColors();
-  const { transactions } = useApp();
+  const { transactions, refresh } = useApp();
   const [search, setSearch] = useState("");
   const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  useFocusEffect(
+    useCallback(() => {
+      void refresh();
+    }, [refresh])
+  );
 
   const filtered = transactions.filter((t) => String(t.title || "").toLowerCase().includes(search.toLowerCase()));
 
@@ -1294,7 +1407,9 @@ function SubscriptionSettingsPage() {
           icon="rocket-outline"
           label="Upgrade Plan"
           description={tier === "free" ? "Move to Growth or Institutional plan" : "Change to a different paid plan"}
-          onPress={() => router.push("/(org)/subscriptions" as any)}
+          onPress={() => {
+            if (user?.type === "charity") router.push("/(org)/subscriptions");
+          }}
         />
         <View style={[styles.sep, { backgroundColor: c.border }]} />
         <SettingRow
@@ -1324,8 +1439,11 @@ function SettingsMainPage() {
   const c = useThemeColors();
   const { isDark } = useTheme();
   const router = useRouter();
+  const { user } = useAuth();
   const menuItems = [
-    { icon: "card-outline", label: "Subscription", color: isDark ? "#132737" : "#E3F2FD", route: "/settings/subscription" },
+    ...(user?.type === "charity"
+      ? [{ icon: "card-outline" as const, label: "Subscription", color: isDark ? "#132737" : "#E3F2FD", route: "/settings/subscription" }]
+      : []),
     { icon: "call-outline", label: "Contact", color: isDark ? "#1B2A3D" : "#E3F2FD", route: "/settings/help" },
     { icon: "help-circle-outline", label: "How to Donate", color: isDark ? "#1B2E1B" : "#E8F5E9", route: "/settings/how-to-donate" },
     { icon: "shield-checkmark-outline", label: "Privacy", color: isDark ? "#2D1B3D" : "#F3E5F5", route: "/settings/privacy-settings" },

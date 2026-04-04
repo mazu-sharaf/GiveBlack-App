@@ -195,7 +195,7 @@ function normalizeCat(raw: Record<string, unknown>): Category {
 }
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
-  const { user, session } = useAuth();
+  const { user, session, refreshDonationSummary } = useAuth();
   const userId = user?.id || "guest";
   
   const [organizations, setOrganizations] = useState<Organization[]>([]);
@@ -328,7 +328,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     } catch {
       setIsOffline(true);
     }
-  }, [accessToken]);
+    await refreshDonationSummary();
+  }, [accessToken, refreshDonationSummary]);
 
   useEffect(() => {
     refresh();

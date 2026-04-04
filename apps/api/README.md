@@ -21,6 +21,6 @@
 - `POST /api/auth/login`
 - `POST /api/auth/refresh`
 - `POST /api/payments/create-intent`
-- `POST /api/webhooks/stripe`
+- `POST /api/webhooks/stripe` — production URL behind Nginx: `https://giveblackapp.com/app/api/webhooks/stripe`
 - `POST /api/notifications/push-token`
 - `POST /api/admin/notifications/broadcast`

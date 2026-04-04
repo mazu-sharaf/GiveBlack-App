@@ -56,9 +56,9 @@ export default function DonationsPage() {
   const totalFees = donations.reduce((s, d) => s + Number(d.platform_fee || 0), 0);
 
   const exportCSV = () => {
-    const header = "Date,Donor,Email,Organization,Amount,Fee,Net,Status\n";
+    const header = "Date,Donor,Email,Organization,Amount,Fee,Net,Status,EducationPartner,PartnerReinvest,GeneralReinvest\n";
     const rows = donations.map((d) =>
-      `${d.created_at ? format(new Date(d.created_at as string), "yyyy-MM-dd") : ""},${String(d.donor_name || "").replace(/,/g, "")},${d.user_email || ""},${String(d.org_name || "").replace(/,/g, "")},${d.amount},${d.platform_fee || 0},${d.net_to_org || d.amount},${d.status || "pending"}`
+      `${d.created_at ? format(new Date(d.created_at as string), "yyyy-MM-dd") : ""},${String(d.donor_name || "").replace(/,/g, "")},${d.user_email || ""},${String(d.org_name || "").replace(/,/g, "")},${d.amount},${d.platform_fee || 0},${d.net_to_org || d.amount},${d.status || "pending"},${String(d.education_partner_name || "").replace(/,/g, "")},${d.partner_reinvest_amount ?? ""},${d.general_reinvest_amount ?? ""}`
     ).join("\n");
     const blob = new Blob([header + rows], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
@@ -132,6 +132,7 @@ export default function DonationsPage() {
                     <TableHead className="hidden md:table-cell text-right">Fee</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Date</TableHead>
+                    <TableHead className="hidden lg:table-cell max-w-[120px]">Partner</TableHead>
                     <TableHead className="w-16">Fees</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -156,6 +157,9 @@ export default function DonationsPage() {
                       <TableCell className="text-muted-foreground text-sm whitespace-nowrap">
                         {d.created_at ? format(new Date(d.created_at as string), "MMM d, yyyy") : "--"}
                       </TableCell>
+                      <TableCell className="hidden lg:table-cell text-muted-foreground text-xs truncate max-w-[120px]">
+                        {d.education_partner_name ? String(d.education_partner_name) : "—"}
+                      </TableCell>
                       <TableCell>
                         <Button
                           variant="ghost"
@@ -169,7 +173,7 @@ export default function DonationsPage() {
                     </TableRow>
                   ))}
                   {donations.length === 0 && (
-                    <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">No donations found</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">No donations found</TableCell></TableRow>
                   )}
                 </TableBody>
               </Table>
@@ -187,7 +191,9 @@ export default function DonationsPage() {
             const amount = Number(feeDetail.amount || 0);
             const platformFee = Number(feeDetail.platform_fee || 0);
             const processingFee = Number(feeDetail.processing_fee || (amount * 0.029 + 0.30));
-            const reinvestAmount = Number(feeDetail.reinvest_amount || (platformFee * 0.10));
+            const reinvestAmount = Number(feeDetail.reinvest_amount ?? 0);
+            const partnerReinvest = Number(feeDetail.partner_reinvest_amount ?? 0);
+            const generalReinvest = Number(feeDetail.general_reinvest_amount ?? 0);
             const netToOrg = Number(feeDetail.net_to_org || (amount - platformFee));
             return (
               <div className="space-y-3 text-sm">
@@ -206,9 +212,21 @@ export default function DonationsPage() {
                     <span className="text-amber-400">${processingFee.toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Reinvest / Ecosystem</span>
+                    <span className="text-muted-foreground">Reinvest (total)</span>
                     <span className="text-cyan-400">${reinvestAmount.toFixed(2)}</span>
                   </div>
+                  {(partnerReinvest > 0 || generalReinvest > 0) && (
+                    <>
+                      <div className="flex justify-between text-xs">
+                        <span className="text-muted-foreground">Attributed partner</span>
+                        <span className="text-cyan-300">${partnerReinvest.toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between text-xs">
+                        <span className="text-muted-foreground">General fund</span>
+                        <span className="text-cyan-300">${generalReinvest.toFixed(2)}</span>
+                      </div>
+                    </>
+                  )}
                 </div>
                 <div className="border-t border-border pt-2">
                   <div className="flex justify-between">
@@ -225,6 +243,12 @@ export default function DonationsPage() {
                     <span className="text-muted-foreground">Organization</span>
                     <span>{String(feeDetail.org_name || "--")}</span>
                   </div>
+                  {feeDetail.education_partner_name && (
+                    <div className="flex justify-between text-xs">
+                      <span className="text-muted-foreground">Education partner</span>
+                      <span>{String(feeDetail.education_partner_name)}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between text-xs">
                     <span className="text-muted-foreground">Status</span>
                     <Badge variant="outline" className={STATUS_COLORS[String(feeDetail.status)] || ""}>{String(feeDetail.status || "pending")}</Badge>

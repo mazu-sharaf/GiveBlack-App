@@ -25,7 +25,9 @@ export default function OrganizationDetailPage() {
     image_color: "#333333", initials: "", featured: false, verified: false, image_url: "",
     cover_image_url: "",
     bank_name: "", account_holder_name: "", account_last4: "", routing_number: "",
+    tax_id: "",
     stripe_account_id: "",
+    payouts_enabled: false,
     absorb_fees: false, ecosystem_opt_in: true, endowment_opt_in: true,
   });
   const [saving, setSaving] = useState(false);
@@ -67,7 +69,9 @@ export default function OrganizationDetailPage() {
               cover_image_url: String(d.cover_image_url || ""),
               bank_name: String(d.bank_name || ""), account_holder_name: String(d.account_holder_name || ""),
               account_last4: String(d.account_last4 || ""), routing_number: String(d.routing_number || ""),
+              tax_id: String(d.tax_id || ""),
               stripe_account_id: String(d.stripe_account_id || ""),
+              payouts_enabled: Boolean(d.payouts_enabled),
               absorb_fees: d.absorb_fees === undefined ? false : Boolean(d.absorb_fees),
               ecosystem_opt_in: d.ecosystem_opt_in === undefined ? true : Boolean(d.ecosystem_opt_in),
               endowment_opt_in: d.endowment_opt_in === undefined ? true : Boolean(d.endowment_opt_in),
@@ -133,7 +137,9 @@ export default function OrganizationDetailPage() {
         account_holder_name: form.account_holder_name || null,
         account_last4: form.account_last4 || null,
         routing_number: form.routing_number || null,
+        tax_id: form.tax_id || null,
         stripe_account_id: form.stripe_account_id || null,
+        payouts_enabled: form.payouts_enabled,
         absorb_fees: form.absorb_fees,
         ecosystem_opt_in: form.ecosystem_opt_in,
         endowment_opt_in: form.endowment_opt_in,
@@ -380,6 +386,22 @@ export default function OrganizationDetailPage() {
                 <Label>Account Last 4</Label>
                 <Input value={form.account_last4} onChange={(e) => set("account_last4", e.target.value)} maxLength={4} />
               </div>
+              <div className="space-y-2 sm:col-span-2">
+                <Label>Tax ID / EIN</Label>
+                <Input value={form.tax_id} onChange={(e) => set("tax_id", e.target.value)} placeholder="Optional" />
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-3 rounded-lg border border-border px-3 py-2">
+              <span className="text-sm text-muted-foreground">Stripe payouts enabled</span>
+              <Badge variant={form.payouts_enabled ? "default" : "secondary"} className={form.payouts_enabled ? "bg-emerald-600" : ""}>
+                {form.payouts_enabled ? "Yes" : "No"}
+              </Badge>
+              <span className="text-xs text-muted-foreground">(Usually set by Stripe Connect / webhooks; toggle to override.)</span>
+              <Switch
+                checked={form.payouts_enabled}
+                onCheckedChange={(v) => set("payouts_enabled", v)}
+                aria-label="Toggle payouts enabled"
+              />
             </div>
             <div className="space-y-2">
               <Label>Stripe Account ID</Label>

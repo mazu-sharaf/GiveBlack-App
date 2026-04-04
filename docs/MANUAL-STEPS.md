@@ -28,7 +28,7 @@ This list covers connections and one-time setup only. Code is already in place.
 
 - **`STRIPE_SECRET_KEY`** – Stripe secret key (you should already have this).
 - **`STRIPE_WEBHOOK_SECRET`** – From Stripe **Developers → Webhooks**. Add endpoint:
-  - URL: `https://<your-api-domain>/api/webhooks/stripe`
+  - URL: `https://giveblackapp.com/app/api/webhooks/stripe` (Nginx maps `/app/` to the API; backend route is `POST /api/webhooks/stripe`)
   - Events: `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`
   - Copy the **Signing secret** into `STRIPE_WEBHOOK_SECRET`.
 - **`STRIPE_PRICE_GROWTH`** – Price ID for Growth ($99/month).
@@ -47,7 +47,7 @@ This list covers connections and one-time setup only. Code is already in place.
 
 ### Expo app
 
-- **`EXPO_PUBLIC_DOMAIN`** – Your API/public domain (e.g. `giveblack.mawa.pro`) so the app can call the server and community APIs.
+- **`EXPO_PUBLIC_DOMAIN`** – Public domain for deep links (e.g. `giveblackapp.com`, no `https://`).
 
 ---
 

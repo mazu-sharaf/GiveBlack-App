@@ -6,7 +6,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useApp } from "@/context/AppContext";
 import { useAuth } from "@/context/AuthContext";
 import { useThemeColors } from "@/context/ThemeContext";
-import { apiPost, getApiUrl } from "@/lib/query-client";
+import { apiGet, apiPost, getApiUrl } from "@/lib/query-client";
 import { isNativeStripeAvailable, presentNativePaymentSheet } from "@/lib/stripe-confirm";
 import * as Print from "expo-print";
 import * as LegacyFileSystem from "expo-file-system/legacy";
@@ -33,11 +33,16 @@ function generateReference() {
 import { buildReceiptHtml } from "@/lib/receipt-html";
 
 export default function DonateScreen() {
-  const { orgId } = useLocalSearchParams<{ orgId: string }>();
+  const { orgId, campaignId: campaignIdParam, partner: partnerParam } = useLocalSearchParams<{
+    orgId: string;
+    campaignId?: string | string[];
+    partner?: string | string[];
+  }>();
+  const campaignId = Array.isArray(campaignIdParam) ? campaignIdParam[0] : campaignIdParam;
   const insets = useSafeInsets();
   const c = useThemeColors();
-  const { organizations } = useApp();
-  const { user, isAuthenticated, isGuest, session } = useAuth();
+  const { organizations, refresh } = useApp();
+  const { user, isAuthenticated, isGuest, session, refreshDonationSummary } = useAuth();
   const org = organizations.find((o) => o.id === orgId);
 
   // Start at $0 with no preset selected.
@@ -64,6 +69,9 @@ export default function DonateScreen() {
   const [endowmentRate, setEndowmentRate] = useState(DEFAULT_ENDOWMENT_RATE);
 
   const [donationRef, setDonationRef] = useState("");
+
+  const [resolvedPartner, setResolvedPartner] = useState<{ id: string; code: string; name: string } | null>(null);
+  const [partnerLookupError, setPartnerLookupError] = useState<string | null>(null);
 
   const checkmarkScale = useRef(new Animated.Value(0)).current;
   const checkmarkOpacity = useRef(new Animated.Value(0)).current;
@@ -153,6 +161,35 @@ export default function DonateScreen() {
     }).start();
   }, [amountGuideStep, step, amountGuidePulse]);
 
+  useEffect(() => {
+    let cancelled = false;
+    const raw = Array.isArray(partnerParam) ? partnerParam[0] : partnerParam;
+    if (!raw || !String(raw).trim()) {
+      setResolvedPartner(null);
+      setPartnerLookupError(null);
+      return;
+    }
+    (async () => {
+      try {
+        const data = await apiGet<{ id: string; code: string; name: string }>(
+          `/api/education-partners/lookup?code=${encodeURIComponent(String(raw).trim())}`
+        );
+        if (!cancelled) {
+          setResolvedPartner(data);
+          setPartnerLookupError(null);
+        }
+      } catch {
+        if (!cancelled) {
+          setResolvedPartner(null);
+          setPartnerLookupError("This partner link is not recognized.");
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [partnerParam]);
+
   if (!org) {
     return (
       <View style={[styles.container, { backgroundColor: c.background }]}>
@@ -200,7 +237,14 @@ export default function DonateScreen() {
         ephemeralKey: string;
       }>(
         "/api/payments/create-intent",
-        { orgId: org!.id, amount: value },
+        {
+          orgId: org!.id,
+          amount: value,
+          reinvestOptIn: educationEnabled,
+          reinvestPct: Math.round(educationRate * 1000) / 10,
+          ...(resolvedPartner ? { educationPartnerCode: resolvedPartner.code } : {}),
+          ...(campaignId ? { campaignId } : {}),
+        },
         token
       );
 
@@ -212,6 +256,16 @@ export default function DonateScreen() {
         allowsDelayedPaymentMethods: false,
       });
       if (result.status === "success") {
+        // Finalize raised/donor totals on the server even when Stripe webhooks are not delivered (e.g. local dev or test mode without forwarding).
+        try {
+          await apiPost<{ ok: boolean }>(
+            "/api/payments/sync-native-donation",
+            { paymentIntentId: intentRes.paymentIntentId },
+            token
+          );
+        } catch {
+          // Webhook may still apply the same update; do not block the success UI.
+        }
         return "success";
       }
       if (result.status === "canceled") return "canceled";
@@ -256,6 +310,8 @@ export default function DonateScreen() {
     const nativeResult = await attemptNativePayment(token, value);
     if (nativeResult === "success") {
       setStep("success");
+      void refreshDonationSummary();
+      void refresh();
     } else if (nativeResult === "canceled") {
       setStep("amount");
     } else {
@@ -330,7 +386,21 @@ export default function DonateScreen() {
         document.body.removeChild(link);
         setTimeout(() => URL.revokeObjectURL(url), 5000);
       } else {
-        Alert.alert("Downloaded", `Receipt saved to ${pdf.uri}`);
+        // iOS/Android: there is no public "Downloads" folder apps can write to. Open the system
+        // sheet so the user can Save to Files, AirDrop, Mail, etc.—same as a real "export".
+        const canShare = await Sharing.isAvailableAsync();
+        if (!canShare) {
+          Alert.alert(
+            "Could not open save sheet",
+            "Sharing is not available on this device. Try the Share button, or take a screenshot of your receipt."
+          );
+          return;
+        }
+        await Sharing.shareAsync(pdf.uri, {
+          mimeType: "application/pdf",
+          dialogTitle: "Save receipt",
+          UTI: "com.adobe.pdf",
+        });
       }
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Could not generate receipt";
@@ -362,7 +432,10 @@ export default function DonateScreen() {
       } else {
         const canShare = await Sharing.isAvailableAsync();
         if (!canShare) {
-          Alert.alert("Sharing unavailable", `Receipt saved to ${pdf.uri}`);
+          Alert.alert(
+            "Sharing unavailable",
+            "The system share sheet could not be opened on this device."
+          );
           return;
         }
         await Sharing.shareAsync(pdf.uri, {
@@ -580,6 +653,21 @@ export default function DonateScreen() {
         <View style={[styles.container, { backgroundColor: c.background }]}>
           <AppHeader showBack title="Donate" showSearch={false} />
           <ScrollView style={styles.content} contentContainerStyle={{ paddingBottom: 40 }}>
+            {partnerLookupError ? (
+              <View style={[styles.partnerBanner, { backgroundColor: c.cardBg, borderColor: "#c44" }]}>
+                <Ionicons name="alert-circle-outline" size={18} color="#c44" />
+                <Text style={{ color: c.text, fontSize: 13, marginLeft: 8, flex: 1 }}>{partnerLookupError}</Text>
+              </View>
+            ) : null}
+            {resolvedPartner && !partnerLookupError ? (
+              <View style={[styles.partnerBanner, { backgroundColor: c.cardBg, borderColor: c.green }]}>
+                <Ionicons name="school-outline" size={18} color={c.green} />
+                <Text style={{ color: c.text, fontSize: 13, marginLeft: 8, flex: 1 }}>
+                  Reinvest attribution:{" "}
+                  <Text style={{ fontFamily: "Poppins_600SemiBold" }}>{resolvedPartner.name}</Text>
+                </Text>
+              </View>
+            ) : null}
             <View style={[styles.card, { backgroundColor: c.cardBg }]}>
               <Text style={[styles.sectionTitle, { color: c.text }]}>Fee Breakdown</Text>
 
@@ -711,6 +799,21 @@ export default function DonateScreen() {
         <AppHeader showBack title="Donate" showSearch={false} />
 
         <ScrollView style={styles.content} contentContainerStyle={{ paddingBottom: 40 }} keyboardDismissMode="interactive">
+          {partnerLookupError ? (
+            <View style={[styles.partnerBanner, { backgroundColor: c.cardBg, borderColor: "#c44" }]}>
+              <Ionicons name="alert-circle-outline" size={18} color="#c44" />
+              <Text style={{ color: c.text, fontSize: 13, marginLeft: 8, flex: 1 }}>{partnerLookupError}</Text>
+            </View>
+          ) : null}
+          {resolvedPartner && !partnerLookupError ? (
+            <View style={[styles.partnerBanner, { backgroundColor: c.cardBg, borderColor: c.green }]}>
+              <Ionicons name="school-outline" size={18} color={c.green} />
+              <Text style={{ color: c.text, fontSize: 13, marginLeft: 8, flex: 1 }}>
+                Reinvest attribution:{" "}
+                <Text style={{ fontFamily: "Poppins_600SemiBold" }}>{resolvedPartner.name}</Text>
+              </Text>
+            </View>
+          ) : null}
           <Text style={[styles.sectionTitle, { color: c.text }]}>Enter the Amount</Text>
 
           <View style={[styles.amountDisplay, { borderColor: c.green, backgroundColor: c.cardBg }]}>
@@ -850,6 +953,15 @@ const styles = StyleSheet.create({
   content: { flex: 1, padding: 20 },
   centerContent: { flex: 1, alignItems: "center", justifyContent: "center", gap: 16, paddingHorizontal: 40 },
   centerText: { fontFamily: "Poppins_600SemiBold", fontSize: 18, textAlign: "center" },
+
+  partnerBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 16,
+  },
 
   processingMain: { flex: 1, alignItems: "stretch" },
   processingCenter: { flex: 1, alignItems: "center", justifyContent: "center", paddingTop: 40 },

@@ -2,7 +2,7 @@ module.exports = {
   apps: [{
     name: "giveblack-api",
     script: "apps/api/dist/index.js",
-    cwd: "/var/www/GiveBlackapp2.0",
+    cwd: "/var/www/giveblack",
     instances: 1,
     exec_mode: "fork",
     autorestart: true,

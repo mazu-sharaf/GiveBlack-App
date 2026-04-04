@@ -10,7 +10,7 @@ echo ""
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$REPO_ROOT"
 
-DOMAIN="${DOMAIN:-giveblack.mawa.pro}"
+DOMAIN="${DOMAIN:-giveblackapp.com}"
 DB_NAME="${DB_NAME:-giveblack_db}"
 DB_USER="${DB_USER:-giveblack_user}"
 DB_PASS="${DB_PASS:-}"
@@ -68,7 +68,7 @@ if [ -z "$DB_PASS" ]; then
   echo "Usage: DB_PASS=your_password bash deploy/setup-vps.sh"
   echo ""
   echo "Full options:"
-  echo "  DOMAIN=giveblack.mawa.pro \\"
+  echo "  DOMAIN=giveblackapp.com \\"
   echo "  DB_NAME=giveblack_db \\"
   echo "  DB_USER=giveblack_user \\"
   echo "  DB_PASS=your_db_password \\"
@@ -115,6 +115,12 @@ if [ ! -f "$REPO_ROOT/.env" ]; then
   JWT_ACCESS=$(node -e "console.log(require('crypto').randomBytes(48).toString('hex'))")
   JWT_REFRESH=$(node -e "console.log(require('crypto').randomBytes(48).toString('hex'))")
 
+  if [ "$DOMAIN" = "giveblackapp.com" ]; then
+    CORS_ORIGINS_VALUE="https://giveblackapp.com,https://www.giveblackapp.com"
+  else
+    CORS_ORIGINS_VALUE="https://$DOMAIN"
+  fi
+
   cat > "$REPO_ROOT/.env" <<ENVEOF
 NODE_ENV=production
 PORT=$PORT
@@ -126,11 +132,12 @@ JWT_REFRESH_SECRET=$JWT_REFRESH
 JWT_ACCESS_TTL=15m
 JWT_REFRESH_TTL_DAYS=30
 
-CORS_ORIGINS=https://$DOMAIN
+CORS_ORIGINS=$CORS_ORIGINS_VALUE
 ADMIN_BOOTSTRAP_PASSWORD=Admin@123
 
 EXPO_PUBLIC_DOMAIN=$DOMAIN
 EXPO_PUBLIC_API_URL=https://$DOMAIN/app
+VITE_API_URL=https://$DOMAIN/app
 
 # Stripe (fill in from your Stripe dashboard)
 # STRIPE_SECRET_KEY=sk_live_...
@@ -204,10 +211,10 @@ print_step "Configuring Nginx"
 
 NGINX_CONF="/etc/nginx/sites-available/$DOMAIN"
 
-if [ "$DOMAIN" = "giveblack.mawa.pro" ]; then
-  sudo cp "$REPO_ROOT/deploy/nginx-giveblack-mawa-pro.conf" "$NGINX_CONF"
-elif [ "$DOMAIN" = "giveblackapp.com" ]; then
+if [ "$DOMAIN" = "giveblackapp.com" ]; then
   sudo cp "$REPO_ROOT/deploy/nginx-giveblackapp.com.conf" "$NGINX_CONF"
+elif [ "$DOMAIN" = "giveblack.mawa.pro" ]; then
+  sudo cp "$REPO_ROOT/deploy/nginx-giveblack-mawa-pro.conf" "$NGINX_CONF"
 else
   echo "Creating generic Nginx config for $DOMAIN..."
   sudo tee "$NGINX_CONF" > /dev/null <<NGINXEOF
@@ -280,7 +287,7 @@ echo "============================================"
 echo ""
 echo "  Domain:  https://$DOMAIN"
 echo "  API:     https://$DOMAIN/app/api/organizations"
-echo "  Health:  https://$DOMAIN/health"
+echo "  Health:  https://$DOMAIN/app/health"
 echo "  Admin:   https://$DOMAIN/admin/"
 echo ""
 echo "  Admin Login:"
@@ -290,7 +297,7 @@ echo ""
 echo "  Verify with:"
 echo "    curl https://$DOMAIN/app/api/organizations"
 echo "    curl https://$DOMAIN/app/api/categories"
-echo "    curl https://$DOMAIN/health"
+echo "    curl https://$DOMAIN/app/health"
 echo ""
 echo "  Logs:    pm2 logs giveblack-api"
 echo "  Status:  pm2 status"

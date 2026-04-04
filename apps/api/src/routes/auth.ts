@@ -4,6 +4,7 @@ import { db } from "../lib/db.js";
 import { hashPassword, verifyPassword } from "../lib/password.js";
 import { generateRefreshToken, hashToken } from "../lib/tokens.js";
 import { env } from "../config/env.js";
+import { notifyAdminsNewCharityRequest } from "../services/admin-notify.js";
 
 const donorSignupSchema = z.object({
   email: z.string().email(),
@@ -19,8 +20,15 @@ const charitySignupSchema = z.object({
   name: z.string().min(2).max(120),
   charityName: z.string().min(2),
   category: z.string().optional(),
+  categoryId: z.string().trim().min(1).optional(),
   description: z.string().optional(),
-  url: z.string().optional()
+  url: z.string().optional(),
+  bank_name: z.string().trim().max(200).optional(),
+  account_holder_name: z.string().trim().max(200).optional(),
+  routing_number: z.string().trim().max(32).optional(),
+  account_last4: z.string().trim().max(4).optional(),
+  account_number: z.string().trim().max(32).optional(),
+  tax_id: z.string().trim().max(50).optional(),
 });
 
 const loginSchema = z.object({
@@ -43,6 +51,28 @@ function makeAccessToken(app: { jwt: { sign: (payload: Record<string, unknown>, 
       expiresIn: env.JWT_ACCESS_TTL
     }
   );
+}
+
+type JwtApp = { jwt: { sign: (payload: Record<string, unknown>, opts: Record<string, unknown>) => string } };
+
+/** Create refresh session + access token (used by login and donor signup). */
+export async function issueSessionForUser(
+  app: JwtApp,
+  request: { headers: Record<string, string | string[] | undefined>; ip?: string },
+  user: { id: string; email: string; role: Role }
+): Promise<{ accessToken: string; refreshToken: string }> {
+  const refreshToken = generateRefreshToken();
+  const refreshHash = hashToken(refreshToken);
+  const expiresAt = new Date(Date.now() + env.JWT_REFRESH_TTL_DAYS * 24 * 60 * 60 * 1000);
+  await db.query(
+    `insert into user_sessions (user_id, refresh_token_hash, user_agent, ip_address, expires_at)
+     values ($1, $2, $3, $4, $5)`,
+    [user.id, refreshHash, request.headers["user-agent"] ?? null, request.ip ?? null, expiresAt]
+  );
+  return {
+    accessToken: makeAccessToken(app, user),
+    refreshToken,
+  };
 }
 
 export const authRoutes: FastifyPluginAsync = async (app) => {
@@ -76,9 +106,17 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
       ).catch(() => {}); // Ignore profile errors
     }
 
-    return reply.code(201).send({ 
+    const tokens = await issueSessionForUser(app, request, {
+      id: user.id,
+      email: user.email,
+      role: user.role,
+    });
+
+    return reply.code(201).send({
       success: true,
-      user: { id: user.id, email: user.email, name: user.name, role: user.role, type: "donor" }
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
+      user: { id: user.id, email: user.email, name: user.name, role: user.role, type: "donor" },
     });
   });
 
@@ -102,14 +140,56 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
     );
     const user = created.rows[0] as { id: string; email: string; name: string; role: Role };
 
+    let categoryLabel = body.category?.trim() || "other";
+    if (body.categoryId) {
+      const catRow = await db.query("select name from categories where id = $1 limit 1", [body.categoryId]);
+      const name = (catRow.rows[0] as { name?: string } | undefined)?.name;
+      if (name) categoryLabel = name;
+    }
+
     // Store charity request details
-    await db.query(
-      `insert into charity_requests (user_id, charity_name, contact_name, contact_email, category, description, website, status)
-       values ($1, $2, $3, $4, $5, $6, $7, $8)`,
-      [user.id, body.charityName, body.name, email, body.category || "other", body.description || "", body.url || "", "pending"]
-    ).catch((err) => { app.log.warn({ err, msg: "Failed to insert charity request" }); });
+    try {
+      const reqIns = await db.query(
+        `insert into charity_requests (
+           user_id, charity_name, contact_name, contact_email, category, description, website, status,
+           tax_id, bank_name, account_holder_name, account_number, account_last4, routing_number
+         )
+         values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+         returning id`,
+        [
+          user.id,
+          body.charityName,
+          body.name,
+          email,
+          categoryLabel,
+          body.description || "",
+          body.url || "",
+          "pending",
+          body.tax_id?.trim() || null,
+          body.bank_name?.trim() || null,
+          body.account_holder_name?.trim() || null,
+          body.account_number?.trim() || null,
+          body.account_last4?.trim() || null,
+          body.routing_number?.trim() || null,
+        ]
+      );
+      const requestId = (reqIns.rows[0] as { id: string } | undefined)?.id;
+      if (requestId) {
+        await notifyAdminsNewCharityRequest({
+          requestId,
+          charityName: body.charityName,
+          contactName: body.name,
+          contactEmail: email,
+        }).catch((err) => {
+          app.log.warn({ err, msg: "Failed to notify admins of charity request" });
+        });
+      }
+    } catch (err) {
+      app.log.warn({ err, msg: "Failed to insert charity request" });
+    }
 
     // Store profile
+    const profileCategory = categoryLabel;
     await db.query(
       `insert into profiles (id, name, email, user_type, charity_name, charity_category, charity_description, charity_url) 
        values ($1, $2, $3, $4, $5, $6, $7, $8)
@@ -118,7 +198,7 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
          charity_category = excluded.charity_category,
          charity_description = excluded.charity_description,
          charity_url = excluded.charity_url`,
-      [user.id, body.name, email, "charity", body.charityName, body.category || "other", body.description || "", body.url || ""]
+      [user.id, body.name, email, "charity", body.charityName, profileCategory, body.description || "", body.url || ""]
     ).catch((err) => { app.log.warn({ err, msg: "Failed to insert charity profile" }); });
 
     return reply.code(201).send({ 
@@ -157,9 +237,17 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
       ).catch(() => {});
     }
 
-    return reply.code(201).send({ 
+    const tokens = await issueSessionForUser(app, request, {
+      id: user.id,
+      email: user.email,
+      role: user.role,
+    });
+
+    return reply.code(201).send({
       success: true,
-      user: { id: user.id, email: user.email, name: user.name, role: user.role, type: "donor" }
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
+      user: { id: user.id, email: user.email, name: user.name, role: user.role, type: "donor" },
     });
   });
 
@@ -202,15 +290,11 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
       }
     }
 
-    const refreshToken = generateRefreshToken();
-    const refreshHash = hashToken(refreshToken);
-    const expiresAt = new Date(Date.now() + env.JWT_REFRESH_TTL_DAYS * 24 * 60 * 60 * 1000);
-
-    await db.query(
-      `insert into user_sessions (user_id, refresh_token_hash, user_agent, ip_address, expires_at)
-       values ($1, $2, $3, $4, $5)`,
-      [user.id, refreshHash, request.headers["user-agent"] ?? null, request.ip, expiresAt]
-    );
+    const tokens = await issueSessionForUser(app, request, {
+      id: user.id,
+      email: user.email,
+      role: user.role,
+    });
 
     // Get profile data
     let profileData: Record<string, unknown> = {};
@@ -227,8 +311,8 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
     }
 
     return {
-      accessToken: makeAccessToken(app, user),
-      refreshToken,
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
       user: {
         id: user.id,
         email: user.email,

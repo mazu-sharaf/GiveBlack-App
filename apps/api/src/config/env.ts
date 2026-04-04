@@ -24,7 +24,12 @@ const schema = z.object({
   SUPPORT_EMAIL: z.string().email().optional(),
   EMAIL_LOGO_URL: z.string().url().optional(),
   EXPO_ACCESS_TOKEN: z.string().optional(),
-  EXPO_PUBLIC_API_URL: z.string().optional()
+  EXPO_PUBLIC_API_URL: z.string().optional(),
+  /** Public App Store / Play Store links for thank-you and marketing pages */
+  APP_STORE_URL: z.string().optional(),
+  PLAY_STORE_URL: z.string().optional(),
+  /** Optional web URL for donor login (e.g. deep link or landing) */
+  DONOR_LOGIN_WEB_URL: z.string().optional()
 });
 
 const parsed = schema.safeParse(process.env);

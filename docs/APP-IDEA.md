@@ -83,7 +83,7 @@ flowchart TD
 ## Deployment & Dev Workflow
 
 - Docker for API and worker processes; PM2 for Node process control if not using containers.
-- Nginx reverse proxy with SSL for domain routing: `giveblack.mawa.pro` (app/API) and `giveblackhub.mawa.pro` (admin).
+- Nginx reverse proxy with SSL for domain routing: `giveblackapp.com` (app/API) and `giveblackapp.com` (admin).
 - CI pipeline: build admin, run tests, run migration scripts on staging, then deploy to production.
 - Replit / GitHub integration: develop on Replit push to GitHub, run CI, then pull/merge on VPS.
 

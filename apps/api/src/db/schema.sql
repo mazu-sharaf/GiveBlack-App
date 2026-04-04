@@ -91,6 +91,17 @@ create table if not exists campaign_images (
   created_at timestamptz not null default now()
 );
 
+-- Partner institutions / programs that receive attributed "reinvest in education" allocation
+create table if not exists education_partners (
+  id uuid primary key default gen_random_uuid(),
+  code text not null unique,
+  name text not null,
+  active boolean not null default true,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists education_partners_code_lower_idx on education_partners (lower(code));
+
 create table if not exists donations (
   id uuid primary key default gen_random_uuid(),
   campaign_id text null references campaigns(id) on delete cascade,
@@ -106,7 +117,16 @@ create table if not exists donations (
   donor_email text null,
   message text null,
   is_anonymous boolean not null default false,
+  education_partner_id uuid null references education_partners(id) on delete set null,
+  reinvest_opt_in boolean not null default false,
+  reinvest_amount numeric(12,2) not null default 0,
+  partner_reinvest_amount numeric(12,2) not null default 0,
+  general_reinvest_amount numeric(12,2) not null default 0,
   paid_at timestamptz null,
+  payout_release_at timestamptz null,
+  payout_transfer_status text not null default 'legacy',
+  net_amount_cents bigint null,
+  stripe_transfer_id text null,
   created_at timestamptz not null default now()
 );
 
@@ -328,3 +348,30 @@ create index if not exists idx_charity_requests_status on charity_requests(statu
 create index if not exists idx_volunteers_org on volunteers(org_id);
 create index if not exists idx_ledger_org on ledger_entries(org_id);
 create index if not exists idx_password_reset_tokens_user on password_reset_tokens(user_id);
+
+-- Manual Connect release: existing DBs created before payout columns
+alter table donations add column if not exists payout_release_at timestamptz null;
+alter table donations add column if not exists payout_transfer_status text not null default 'legacy';
+alter table donations add column if not exists net_amount_cents bigint null;
+alter table donations add column if not exists stripe_transfer_id text null;
+
+update donations
+set payout_transfer_status = 'released'
+where status = 'succeeded' and payout_transfer_status = 'legacy';
+
+update donations
+set net_amount_cents = greatest(
+  0,
+  floor(amount * 100)::bigint - round(amount::numeric * 100 * 0.029 + 30)::bigint
+)
+where status = 'succeeded' and net_amount_cents is null;
+
+create index if not exists idx_donations_org_payout on donations (org_id, payout_transfer_status)
+  where status = 'succeeded';
+
+alter table users add column if not exists notification_preferences jsonb;
+
+create table if not exists notification_delivery_log (
+  dedupe_key text primary key,
+  created_at timestamptz not null default now()
+);

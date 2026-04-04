@@ -1,15 +1,24 @@
 import { env } from "../config/env.js";
 
-interface PushMessage {
+export interface PushMessage {
   to: string[];
   title: string;
   body: string;
   data?: Record<string, unknown>;
+  /** Android notification channel (must exist client-side). */
+  channelId?: string;
 }
 
+let missingTokenLogged = false;
+
 export async function sendExpoPush(message: PushMessage): Promise<void> {
+  if (!message.to.length) return;
   if (!env.EXPO_ACCESS_TOKEN) {
-    throw new Error("Expo push is not configured");
+    if (!missingTokenLogged) {
+      console.warn("[push] EXPO_ACCESS_TOKEN not set; push delivery skipped");
+      missingTokenLogged = true;
+    }
+    return;
   }
 
   const chunks = chunkArray(message.to, 100);
@@ -19,7 +28,8 @@ export async function sendExpoPush(message: PushMessage): Promise<void> {
       sound: "default",
       title: message.title,
       body: message.body,
-      data: message.data ?? {}
+      data: message.data ?? {},
+      ...(message.channelId ? { channelId: message.channelId } : {}),
     }));
 
     const res = await fetch("https://exp.host/--/api/v2/push/send", {

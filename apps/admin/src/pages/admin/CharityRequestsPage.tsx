@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { dbQuery, approveCharityRequest, rejectCharityRequest } from "@/lib/api";
+import { dbQuery, approveCharityRequest, rejectCharityRequest, adminAddSubscriptionByOrg, adminRemoveSubscriptionByOrg } from "@/lib/api";
 import type { QueryOptions } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -26,6 +26,7 @@ interface CharityRequest {
   contact_name: string;
   contact_email: string;
   contact_phone: string;
+  category?: string;
   description: string;
   website: string;
   tax_id: string;
@@ -33,11 +34,32 @@ interface CharityRequest {
   account_holder_name: string;
   account_last4: string;
   routing_number: string;
+  account_number?: string;
   status: string;
   admin_notes: string;
   rejection_reason: string;
   reviewed_at: string;
   created_at: string;
+}
+
+function maskDigitsLast4(value: string | null | undefined): string {
+  if (!value || !String(value).trim()) return "—";
+  const s = String(value).replace(/\s/g, "");
+  if (s.length <= 4) return `···${s}`;
+  return `···${s.slice(-4)}`;
+}
+
+interface OrganizationRow {
+  id: string;
+  name: string;
+  contact_email: string | null;
+}
+
+interface OrgSubscriptionRow {
+  id: string;
+  org_id: string;
+  tier: string;
+  status: string;
 }
 
 export default function CharityRequestsPage() {
@@ -49,6 +71,10 @@ export default function CharityRequestsPage() {
   const [adminNotes, setAdminNotes] = useState("");
   const [rejectionReason, setRejectionReason] = useState("");
   const [processing, setProcessing] = useState(false);
+  const [orgIdForReview, setOrgIdForReview] = useState<string | null>(null);
+  const [orgSubForReview, setOrgSubForReview] = useState<OrgSubscriptionRow | null>(null);
+  const [loadingOrgSub, setLoadingOrgSub] = useState(false);
+  const [subActionLoading, setSubActionLoading] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -112,6 +138,82 @@ export default function CharityRequestsPage() {
 
   const pendingCount = requests.filter((r) => r.status === "pending").length;
 
+  const loadOrgSubscriptionForReview = async (requestItem: CharityRequest | null) => {
+    if (!requestItem || requestItem.status !== "approved") {
+      setOrgIdForReview(null);
+      setOrgSubForReview(null);
+      return;
+    }
+    setLoadingOrgSub(true);
+    try {
+      let org: OrganizationRow | null = null;
+      if (requestItem.contact_email) {
+        const byEmail = await dbQuery<OrganizationRow>("organizations", {
+          filters: [{ column: "contact_email", op: "eq", value: requestItem.contact_email }],
+          limit: 1,
+        });
+        org = byEmail.data?.[0] || null;
+      }
+      if (!org && requestItem.charity_name) {
+        const byName = await dbQuery<OrganizationRow>("organizations", {
+          filters: [{ column: "name", op: "eq", value: requestItem.charity_name }],
+          limit: 1,
+        });
+        org = byName.data?.[0] || null;
+      }
+      if (!org) {
+        setOrgIdForReview(null);
+        setOrgSubForReview(null);
+        return;
+      }
+      setOrgIdForReview(org.id);
+      const subRes = await dbQuery<OrgSubscriptionRow>("org_subscriptions", {
+        filters: [{ column: "org_id", op: "eq", value: org.id }],
+        order: { column: "created_at", ascending: false },
+        limit: 1,
+      });
+      setOrgSubForReview(subRes.data?.[0] || null);
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to load organization subscription");
+    } finally {
+      setLoadingOrgSub(false);
+    }
+  };
+
+  const handleQuickAddPlan = async (tier: "growth" | "institutional") => {
+    if (!orgIdForReview) {
+      toast.error("Organization not found for this request");
+      return;
+    }
+    setSubActionLoading(true);
+    try {
+      await adminAddSubscriptionByOrg(orgIdForReview, tier);
+      toast.success(`${tier} plan added`);
+      await loadOrgSubscriptionForReview(reviewRequest);
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to add plan");
+    } finally {
+      setSubActionLoading(false);
+    }
+  };
+
+  const handleQuickRemovePlan = async () => {
+    if (!orgIdForReview) {
+      toast.error("Organization not found for this request");
+      return;
+    }
+    setSubActionLoading(true);
+    try {
+      await adminRemoveSubscriptionByOrg(orgIdForReview);
+      toast.success("Plan removed");
+      await loadOrgSubscriptionForReview(reviewRequest);
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to remove plan");
+    } finally {
+      setSubActionLoading(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -154,6 +256,7 @@ export default function CharityRequestsPage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Charity Name</TableHead>
+                    <TableHead className="hidden lg:table-cell">Category</TableHead>
                     <TableHead className="hidden sm:table-cell">Contact</TableHead>
                     <TableHead className="hidden md:table-cell">Description</TableHead>
                     <TableHead>Status</TableHead>
@@ -165,6 +268,7 @@ export default function CharityRequestsPage() {
                   {requests.map((r) => (
                     <TableRow key={r.id}>
                       <TableCell className="font-medium">{r.charity_name || "--"}</TableCell>
+                      <TableCell className="hidden lg:table-cell text-muted-foreground">{r.category || "—"}</TableCell>
                       <TableCell className="hidden sm:table-cell text-muted-foreground">{r.contact_email || "--"}</TableCell>
                       <TableCell className="hidden md:table-cell text-muted-foreground truncate max-w-[200px]">{r.description?.slice(0, 80) || "--"}</TableCell>
                       <TableCell>
@@ -174,14 +278,23 @@ export default function CharityRequestsPage() {
                         {r.created_at ? format(new Date(r.created_at), "MMM d, yyyy") : "--"}
                       </TableCell>
                       <TableCell>
-                        <Button variant="ghost" size="sm" onClick={() => { setReviewRequest(r); setAdminNotes(""); setRejectionReason(""); }}>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={async () => {
+                            setReviewRequest(r);
+                            setAdminNotes("");
+                            setRejectionReason("");
+                            await loadOrgSubscriptionForReview(r);
+                          }}
+                        >
                           <Eye className="h-4 w-4 mr-1" /> View
                         </Button>
                       </TableCell>
                     </TableRow>
                   ))}
                   {requests.length === 0 && (
-                    <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">No charity requests found</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">No charity requests found</TableCell></TableRow>
                   )}
                 </TableBody>
               </Table>
@@ -190,7 +303,7 @@ export default function CharityRequestsPage() {
         </CardContent>
       </Card>
 
-      <Dialog open={!!reviewRequest} onOpenChange={() => setReviewRequest(null)}>
+      <Dialog open={!!reviewRequest} onOpenChange={() => { setReviewRequest(null); setOrgIdForReview(null); setOrgSubForReview(null); }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Review Request: {reviewRequest?.charity_name || "--"}</DialogTitle>
@@ -200,21 +313,66 @@ export default function CharityRequestsPage() {
               <div><strong>Contact Name:</strong><br />{reviewRequest?.contact_name || "--"}</div>
               <div><strong>Contact Email:</strong><br />{reviewRequest?.contact_email || "--"}</div>
               <div><strong>Phone:</strong><br />{reviewRequest?.contact_phone || "--"}</div>
-              <div><strong>Tax ID:</strong><br />{reviewRequest?.tax_id || "--"}</div>
+              <div><strong>Category:</strong><br />{reviewRequest?.category || "—"}</div>
             </div>
             <div><strong>Website:</strong> {reviewRequest?.website || "--"}</div>
             <div><strong>Description:</strong><br />{reviewRequest?.description || "--"}</div>
-            {reviewRequest?.bank_name && (
-              <div className="border-t border-border pt-2">
-                <strong>Bank:</strong> {reviewRequest.bank_name} - {reviewRequest.account_holder_name} (***{reviewRequest.account_last4})
+            <div className="border-t border-border pt-3 space-y-2">
+              <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Payout / verification</div>
+              <div className="grid grid-cols-2 gap-2">
+                <div><strong>Tax ID:</strong><br />{reviewRequest?.tax_id || "—"}</div>
+                <div><strong>Routing:</strong><br />{maskDigitsLast4(reviewRequest?.routing_number)}</div>
+                <div><strong>Account last 4:</strong><br />{reviewRequest?.account_last4 || "—"}</div>
+                <div><strong>Account number (masked):</strong><br />{reviewRequest?.account_number ? maskDigitsLast4(reviewRequest.account_number) : "—"}</div>
               </div>
-            )}
+              {(reviewRequest?.bank_name || reviewRequest?.account_holder_name) && (
+                <div>
+                  <strong>Bank / holder:</strong>{" "}
+                  {[reviewRequest?.bank_name, reviewRequest?.account_holder_name].filter(Boolean).join(" · ") || "—"}
+                </div>
+              )}
+            </div>
             {reviewRequest?.status !== "pending" && (
               <div className="border-t border-border pt-2 space-y-1">
                 <div><strong>Status:</strong> <Badge variant="outline" className={statusColors[reviewRequest?.status || ""] || ""}>{reviewRequest?.status}</Badge></div>
                 {reviewRequest?.admin_notes && <div><strong>Admin Notes:</strong> {reviewRequest.admin_notes}</div>}
                 {reviewRequest?.rejection_reason && <div><strong>Rejection Reason:</strong> {reviewRequest.rejection_reason}</div>}
                 {reviewRequest?.reviewed_at && <div><strong>Reviewed:</strong> {format(new Date(reviewRequest.reviewed_at), "MMM d, yyyy HH:mm")}</div>}
+              </div>
+            )}
+            {reviewRequest?.status === "approved" && (
+              <div className="border-t border-border pt-3 space-y-2">
+                <div className="text-xs text-muted-foreground">Quick subscription actions</div>
+                <div className="text-xs">
+                  <strong>Current:</strong>{" "}
+                  {loadingOrgSub ? "Loading..." : orgSubForReview ? `${orgSubForReview.tier} (${orgSubForReview.status})` : "No subscription record"}
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={subActionLoading || loadingOrgSub}
+                    onClick={() => handleQuickAddPlan("growth")}
+                  >
+                    Add Growth
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={subActionLoading || loadingOrgSub}
+                    onClick={() => handleQuickAddPlan("institutional")}
+                  >
+                    Add Institutional
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    disabled={subActionLoading || loadingOrgSub}
+                    onClick={handleQuickRemovePlan}
+                  >
+                    Remove Plan
+                  </Button>
+                </div>
               </div>
             )}
             {reviewRequest?.status === "pending" && (

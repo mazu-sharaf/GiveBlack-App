@@ -22,10 +22,12 @@ import SubscriptionsPage from "./pages/admin/SubscriptionsPage";
 import VolunteersPage from "./pages/admin/VolunteersPage";
 import CategoriesPage from "./pages/admin/CategoriesPage";
 import LedgerPage from "./pages/admin/LedgerPage";
+import FundReleasePage from "./pages/admin/FundReleasePage";
 import TransactionsPage from "./pages/admin/TransactionsPage";
 import StaffPage from "./pages/admin/StaffPage";
 import AdminEmailsPage from "./pages/admin/AdminEmailsPage";
 import SettingsPage from "./pages/admin/SettingsPage";
+import EducationPartnersPage from "./pages/admin/EducationPartnersPage";
 import DonorDetailPage from "./pages/admin/DonorDetailPage";
 import CampaignPublicPage from "./pages/CampaignPublicPage";
 import NotFound from "./pages/NotFound";
@@ -67,9 +69,11 @@ const App = () => (
             <Route path="/volunteers" element={<AdminPage><VolunteersPage /></AdminPage>} />
             <Route path="/categories" element={<AdminPage><CategoriesPage /></AdminPage>} />
             <Route path="/ledger" element={<AdminPage><LedgerPage /></AdminPage>} />
+            <Route path="/fund-release" element={<AdminPage><FundReleasePage /></AdminPage>} />
             <Route path="/transactions" element={<AdminPage><TransactionsPage /></AdminPage>} />
             <Route path="/staff" element={<AdminPage><StaffPage /></AdminPage>} />
             <Route path="/admin-emails" element={<AdminPage><AdminEmailsPage /></AdminPage>} />
+            <Route path="/education-partners" element={<AdminPage><EducationPartnersPage /></AdminPage>} />
             <Route path="/settings" element={<AdminPage><SettingsPage /></AdminPage>} />
             <Route path="*" element={<NotFound />} />
           </Routes>

@@ -2,7 +2,7 @@ import { useNavigate, NavLink } from "react-router-dom";
 import {
   LayoutDashboard, Building2, Grid3X3, Heart, Users, FileText, CreditCard,
   LogOut, Settings, BookOpen, Zap, Megaphone, X, Shield,
-  Handshake, Mail,
+  Handshake, Mail, GraduationCap, Landmark,
 } from "lucide-react";
 import { logout, getCurrentName, getCurrentRole } from "@/lib/admin-auth";
 import { canAccessNav } from "@/lib/role-access";
@@ -34,6 +34,7 @@ const navGroups = [
       { title: "Donations", url: "/donations", icon: Heart },
       { title: "Subscriptions", url: "/subscriptions", icon: Zap },
       { title: "Transactions", url: "/transactions", icon: CreditCard },
+      { title: "Fund release", url: "/fund-release", icon: Landmark },
       { title: "Ledger", url: "/ledger", icon: BookOpen },
     ],
   },
@@ -41,6 +42,7 @@ const navGroups = [
     label: "System",
     items: [
       { title: "Categories", url: "/categories", icon: Grid3X3 },
+      { title: "Education partners", url: "/education-partners", icon: GraduationCap },
       { title: "Staff", url: "/staff", icon: Shield },
       { title: "Admin Emails", url: "/admin-emails", icon: Mail },
       { title: "Settings", url: "/settings", icon: Settings },

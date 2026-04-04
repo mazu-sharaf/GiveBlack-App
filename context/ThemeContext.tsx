@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from "react";
-import { useColorScheme } from "react-native";
+import { useColorScheme, Appearance, type ColorSchemeName } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { lightTheme, darkTheme, ThemeColors } from "@/constants/colors";
 
@@ -24,7 +24,20 @@ const ThemeContext = createContext<ThemeContextValue>({
 const THEME_STORAGE_KEY = "@gb_theme_mode";
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const systemScheme = useColorScheme();
+  const hookScheme = useColorScheme();
+  const [appearanceScheme, setAppearanceScheme] = useState<ColorSchemeName>(() => Appearance.getColorScheme());
+
+  useEffect(() => {
+    const sub = Appearance.addChangeListener(({ colorScheme }) => {
+      setAppearanceScheme(colorScheme);
+    });
+    return () => sub.remove();
+  }, []);
+
+  // useColorScheme() can be null briefly; fall back to Appearance, then light.
+  const systemResolved: "light" | "dark" =
+    (hookScheme ?? appearanceScheme ?? "light") === "dark" ? "dark" : "light";
+
   const [theme, setThemeState] = useState<ThemeMode>("light");
   const [loaded, setLoaded] = useState(false);
 
@@ -46,7 +59,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     setTheme(theme === "dark" ? "light" : "dark");
   }, [theme, setTheme]);
 
-  const isDark = theme === "dark" || (theme === "system" && systemScheme === "dark");
+  const isDark = theme === "dark" || (theme === "system" && systemResolved === "dark");
   const colors = isDark ? darkTheme : lightTheme;
 
   return (

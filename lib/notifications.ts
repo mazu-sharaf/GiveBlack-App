@@ -1,5 +1,6 @@
 import { Platform } from "react-native";
 import Constants from "expo-constants";
+import { registerDevicePushToken } from "@/lib/query-client";
 
 const isExpoGo = Constants.executionEnvironment === "storeClient";
 const isAndroidExpoGo = Platform.OS === "android" && isExpoGo;
@@ -14,11 +15,12 @@ if (!isAndroidExpoGo) {
 
     if (Notifications) {
       Notifications.setNotificationHandler({
-        handleNotification: async () => ({
-          shouldShowAlert: true,
-          shouldPlaySound: true,
-          shouldSetBadge: true,
-        } as any),
+        handleNotification: async () =>
+          ({
+            shouldShowAlert: true,
+            shouldPlaySound: true,
+            shouldSetBadge: true,
+          }) as any,
       });
     }
   } catch (e) {
@@ -26,11 +28,40 @@ if (!isAndroidExpoGo) {
   }
 }
 
-export async function registerForPushNotifications(userId?: string): Promise<string | null> {
+/** Android notification channels (ids must match server push payload channelId when set). */
+export async function ensureAndroidNotificationChannels(): Promise<void> {
+  if (Platform.OS !== "android" || !Notifications) return;
+  const ch = Notifications.AndroidImportance.DEFAULT;
+  await Notifications.setNotificationChannelAsync("default", {
+    name: "General",
+    importance: Notifications.AndroidImportance.MAX,
+    vibrationPattern: [0, 250, 250, 250],
+  });
+  await Notifications.setNotificationChannelAsync("donations", {
+    name: "Donations",
+    importance: ch,
+    description: "Donation receipts and new gifts to your organization",
+  });
+  await Notifications.setNotificationChannelAsync("campaigns", {
+    name: "Campaigns",
+    importance: ch,
+    description: "New campaigns and when your campaign goes live",
+  });
+  await Notifications.setNotificationChannelAsync("volunteers", {
+    name: "Volunteers",
+    importance: ch,
+    description: "Volunteer signups for your organization",
+  });
+}
+
+/**
+ * Requests permission, registers Expo push token with GiveBlack API (authenticated).
+ * Call after login when session.accessToken is available.
+ */
+export async function registerPushTokenWithAuth(accessToken: string): Promise<string | null> {
   if (Platform.OS === "web" || !Notifications || !Device) return null;
 
   if (!Device.isDevice) {
-    console.log("Push notifications require a physical device");
     return null;
   }
 
@@ -47,20 +78,15 @@ export async function registerForPushNotifications(userId?: string): Promise<str
       return null;
     }
 
+    await ensureAndroidNotificationChannels();
+
     const tokenData = await Notifications.getExpoPushTokenAsync();
     const token = tokenData.data;
+    if (!token) return null;
 
-    if (userId && token) {
-      await savePushToken(userId, token);
-    }
-
-    if (Platform.OS === "android") {
-      Notifications.setNotificationChannelAsync("default", {
-        name: "Default",
-        importance: Notifications.AndroidImportance.MAX,
-        vibrationPattern: [0, 250, 250, 250],
-      });
-    }
+    const platform: "ios" | "android" | "web" =
+      Platform.OS === "ios" ? "ios" : Platform.OS === "android" ? "android" : "web";
+    await registerDevicePushToken(token, platform, accessToken);
 
     return token;
   } catch (error) {
@@ -69,21 +95,10 @@ export async function registerForPushNotifications(userId?: string): Promise<str
   }
 }
 
-export async function savePushToken(userId: string, token: string): Promise<void> {
-  try {
-    const apiUrl = process.env.EXPO_PUBLIC_API_URL || "";
-    await fetch(`${apiUrl}/api/push-tokens`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        user_id: userId,
-        expo_push_token: token,
-        platform: Platform.OS,
-      }),
-    });
-  } catch (error) {
-    console.log("Error saving push token:", error);
-  }
+/** @deprecated Use registerPushTokenWithAuth with accessToken */
+export async function registerForPushNotifications(_userId?: string): Promise<string | null> {
+  console.warn("registerForPushNotifications without auth is deprecated; use registerPushTokenWithAuth");
+  return null;
 }
 
 export async function scheduleLocalNotification(
@@ -96,7 +111,7 @@ export async function scheduleLocalNotification(
   try {
     await Notifications.scheduleNotificationAsync({
       content: { title, body, sound: true },
-      trigger: delaySeconds > 0 ? { seconds: delaySeconds } : null as any,
+      trigger: delaySeconds > 0 ? { seconds: delaySeconds } : (null as any),
     });
   } catch (error) {
     console.log("Error scheduling notification:", error);

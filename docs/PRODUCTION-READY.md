@@ -90,7 +90,7 @@ Your GiveBlack app is now **100% production-ready** with all features implemente
 ## 🔐 Test Credentials
 
 ### Admin Panel
-**URL:** https://giveblackhub.mawa.pro/  
+**URL:** https://giveblackapp.com/admin/  
 **Email:** admin@gb.com  
 **Password:** Admin@gb  
 
@@ -204,8 +204,8 @@ Your GiveBlack app is now **100% production-ready** with all features implemente
 
 ### Mobile App (.env)
 ```env
-EXPO_PUBLIC_API_URL=https://giveblack.mawa.pro
-EXPO_PUBLIC_DOMAIN=giveblack.mawa.pro
+EXPO_PUBLIC_API_URL=https://giveblackapp.com/app
+EXPO_PUBLIC_DOMAIN=giveblackapp.com
 ```
 
 ### Backend API (.env)
@@ -426,8 +426,8 @@ Your GiveBlack app is **100% complete** and **production-ready**:
 
 ## 📞 Support & Maintenance
 
-**Admin Panel:** https://giveblackhub.mawa.pro/  
-**API Health:** https://giveblack.mawa.pro/health  
+**Admin Panel:** https://giveblackapp.com/admin/  
+**API Health:** https://giveblackapp.com/app/health  
 **Documentation:** `/docs/` folder  
 
 **Backend Status:**

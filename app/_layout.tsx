@@ -7,13 +7,21 @@ import { AppProvider } from "@/context/AppContext";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import StripeProviderWrapper from "@/components/StripeProviderWrapper";
+import { NotificationNavigationHandler } from "@/components/NotificationNavigationHandler";
 
 function InnerLayout() {
   const { isDark, colors: c } = useTheme();
   return (
     <View style={{ flex: 1, backgroundColor: c.background }}>
       <StatusBar style={isDark ? "light" : "dark"} />
-      <Stack screenOptions={{ headerShown: false }} />
+      <Stack
+        screenOptions={{
+          headerShown: false,
+          /** Match theme so iOS home-indicator / safe area never shows default white behind screens */
+          contentStyle: { backgroundColor: c.background },
+        }}
+      />
+      <NotificationNavigationHandler />
       {/* Dev-only overlay to catch bottom safe-area, kept transparent so it doesn't show a bar */}
       {__DEV__ && Platform.OS !== "web" && (
         <View

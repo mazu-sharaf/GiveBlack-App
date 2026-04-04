@@ -18,7 +18,8 @@ interface DonationSummary {
 interface TopDonor {
   id: string;
   name: string;
-  email: string;
+  first_name?: string;
+  last_name?: string;
   avatar_url?: string | null;
   total_amount_cents: number;
   donation_count: number;
@@ -99,17 +100,16 @@ export default function ImpactScreen() {
                 ) : (
                   <View style={[styles.donorAvatar, { backgroundColor: c.green }]}>
                     <Text style={styles.donorInitial}>
-                      {(d.name || d.email || "U").charAt(0).toUpperCase()}
+                      {(d.first_name || d.name || "U").charAt(0).toUpperCase()}
                     </Text>
                   </View>
                 )}
               </View>
               <View style={styles.donorText}>
-                <Text style={[styles.donorName, { color: c.text }]} numberOfLines={1} ellipsizeMode="tail">
-                  {d.name}
-                </Text>
-                <Text style={[styles.donorEmail, { color: c.textMuted }]} numberOfLines={1} ellipsizeMode="tail">
-                  {d.email}
+                <Text style={[styles.donorName, { color: c.text }]} numberOfLines={2} ellipsizeMode="tail">
+                  {d.last_name
+                    ? `${d.first_name || ""} ${d.last_name}`.trim()
+                    : d.name}
                 </Text>
               </View>
               <View style={styles.donorAmount}>
@@ -211,10 +211,6 @@ const styles = StyleSheet.create({
   donorName: {
     fontFamily: "Poppins_500Medium",
     fontSize: 13,
-  },
-  donorEmail: {
-    fontFamily: "Poppins_400Regular",
-    fontSize: 11,
   },
   donorAmount: {
     alignItems: "flex-end",

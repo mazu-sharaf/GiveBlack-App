@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from "react";
 import { Alert, Platform } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
@@ -39,14 +39,33 @@ interface AuthContextValue {
   isGuest: boolean;
   avatarUrl?: string | null;
   donationSummary?: DonationSummary | null;
+  /** Refetch /api/me/donations/summary (call after donations and on home refresh). */
+  refreshDonationSummary: () => Promise<void>;
   login: (email: string, password: string, type: "donor" | "charity") => Promise<{ success: boolean; error?: string; errorType?: "invalid_credentials" | "email_not_confirmed" | "network" | "other" }>;
   guestLogin: () => Promise<void>;
   signUpDonor: (data: { name: string; email: string; password: string; zipCode: string; collegeAttended: boolean }) => Promise<boolean>;
-  signUpCharity: (data: { charityName: string; category: string; description: string; url: string; name: string; email: string; password: string }) => Promise<boolean>;
+  signUpCharity: (data: {
+    charityName: string;
+    category: string;
+    categoryId?: string;
+    description: string;
+    url: string;
+    name: string;
+    email: string;
+    password: string;
+    bank_name?: string;
+    account_holder_name?: string;
+    routing_number?: string;
+    account_last4?: string;
+    account_number?: string;
+    tax_id?: string;
+  }) => Promise<boolean>;
   requestResetCode: (email: string) => Promise<{ success: boolean; error?: string; rateLimited?: boolean }>;
   confirmResetPassword: (email: string, code: string, newPassword: string) => Promise<{ success: boolean; error?: string }>;
   updateProfile: (data: Partial<UserProfile>) => void;
   logout: () => Promise<void>;
+  /** Authenticated fetch: attaches Bearer token, refreshes on 401 and retries once; throws if session cannot be renewed. */
+  fetchWithAuth: (pathOrUrl: string, init?: RequestInit) => Promise<Response>;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -60,6 +79,8 @@ const DAVID_DEMO_EMAILS = ["david.hughes@giveblackapp.com", "david.hughes.charit
 const DAVID_DISPLAY_EMAIL = "davidhughes@gmail.com";
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  /** Prevents parallel refresh calls (e.g. Promise.all) from racing and invalidating the refresh token. */
+  const refreshInFlightRef = useRef<Promise<string | null> | null>(null);
   const [user, setUser] = useState<UserProfile | null>(null);
   const [session, setSession] = useState<SessionData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -98,39 +119,94 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     void session;
   }, [session]);
 
+  const refreshDonationSummary = useCallback(async () => {
+    const token = session?.accessToken;
+    if (!token) {
+      setDonationSummary(null);
+      return;
+    }
+    if (user?.type !== "donor") {
+      setDonationSummary(null);
+      return;
+    }
+    try {
+      const baseUrl = getApiUrl().replace(/\/$/, "");
+      const res = await fetch(`${baseUrl}/api/me/donations/summary`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const summaryJson = (await res.json()) as DonationSummary;
+        setDonationSummary(summaryJson);
+      }
+    } catch {
+      // non-fatal
+    }
+  }, [session?.accessToken, user?.type, user?.id]);
+
+  useEffect(() => {
+    if (session?.accessToken && user?.type === "donor") {
+      void refreshDonationSummary();
+    }
+  }, [session?.accessToken, user?.type, user?.id, refreshDonationSummary]);
+
+  useEffect(() => {
+    if (!session?.accessToken || !user?.id || isGuest) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const { registerPushTokenWithAuth } = await import("@/lib/notifications");
+        if (!cancelled) await registerPushTokenWithAuth(session.accessToken);
+      } catch {
+        // non-fatal
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [session?.accessToken, user?.id, isGuest]);
+
   function isNetworkError(msg: string): boolean {
     const lower = msg.toLowerCase();
     return lower.includes("network request failed") || lower.includes("fetch failed") || lower.includes("networkerror") || lower.includes("timeout") || lower.includes("aborted");
   }
 
   async function refreshAccessToken(): Promise<string | null> {
-    try {
-      const refreshToken = await AsyncStorage.getItem(REFRESH_TOKEN_KEY);
-      if (!refreshToken) return null;
-
-      const baseUrl = getApiUrl().replace(/\/$/, "");
-      const response = await fetch(`${baseUrl}/api/auth/refresh`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ refreshToken }),
-      });
-
-      if (!response.ok) return null;
-
-      const data = await response.json();
-      if (data.accessToken) {
-        await AsyncStorage.setItem(TOKEN_KEY, data.accessToken);
-        if (data.refreshToken) {
-          await AsyncStorage.setItem(REFRESH_TOKEN_KEY, data.refreshToken);
-        }
-        setSession({ accessToken: data.accessToken, refreshToken: data.refreshToken || refreshToken });
-        return data.accessToken;
-      }
-      return null;
-    } catch (e: unknown) {
-      console.log("Token refresh failed:", e instanceof Error ? e.message : String(e));
-      return null;
+    if (refreshInFlightRef.current) {
+      return refreshInFlightRef.current;
     }
+    const p = (async (): Promise<string | null> => {
+      try {
+        const refreshToken = await AsyncStorage.getItem(REFRESH_TOKEN_KEY);
+        if (!refreshToken) return null;
+
+        const baseUrl = getApiUrl().replace(/\/$/, "");
+        const response = await fetch(`${baseUrl}/api/auth/refresh`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ refreshToken }),
+        });
+
+        if (!response.ok) return null;
+
+        const data = await response.json();
+        if (data.accessToken) {
+          await AsyncStorage.setItem(TOKEN_KEY, data.accessToken);
+          if (data.refreshToken) {
+            await AsyncStorage.setItem(REFRESH_TOKEN_KEY, data.refreshToken);
+          }
+          setSession({ accessToken: data.accessToken, refreshToken: data.refreshToken || refreshToken });
+          return data.accessToken;
+        }
+        return null;
+      } catch (e: unknown) {
+        console.log("Token refresh failed:", e instanceof Error ? e.message : String(e));
+        return null;
+      } finally {
+        refreshInFlightRef.current = null;
+      }
+    })();
+    refreshInFlightRef.current = p;
+    return p;
   }
 
   async function apiCall(endpoint: string, method: string, body?: Record<string, unknown>): Promise<Record<string, unknown>> {
@@ -247,18 +323,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setSession({ accessToken: data.accessToken, refreshToken: data.refreshToken });
           setUser(userProfile);
           setAvatarUrl(data.user.avatar_url || null);
-          try {
-            const baseUrl = getApiUrl().replace(/\/$/, "");
-            const summaryRes = await fetch(`${baseUrl}/api/me/donations/summary`, {
-              headers: { Authorization: `Bearer ${data.accessToken}` },
-            });
-            if (summaryRes.ok) {
-              const summaryJson = await summaryRes.json();
-              setDonationSummary(summaryJson as DonationSummary);
-            }
-          } catch {
-            // non-fatal
-          }
+          // donation summary: useEffect runs refreshDonationSummary when session + donor user are set
           console.log("✅ Login successful for:", userProfile.email);
           return { success: true };
         }
@@ -366,7 +431,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return false;
   }
 
-  async function signUpCharity(data: { charityName: string; category: string; description: string; url: string; name: string; email: string; password: string }): Promise<boolean> {
+  async function signUpCharity(data: {
+    charityName: string;
+    category: string;
+    categoryId?: string;
+    description: string;
+    url: string;
+    name: string;
+    email: string;
+    password: string;
+    bank_name?: string;
+    account_holder_name?: string;
+    routing_number?: string;
+    account_last4?: string;
+    account_number?: string;
+    tax_id?: string;
+  }): Promise<boolean> {
     if (!data.name.trim() || !data.email.trim() || !data.password.trim()) {
       Alert.alert("Error", "Please fill in all required fields");
       return false;
@@ -385,8 +465,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           password: data.password,
           charityName: data.charityName,
           category: data.category,
+          ...(data.categoryId ? { categoryId: data.categoryId } : {}),
           description: data.description,
           url: data.url,
+          ...(data.bank_name ? { bank_name: data.bank_name } : {}),
+          ...(data.account_holder_name ? { account_holder_name: data.account_holder_name } : {}),
+          ...(data.routing_number ? { routing_number: data.routing_number } : {}),
+          ...(data.account_last4 ? { account_last4: data.account_last4 } : {}),
+          ...(data.account_number ? { account_number: data.account_number } : {}),
+          ...(data.tax_id ? { tax_id: data.tax_id } : {}),
         });
 
         if (result.success) {
@@ -547,8 +634,55 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(null);
     setSession(null);
     setIsGuest(false);
+    setDonationSummary(null);
     console.log("✅ Logout complete");
   }
+
+  const fetchWithAuth = useCallback(
+    async (pathOrUrl: string, init?: RequestInit): Promise<Response> => {
+      const baseUrl = getApiUrl().replace(/\/$/, "");
+      const url = pathOrUrl.startsWith("http") ? pathOrUrl : `${baseUrl}${pathOrUrl.startsWith("/") ? "" : "/"}${pathOrUrl}`;
+      const accessToken = session?.accessToken;
+      const hadToken = Boolean(accessToken);
+
+      const mergeHeaders = (bearer: string | undefined): Headers => {
+        const h = new Headers(init?.headers as HeadersInit | undefined);
+        if (init?.body instanceof FormData) {
+          h.delete("Content-Type");
+        }
+        if (bearer) {
+          h.set("Authorization", `Bearer ${bearer}`);
+        }
+        return h;
+      };
+
+      let response = await fetch(url, {
+        ...init,
+        headers: mergeHeaders(accessToken),
+      });
+
+      if (response.status === 401 && hadToken) {
+        const newToken = await refreshAccessToken();
+        if (newToken) {
+          response = await fetch(url, {
+            ...init,
+            headers: mergeHeaders(newToken),
+          });
+        } else {
+          await logout();
+          throw new Error("Session expired. Please sign in again.");
+        }
+      }
+
+      if (response.status === 401 && hadToken) {
+        await logout();
+        throw new Error("Session expired. Please sign in again.");
+      }
+
+      return response;
+    },
+    [session]
+  );
 
   return (
     <AuthContext.Provider
@@ -560,6 +694,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         isGuest,
         avatarUrl,
         donationSummary,
+        refreshDonationSummary,
         login,
         guestLogin,
         signUpDonor,
@@ -568,6 +703,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         confirmResetPassword,
         updateProfile,
         logout,
+        fetchWithAuth,
       }}
     >
       {children}

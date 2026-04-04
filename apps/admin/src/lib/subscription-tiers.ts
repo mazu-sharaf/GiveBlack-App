@@ -29,6 +29,7 @@ export const SUBSCRIPTION_TIERS: Record<TierKey, TierConfig> = {
     features: [
       "1 community campaign",
       "Up to $5,000 goal per campaign",
+      "14-day payout hold before funds transfer",
       "Standard support",
     ],
   },
@@ -42,6 +43,7 @@ export const SUBSCRIPTION_TIERS: Record<TierKey, TierConfig> = {
     features: [
       "5 community campaigns",
       "Up to $50,000 goal per campaign",
+      "7-day payout hold before funds transfer",
       "Volunteer signup",
       "Everything in Free",
       "Priority support",
@@ -57,6 +59,7 @@ export const SUBSCRIPTION_TIERS: Record<TierKey, TierConfig> = {
     features: [
       "Unlimited community campaigns",
       "Unlimited goal per campaign",
+      "7-day payout hold before funds transfer",
       "Volunteer signup",
       "Everything in Growth",
       "Dedicated support",

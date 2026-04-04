@@ -1,7 +1,7 @@
 # Admin Panel - Complete Testing Guide
 
 ## 🔐 Admin Login
-**URL**: https://giveblackhub.mawa.pro/admin/
+**URL**: https://giveblackapp.com/admin/
 
 ### Test Credentials
 - **Email**: `admin@giveblackapp.com`
@@ -216,7 +216,7 @@ apps/admin/
 ### Environment Variables
 ```bash
 # apps/admin/.env
-VITE_API_URL=https://giveblackhub.mawa.pro
+VITE_API_URL=https://giveblackapp.com/app
 ```
 
 ---
@@ -254,7 +254,7 @@ VITE_API_URL=https://giveblackhub.mawa.pro
 
 ## 🎯 Quick Start
 
-1. **Login**: https://giveblackhub.mawa.pro/admin/
+1. **Login**: https://giveblackapp.com/admin/
 2. **Credentials**: `admin@giveblackapp.com` / `Admin@123`
 3. **Test flow**:
    - View dashboard
@@ -281,7 +281,7 @@ sudo systemctl reload nginx
 
 ### Verify
 ```bash
-curl -I https://giveblackhub.mawa.pro/admin/
+curl -I https://giveblackapp.com/admin/
 # Should return 200 OK
 ```
 

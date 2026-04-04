@@ -87,7 +87,7 @@ export default function VolunteerSignupScreen() {
           name: name.trim(),
           email: email.trim(),
           phone: phone.trim(),
-          skills: selectedSkills,
+          skills: selectedSkills.join(", "),
           availability,
           message: message.trim(),
         }),

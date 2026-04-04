@@ -53,9 +53,9 @@ Currently running in **standalone mode** (no VPS proxy) with local PostgreSQL da
 
 ## Environment Variables
 
-- `VPS_BACKEND_URL` — External VPS backend URL for proxy mode (e.g. `https://giveblack.mawa.pro/app`)
+- `VPS_BACKEND_URL` — External VPS backend URL for proxy mode (e.g. `https://giveblackapp.com/app`)
 - `EXPO_PUBLIC_API_URL` — API URL the mobile app uses (set to `http://localhost:5000` for proxy mode)
-- `EXPO_PUBLIC_DOMAIN` — Domain for the app (e.g. `giveblack.mawa.pro`)
+- `EXPO_PUBLIC_DOMAIN` — Domain for the app (e.g. `giveblackapp.com`)
 - `DATABASE_URL` — PostgreSQL connection string (only needed when NOT in VPS proxy mode)
 - `JWT_ACCESS_SECRET` — Min 32 chars, used for access token signing
 - `JWT_REFRESH_SECRET` — Min 32 chars, used for refresh token signing

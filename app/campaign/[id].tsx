@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useState } from "react";
+import { useFocusEffect } from "@react-navigation/native";
 import {
   View,
   Text,
@@ -46,46 +47,50 @@ export default function CampaignDetailScreen() {
   const [campaign, setCampaign] = useState<CampaignDetail | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const fetchDetail = async () => {
-      try {
-        const base = getApiUrl().replace(/\/$/, "");
-        const res = await fetch(`${base}/api/campaigns/${id}`);
-        if (res.ok) {
-          const data = await res.json();
-          setCampaign({
-            id: data.id,
-            title: data.title,
-            description: data.description,
-            story: data.story,
-            about: data.about,
-            mainImageUrl: resolveImgUrl(base, data.main_image_url),
-            location: data.location,
-            goal: Number(data.goal ?? 0),
-            raised: Number(data.raised ?? 0),
-            donorCount: Number(data.donor_count ?? 0),
-            status: data.status,
-            organizationId: data.organization_id,
-            orgName: data.org_name,
-            orgImageUrl: resolveImgUrl(base, data.org_image_url),
-            orgInitials: data.org_initials,
-            orgImageColor: data.org_image_color,
-            orgVerified: data.org_verified,
-            categoryId: data.category_id,
-            createdAt: data.created_at,
-            gallery: (data.gallery || []).map((g: any) => ({ ...g, image_url: resolveImgUrl(base, g.image_url) })),
-            orgDescription: data.org_description,
-            orgTier: data.org_tier || "free",
-          });
-        }
-      } catch {
-        // fall back to context data
-      } finally {
-        setLoading(false);
+  const fetchDetail = useCallback(async () => {
+    try {
+      const base = getApiUrl().replace(/\/$/, "");
+      const res = await fetch(`${base}/api/campaigns/${id}`);
+      if (res.ok) {
+        const data = await res.json();
+        setCampaign({
+          id: data.id,
+          title: data.title,
+          description: data.description,
+          story: data.story,
+          about: data.about,
+          mainImageUrl: resolveImgUrl(base, data.main_image_url),
+          location: data.location,
+          goal: Number(data.goal ?? 0),
+          raised: Number(data.raised ?? 0),
+          donorCount: Number(data.donor_count ?? 0),
+          status: data.status,
+          organizationId: data.organization_id,
+          orgName: data.org_name,
+          orgImageUrl: resolveImgUrl(base, data.org_image_url),
+          orgInitials: data.org_initials,
+          orgImageColor: data.org_image_color,
+          orgVerified: data.org_verified,
+          categoryId: data.category_id,
+          createdAt: data.created_at,
+          gallery: (data.gallery || []).map((g: any) => ({ ...g, image_url: resolveImgUrl(base, g.image_url) })),
+          orgDescription: data.org_description,
+          orgTier: data.org_tier || "free",
+        });
       }
-    };
-    fetchDetail();
+    } catch {
+      // fall back to context data
+    } finally {
+      setLoading(false);
+    }
   }, [id]);
+
+  // Refetch when the screen is shown again (e.g. after donating) so raised/donor totals stay in sync with the API.
+  useFocusEffect(
+    useCallback(() => {
+      fetchDetail();
+    }, [fetchDetail])
+  );
 
   const camp = campaign || (contextCampaign ? { ...contextCampaign, gallery: [], orgDescription: undefined, orgTier: undefined } : null);
   const showVolunteer = camp?.orgTier === "growth" || camp?.orgTier === "institutional";
@@ -118,7 +123,7 @@ export default function CampaignDetailScreen() {
     try {
       // Public campaign page URL for sharing
       const pubHost = process.env.EXPO_PUBLIC_DOMAIN || "giveblackapp.com";
-      const shareUrl = `https://${pubHost}/c/${camp!.id}`;
+      const shareUrl = `https://${pubHost}/admin/c/${camp!.id}`;
       if (Platform.OS === "web" && typeof navigator !== "undefined" && "share" in navigator) {
         try {
           await navigator.share({
@@ -347,11 +352,11 @@ export default function CampaignDetailScreen() {
               </Pressable>
             )}
             <Pressable
-              style={[styles.donateBtn, { backgroundColor: c.green, flex: showVolunteer ? undefined : 1 }]}
+              style={[styles.donateBtn, { backgroundColor: c.green }]}
               onPress={() =>
                 router.push({
                   pathname: "/donate/[orgId]",
-                  params: { orgId: camp.organizationId },
+                  params: { orgId: camp.organizationId, campaignId: id },
                 })
               }
             >
@@ -457,17 +462,35 @@ const styles = StyleSheet.create({
     position: "absolute", bottom: 0, left: 0, right: 0,
     paddingTop: 12, paddingHorizontal: 20, borderTopWidth: 1,
   },
-  bottomBtnRow: { flexDirection: "row", gap: 12 },
+  bottomBtnRow: {
+    flexDirection: "row",
+    gap: 12,
+    alignSelf: "stretch",
+    width: "100%",
+  },
   volunteerBtn: {
-    flex: 0.35, flexDirection: "row", alignItems: "center", justifyContent: "center",
-    gap: 6, borderRadius: 14, paddingVertical: 16, borderWidth: 1.5,
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    borderRadius: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 12,
+    borderWidth: 1.5,
+    minHeight: 52,
   },
   volunteerBtnText: { fontFamily: "Poppins_600SemiBold", fontSize: 14 },
   donateBtn: {
-    flex: 0.65, alignItems: "center", justifyContent: "center",
-    borderRadius: 14, paddingVertical: 16,
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    minHeight: 52,
   },
-  donateBtnText: { fontFamily: "Poppins_600SemiBold", fontSize: 16, color: "#FFFFFF" },
+  donateBtnText: { fontFamily: "Poppins_600SemiBold", fontSize: 16, color: "#FFFFFF", textAlign: "center" },
   notFound: { flex: 1, alignItems: "center", justifyContent: "center", gap: 12 },
   notFoundText: { fontFamily: "Poppins_500Medium", fontSize: 16 },
   backLink: { marginTop: 8 },

@@ -260,7 +260,7 @@ async function ensureDavidAccounts(passwordHash) {
           DAVID_CHARITY_EMAIL,
           "other",
           "Demo charity account for testing login and impact screens.",
-          "https://giveblack.mawa.pro",
+          "https://giveblackapp.com",
         ]
       );
     } else {
@@ -284,7 +284,7 @@ async function ensureDavidAccounts(passwordHash) {
           DAVID_CHARITY_EMAIL,
           "other",
           "Demo charity account for testing login and impact screens.",
-          "https://giveblack.mawa.pro",
+          "https://giveblackapp.com",
         ]
       );
     }
@@ -311,7 +311,7 @@ async function ensureDavidAccounts(passwordHash) {
         DAVID_FULL_NAME,
         "other",
         "Demo charity account for testing login and impact screens.",
-        "https://giveblack.mawa.pro",
+        "https://giveblackapp.com",
       ]
     );
   }

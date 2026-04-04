@@ -60,10 +60,10 @@ fi
 
 if command -v nginx &>/dev/null; then
   DOMAIN_CONF=""
-  if [ -f /etc/nginx/sites-enabled/giveblack.mawa.pro ]; then
-    DOMAIN_CONF="giveblack.mawa.pro"
-  elif [ -f /etc/nginx/sites-enabled/giveblackapp.com ]; then
+  if [ -f /etc/nginx/sites-enabled/giveblackapp.com ]; then
     DOMAIN_CONF="giveblackapp.com"
+  elif [ -f /etc/nginx/sites-enabled/giveblack.mawa.pro ]; then
+    DOMAIN_CONF="giveblack.mawa.pro"
   fi
 
   if [ -n "$DOMAIN_CONF" ]; then

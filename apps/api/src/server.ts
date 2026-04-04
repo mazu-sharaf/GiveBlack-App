@@ -12,6 +12,7 @@ import { env, getCorsOrigins } from "./config/env.js";
 import { healthRoutes } from "./routes/health.js";
 import { authRoutes } from "./routes/auth.js";
 import { publicRoutes } from "./routes/public.js";
+import { educationPartnersRoutes } from "./routes/education-partners.js";
 import { stripeRoutes } from "./routes/stripe.js";
 import { donorsRoutes } from "./routes/donors.js";
 import { notificationRoutes } from "./routes/notifications.js";
@@ -19,8 +20,11 @@ import { parseChannels, filterAllowedChannels, registerClient } from "./realtime
 import { adminCompatRoutes } from "./routes/admin-compat.js";
 import { receiptPdfRoutes } from "./routes/receipt-pdf.js";
 import { orgCampaignRoutes } from "./routes/org-campaigns.js";
+import { orgConnectRoutes } from "./routes/org-connect.js";
+import { adminFundReleaseRoutes } from "./routes/admin-fund-release.js";
 import { uploadRoutes } from "./routes/upload.js";
 import { campaignPageRoutes } from "./routes/campaign-page.js";
+import { orgVolunteerRoutes } from "./routes/org-volunteers.js";
 
 declare module "fastify" {
   interface FastifyInstance {
@@ -31,7 +35,9 @@ declare module "fastify" {
 
 export function buildServer() {
   const app = Fastify({
-    logger: true
+    logger: true,
+    /** Campaign forms can send long descriptions; default 1MB is easy to exceed. */
+    bodyLimit: 10 * 1024 * 1024,
   });
 
   app.register(cors, {
@@ -62,7 +68,7 @@ export function buildServer() {
     try {
       await request.jwtVerify();
     } catch {
-      reply.code(401).send({ error: "Unauthorized" });
+      return reply.code(401).send({ error: "Unauthorized" });
     }
   });
 
@@ -70,7 +76,7 @@ export function buildServer() {
     return async (request: any, reply: any) => {
       const role = request.user?.role;
       if (!role || !roles.includes(role)) {
-        reply.code(403).send({ error: "Forbidden" });
+        return reply.code(403).send({ error: "Forbidden" });
       }
     };
   });
@@ -127,6 +133,8 @@ export function buildServer() {
 
   app.register(healthRoutes);
   app.register(orgCampaignRoutes);
+  app.register(orgVolunteerRoutes);
+  app.register(orgConnectRoutes);
   app.register(uploadRoutes);
   app.register(campaignPageRoutes);
 
@@ -150,15 +158,19 @@ export function buildServer() {
     });
   } else {
     app.register(stripeRoutes);
+    app.register(educationPartnersRoutes);
     app.register(publicRoutes);
     app.register(authRoutes);
     app.register(donorsRoutes);
     app.register(notificationRoutes);
     app.register(adminCompatRoutes);
+    app.register(adminFundReleaseRoutes);
     app.register(receiptPdfRoutes);
   }
 
   const adminPort = parseInt(process.env.ADMIN_DEV_PORT || "8080", 10);
+  /** Production admin SPA root (for static files + index.html fallback). */
+  let adminSpaRoot: string | undefined;
   if (env.NODE_ENV === "development") {
     app.register(httpProxy, {
       upstream: `http://127.0.0.1:${adminPort}`,
@@ -167,22 +179,21 @@ export function buildServer() {
       websocket: false,
     });
   } else {
-    const adminDist = path.resolve(
+    adminSpaRoot = path.resolve(
       new URL(".", import.meta.url).pathname,
       "../../..",
       "apps/admin/dist"
     );
+    // wildcard: true registers all files under dist (e.g. /admin/assets/*.js). Do NOT use a catch-all
+    // route for /admin/* — it would return index.html for JS/CSS and break the app (blank white page).
     app.register(fastifyStatic, {
-      root: adminDist,
+      root: adminSpaRoot,
       prefix: "/admin/",
       decorateReply: false,
-      wildcard: false,
+      wildcard: true,
     });
     app.get("/admin", async (_req, reply) => {
       return reply.redirect("/admin/");
-    });
-    app.get("/admin/*", async (_req, reply) => {
-      return reply.sendFile("index.html", adminDist);
     });
   }
 
@@ -225,7 +236,27 @@ export function buildServer() {
         return reply.code(502).send({ error: "Expo dev server not ready" });
       }
     }
+    // React Router: serve index.html for non-asset paths under /admin/ (production only).
+    if (
+      adminSpaRoot &&
+      request.method === "GET" &&
+      request.url.startsWith("/admin/") &&
+      !request.url.startsWith("/admin/assets/")
+    ) {
+      return reply.sendFile("index.html", adminSpaRoot);
+    }
     return reply.code(404).send({ error: "Not Found" });
+  });
+
+  app.setErrorHandler((error: Error & { statusCode?: number }, request, reply) => {
+    request.log.error({ err: error }, request.url);
+    const statusCode = typeof error.statusCode === "number" ? error.statusCode : 500;
+    const safePublic =
+      statusCode >= 500 && env.NODE_ENV === "production"
+        ? "Internal Server Error"
+        : error.message || "Request failed";
+    if (reply.sent) return;
+    return reply.code(statusCode).send({ error: safePublic });
   });
 
   return app;

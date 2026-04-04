@@ -3,7 +3,7 @@
     "name": "GiveBlack",
     "slug": "giveblack",
     "description": "The go-to app for Black Philanthropy. Created for us, by us. Donate to verified Black-led organizations, track your impact, volunteer, and share campaigns -- all in one place. Give back with purpose.",
-    "version": "1.1.0",
+    "version": "1.1.1",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "giveblack",
@@ -16,7 +16,11 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.giveblack"
+      "buildNumber": "1",
+      "bundleIdentifier": "com.giveblack.app",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "package": "com.giveblack",
@@ -40,7 +44,7 @@
       [
         "@stripe/stripe-react-native",
         {
-          "merchantIdentifier": "merchant.com.giveblack"
+          "merchantIdentifier": "merchant.com.giveblack.app"
         }
       ],
       "expo-font",
@@ -49,6 +53,15 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    }
+    },
+    "extra": {
+      "router": {
+        "origin": "https://replit.com/"
+      },
+      "eas": {
+        "projectId": "aac9a673-6322-424e-b349-dfcf7f9331d2"
+      }
+    },
+    "owner": "mawamedia"
   }
 }

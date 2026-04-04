@@ -21,6 +21,7 @@ import * as WebBrowser from "expo-web-browser";
 
 interface SubData {
   org_id: string | null;
+  stripe_subscription_id?: string | null;
   subscription: {
     tier: string;
     status: string;
@@ -29,6 +30,7 @@ interface SubData {
     limits: { max_community_campaigns: number; max_goal_per_campaign: number };
   };
   community_campaign_count: number;
+  organization_campaign_count: number;
 }
 
 const PLANS = [
@@ -41,6 +43,7 @@ const PLANS = [
     features: [
       "1 community campaign",
       "Up to $5,000 goal per campaign",
+      "14-day payout hold before funds transfer",
       "Standard support",
     ],
     accent: "#64748b",
@@ -54,6 +57,7 @@ const PLANS = [
     features: [
       "5 community campaigns",
       "Up to $50,000 goal per campaign",
+      "7-day payout hold before funds transfer",
       "Volunteer signup",
       "Everything in Free",
       "Priority support",
@@ -70,6 +74,7 @@ const PLANS = [
     features: [
       "Unlimited community campaigns",
       "Unlimited goal per campaign",
+      "7-day payout hold before funds transfer",
       "Volunteer signup",
       "Everything in Growth",
       "Dedicated support",
@@ -94,6 +99,10 @@ const FAQ = [
   {
     q: "What happens to my campaigns if I downgrade?",
     a: "Existing campaigns remain active. You won't be able to create new campaigns above your new plan's limit until existing ones are completed or removed.",
+  },
+  {
+    q: "When do donated funds reach my organization?",
+    a: "After a successful card payment, payouts use a short platform hold for compliance and chargeback protection: 7 days on Growth and Institutional, 14 days on Free. After the hold, transfers follow your connected bank / Stripe payout schedule.",
   },
 ];
 
@@ -130,38 +139,30 @@ export default function SubscriptionsTab() {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.ok) {
-        const json = await res.json();
-        setSubData(json);
-
-        // If a paid checkout just happened, Stripe can briefly report "incomplete" until webhook lands.
-        // Proactively sync from Stripe so the UI shows the correct active tier immediately.
-        if (json?.org_id && json?.subscription?.status === "incomplete") {
+        let json = await res.json();
+        const sub = json.subscription;
+        const needsProactiveSync =
+          json.org_id &&
+          token &&
+          (sub?.status === "incomplete" ||
+            (json.stripe_subscription_id &&
+              sub?.tier === "free" &&
+              (sub?.status === "past_due" ||
+                sub?.status === "unpaid" ||
+                sub?.status === "active" ||
+                sub?.status === "trialing")));
+        if (needsProactiveSync) {
           try {
-            const synced = await apiPost<any>(
-              "/api/subscriptions/sync-native",
-              { org_id: json.org_id },
-              token
-            );
-            if (synced?.subscription) {
-              setSubData((prev) =>
-                prev
-                  ? {
-                      ...prev,
-                      subscription: {
-                        ...prev.subscription,
-                        tier: synced.subscription.tier ?? prev.subscription.tier,
-                        status: synced.subscription.status ?? prev.subscription.status,
-                        current_period_end: synced.subscription.current_period_end ?? prev.subscription.current_period_end,
-                        cancel_at_period_end: synced.subscription.cancel_at_period_end ?? prev.subscription.cancel_at_period_end,
-                      },
-                    }
-                  : prev
-              );
-            }
+            await apiPost("/api/subscriptions/sync-native", { org_id: json.org_id }, token);
+            const res2 = await fetch(`${base}/api/charity/my-subscription`, {
+              headers: { Authorization: `Bearer ${token}` },
+            });
+            if (res2.ok) json = await res2.json();
           } catch {
             // Ignore sync errors; the user can pull-to-refresh or webhooks will update later.
           }
         }
+        setSubData(json);
       }
     } catch {} finally {
       setLoading(false);
@@ -370,7 +371,7 @@ export default function SubscriptionsTab() {
           <View style={[styles.usageMeter, { borderTopColor: c.border }]}>
             <Text style={[styles.usageMeterLabel, { color: c.textMuted }]}>Campaign Usage</Text>
             <Text style={[styles.usageMeterValue, { color: c.text }]}>
-              {subData?.community_campaign_count ?? 0} / {subData?.subscription.limits.max_community_campaigns === 999999 ? "\u221e" : subData?.subscription.limits.max_community_campaigns}
+              {subData?.organization_campaign_count ?? 0} / {subData?.subscription.limits.max_community_campaigns === 999999 ? "\u221e" : subData?.subscription.limits.max_community_campaigns}
             </Text>
           </View>
           {currentTier !== "free" && (

@@ -1,9 +1,7 @@
 import { useEffect, useState } from "react";
 import {
-  adminBanSubscription,
-  adminCancelSubscription,
-  adminChangeSubscriptionTier,
-  adminResumeSubscription,
+  adminAddSubscription,
+  adminRemoveSubscription,
   fetchSubscriptions
 } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -110,38 +108,28 @@ export default function SubscriptionsPage() {
     }
   };
 
-  const cancelAtPeriodEnd = async (s: Subscription) => {
-    if (!window.confirm("Cancel this subscription at period end?")) return;
+  const addSubscription = async (s: Subscription, targetTier: "growth" | "institutional") => {
+    if (pendingActionId === s.id) return;
+    if (s.status === "active" && s.tier === targetTier) {
+      toast.error("This subscription is already active.");
+      return;
+    }
+    if (!window.confirm(`Add ${targetTier} subscription for ${s.org?.name || s.org_name || "this organization"} now?`)) return;
     await runAction(
       s.id,
-      () => adminCancelSubscription(s.id, false),
-      "Subscription will cancel at period end"
+      () => adminAddSubscription(s.id, targetTier),
+      `Subscription added: ${targetTier}`
     );
   };
 
-  const banOrgAndCancelNow = async (s: Subscription) => {
-    if (!window.confirm("Ban this organization and cancel subscription now? This archives the org and disables linked users.")) return;
-    await runAction(
-      s.id,
-      () => adminBanSubscription(s.id, true),
-      "Organization banned and subscription canceled"
-    );
-  };
-
-  const changeTier = async (s: Subscription, targetTier: "growth" | "institutional") => {
-    await runAction(
-      s.id,
-      () => adminChangeSubscriptionTier(s.id, targetTier),
-      `Subscription ${targetTier === "institutional" ? "upgraded" : "downgraded"}`
-    );
-  };
-
-  const resumeCancellation = async (s: Subscription) => {
-    await runAction(
-      s.id,
-      () => adminResumeSubscription(s.id),
-      "Cancellation removed"
-    );
+  const removeSubscription = async (s: Subscription) => {
+    if (pendingActionId === s.id) return;
+    if (s.status !== "active") {
+      toast.error("This subscription is already removed.");
+      return;
+    }
+    if (!window.confirm(`Remove subscription for ${s.org?.name || s.org_name || "this organization"} now?`)) return;
+    await runAction(s.id, () => adminRemoveSubscription(s.id), "Subscription removed");
   };
 
   return (
@@ -233,53 +221,35 @@ export default function SubscriptionsPage() {
                       </TableCell>
                       <TableCell>
                         <div className="flex flex-wrap gap-1">
-                          {s.cancel_at_period_end ? (
+                          {s.status === "active" && s.tier !== "free" ? (
                             <Button
-                              variant="outline"
+                              variant="destructive"
                               size="sm"
                               disabled={pendingActionId === s.id}
-                              onClick={() => resumeCancellation(s)}
+                              onClick={() => removeSubscription(s)}
                             >
-                              Resume
+                              Remove
                             </Button>
                           ) : (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              disabled={pendingActionId === s.id || s.status === "canceled"}
-                              onClick={() => cancelAtPeriodEnd(s)}
-                            >
-                              Cancel
-                            </Button>
+                            <>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                disabled={pendingActionId === s.id}
+                                onClick={() => addSubscription(s, "growth")}
+                              >
+                                Add Growth
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                disabled={pendingActionId === s.id}
+                                onClick={() => addSubscription(s, "institutional")}
+                              >
+                                Add Institutional
+                              </Button>
+                            </>
                           )}
-                          {s.tier !== "institutional" && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              disabled={pendingActionId === s.id}
-                              onClick={() => changeTier(s, "institutional")}
-                            >
-                              Upgrade
-                            </Button>
-                          )}
-                          {s.tier !== "growth" && s.status !== "canceled" && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              disabled={pendingActionId === s.id}
-                              onClick={() => changeTier(s, "growth")}
-                            >
-                              Downgrade
-                            </Button>
-                          )}
-                          <Button
-                            variant="destructive"
-                            size="sm"
-                            disabled={pendingActionId === s.id}
-                            onClick={() => banOrgAndCancelNow(s)}
-                          >
-                            Ban
-                          </Button>
                         </div>
                       </TableCell>
                     </TableRow>

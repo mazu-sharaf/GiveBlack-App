@@ -1,16 +1,19 @@
 import type { FastifyPluginAsync } from "fastify";
 import path from "node:path";
 import fs from "node:fs/promises";
+import { randomUUID } from "node:crypto";
 import { db } from "../lib/db.js";
 import { broadcastChannel } from "../realtime/hub.js";
 import { env } from "../config/env.js";
 import { getStripe } from "../services/stripe.js";
+import { stripeId } from "../lib/stripe-ids.js";
 
 const TABLES = new Set([
   "organizations",
   "categories",
   "campaigns",
   "campaign_images",
+  "education_partners",
   "donations",
   "volunteers",
   "transactions",
@@ -59,6 +62,18 @@ function adminPriceIdForTier(tier: string): string {
   if (tier === "growth") return env.STRIPE_PRICE_GROWTH;
   if (tier === "institutional") return env.STRIPE_PRICE_INSTITUTIONAL;
   throw new Error(`No price configured for tier ${tier}`);
+}
+
+function normalizeStripeAdminError(error: unknown, fallback: string): string {
+  if (!(error instanceof Error)) return fallback;
+  const msg = error.message || fallback;
+  if (msg.includes("invalid-canceled-subscription-fields")) {
+    return "This Stripe subscription is already canceled. Create a new subscription instead.";
+  }
+  if (msg.toLowerCase().includes("canceled subscription")) {
+    return "This Stripe subscription is already canceled. Create a new subscription instead.";
+  }
+  return msg;
 }
 
 async function upsertOrgSubscriptionFromStripe(
@@ -287,7 +302,7 @@ export const adminCompatRoutes: FastifyPluginAsync = async (app) => {
         const userRole = (request.user as { role?: string })?.role || "";
         const isAdmin = ["admin", "super_admin"].includes(userRole);
 
-        const ADMIN_ONLY_TABLES = new Set(["users", "staff_accounts", "app_settings"]);
+        const ADMIN_ONLY_TABLES = new Set(["users", "staff_accounts", "app_settings", "education_partners"]);
         if (ADMIN_ONLY_TABLES.has(table) && !isAdmin) {
           return reply.code(403).send({ data: null, error: { message: `Only admins can modify ${table}` } });
         }
@@ -375,8 +390,37 @@ export const adminCompatRoutes: FastifyPluginAsync = async (app) => {
           if (filterParts.length) sql += ` where ${filterParts.join(" and ")}`;
         }
 
+        let prevCampaign: { id: string; status: string; organization_id: string; title: string } | null = null;
+        if (table === "campaigns" && body.operation === "update") {
+          const idFilter = filters.find((f) => f.column === "id" && f.op === "eq");
+          if (idFilter?.value != null && String(idFilter.value).length > 0) {
+            const prevRes = await db.query(
+              `select id, status, organization_id, title from campaigns where id = $1`,
+              [idFilter.value]
+            );
+            const pr = prevRes.rows[0] as
+              | { id: string; status: string; organization_id: string; title: string }
+              | undefined;
+            if (pr) prevCampaign = pr;
+          }
+        }
+
         if (body.returning) sql += " returning *";
         const result = await db.query(sql, values);
+
+        if (table === "campaigns" && body.operation === "update" && prevCampaign) {
+          const rowData = (Array.isArray(body.data) ? body.data[0] : body.data) as Record<string, unknown> | undefined;
+          const newStatus =
+            rowData && rowData.status !== undefined ? String(rowData.status) : undefined;
+          if (prevCampaign.status === "pending_review" && newStatus === "active") {
+            const { notifyCampaignWentLive } = await import("../services/user-push.js");
+            void notifyCampaignWentLive({
+              campaignId: prevCampaign.id,
+              orgId: prevCampaign.organization_id,
+              title: prevCampaign.title,
+            }).catch((err) => console.error("[admin] notifyCampaignWentLive", err));
+          }
+        }
 
         if (table === "organizations" || table === "campaigns") {
           broadcastChannel("campaign_updates", "campaign.changed", {
@@ -434,13 +478,160 @@ export const adminCompatRoutes: FastifyPluginAsync = async (app) => {
     { preHandler: [app.authenticate, app.requireRole("admin", "super_admin")] },
     async () => {
       const result = await db.query(
-        `select s.*, o.name as org_name, o.contact_email as org_contact_email from org_subscriptions s left join organizations o on o.id = s.org_id order by s.created_at desc`
+        `select distinct on (s.org_id) s.*,
+                o.name as org_name,
+                o.contact_email as org_contact_email
+         from org_subscriptions s
+         left join organizations o on o.id = s.org_id
+         order by
+           s.org_id,
+           case when s.status = 'active' then 0 else 1 end,
+           s.created_at desc`
       );
       const subscriptions = result.rows.map((row: Record<string, unknown>) => ({
         ...row,
         org: row.org_name ? { name: row.org_name as string, contact_email: row.org_contact_email as string } : null,
       }));
       return { subscriptions };
+    }
+  );
+
+  // Manual subscription entitlement controls for the admin panel.
+  // Admin decides when subscriptions become active/inactive. Stripe lifecycle events should not auto-expire entitlements.
+  app.post(
+    "/api/admin/subscriptions/:id/add",
+    { preHandler: [app.authenticate, app.requireRole("admin", "super_admin")] },
+    async (request, reply) => {
+      const { id } = request.params as { id: string };
+      const body = (request.body ?? {}) as { tier?: string };
+      const tier = String(body.tier || "").toLowerCase();
+
+      if (!ADMIN_SUBSCRIPTION_TIERS.has(tier)) {
+        return reply.code(400).send({ error: "tier must be growth or institutional" });
+      }
+
+      const subRes = await db.query(`select * from org_subscriptions where id = $1 limit 1`, [id]);
+      const sub = subRes.rows[0] as Record<string, unknown> | undefined;
+      if (!sub) return reply.code(404).send({ error: "Subscription not found" });
+
+      await db.query(
+        `update org_subscriptions
+         set tier = $2,
+             status = 'active',
+             cancel_at_period_end = false,
+             canceled_at = null,
+             current_period_end = null,
+             updated_at = now()
+         where id = $1`,
+        [id, tier]
+      );
+
+      return { success: true };
+    }
+  );
+
+  app.post(
+    "/api/admin/subscriptions/:id/remove",
+    { preHandler: [app.authenticate, app.requireRole("admin", "super_admin")] },
+    async (request, reply) => {
+      const { id } = request.params as { id: string };
+      const subRes = await db.query(`select * from org_subscriptions where id = $1 limit 1`, [id]);
+      const sub = subRes.rows[0] as Record<string, unknown> | undefined;
+      if (!sub) return reply.code(404).send({ error: "Subscription not found" });
+
+      await db.query(
+        `update org_subscriptions
+         set tier = 'free',
+             status = 'canceled',
+             cancel_at_period_end = false,
+             canceled_at = now(),
+             current_period_end = null,
+             updated_at = now()
+         where id = $1`,
+        [id]
+      );
+
+      return { success: true };
+    }
+  );
+
+  app.post(
+    "/api/admin/subscriptions/org/:orgId/add",
+    { preHandler: [app.authenticate, app.requireRole("admin", "super_admin")] },
+    async (request, reply) => {
+      const { orgId } = request.params as { orgId: string };
+      const body = (request.body ?? {}) as { tier?: string };
+      const tier = String(body.tier || "").toLowerCase();
+      if (!ADMIN_SUBSCRIPTION_TIERS.has(tier)) {
+        return reply.code(400).send({ error: "tier must be growth or institutional" });
+      }
+
+      const orgRes = await db.query(`select id from organizations where id = $1 limit 1`, [orgId]);
+      if (!orgRes.rowCount) return reply.code(404).send({ error: "Organization not found" });
+
+      const latestRes = await db.query(
+        `select id from org_subscriptions where org_id = $1 order by created_at desc limit 1`,
+        [orgId]
+      );
+      const latestId = (latestRes.rows[0] as { id: string } | undefined)?.id;
+
+      if (latestId) {
+        await db.query(
+          `update org_subscriptions
+           set tier = $2,
+               status = 'active',
+               cancel_at_period_end = false,
+               canceled_at = null,
+               current_period_end = null,
+               updated_at = now()
+           where id = $1`,
+          [latestId, tier]
+        );
+      } else {
+        await db.query(
+          `insert into org_subscriptions (id, org_id, tier, status, cancel_at_period_end, created_at, updated_at)
+           values ($1, $2, $3, 'active', false, now(), now())`,
+          [randomUUID(), orgId, tier]
+        );
+      }
+      return { success: true };
+    }
+  );
+
+  app.post(
+    "/api/admin/subscriptions/org/:orgId/remove",
+    { preHandler: [app.authenticate, app.requireRole("admin", "super_admin")] },
+    async (request, reply) => {
+      const { orgId } = request.params as { orgId: string };
+      const orgRes = await db.query(`select id from organizations where id = $1 limit 1`, [orgId]);
+      if (!orgRes.rowCount) return reply.code(404).send({ error: "Organization not found" });
+
+      const latestRes = await db.query(
+        `select id from org_subscriptions where org_id = $1 order by created_at desc limit 1`,
+        [orgId]
+      );
+      const latestId = (latestRes.rows[0] as { id: string } | undefined)?.id;
+
+      if (latestId) {
+        await db.query(
+          `update org_subscriptions
+           set tier = 'free',
+               status = 'canceled',
+               cancel_at_period_end = false,
+               canceled_at = now(),
+               current_period_end = null,
+               updated_at = now()
+           where id = $1`,
+          [latestId]
+        );
+      } else {
+        await db.query(
+          `insert into org_subscriptions (id, org_id, tier, status, cancel_at_period_end, canceled_at, created_at, updated_at)
+           values ($1, $2, 'free', 'canceled', false, now(), now(), now())`,
+          [randomUUID(), orgId]
+        );
+      }
+      return { success: true };
     }
   );
 
@@ -489,10 +680,15 @@ export const adminCompatRoutes: FastifyPluginAsync = async (app) => {
 
       const stripeSubId = String(sub.stripe_subscription_id || "");
       if (stripeSubId && env.STRIPE_SECRET_KEY) {
-        const stripe = getStripe();
-        const updated = await stripe.subscriptions.update(stripeSubId, { cancel_at_period_end: false });
-        const saved = await upsertOrgSubscriptionFromStripe(updated as unknown as Record<string, unknown>, String(sub.org_id || ""));
-        return { success: true, subscription: saved };
+        try {
+          const stripe = getStripe();
+          const updated = await stripe.subscriptions.update(stripeSubId, { cancel_at_period_end: false });
+          const saved = await upsertOrgSubscriptionFromStripe(updated as unknown as Record<string, unknown>, String(sub.org_id || ""));
+          return { success: true, subscription: saved };
+        } catch (error) {
+          const friendly = normalizeStripeAdminError(error, "Failed to resume subscription");
+          return reply.code(400).send({ error: friendly });
+        }
       }
 
       await db.query(
@@ -520,17 +716,22 @@ export const adminCompatRoutes: FastifyPluginAsync = async (app) => {
 
       const stripeSubId = String(sub.stripe_subscription_id || "");
       if (stripeSubId && env.STRIPE_SECRET_KEY) {
-        const stripe = getStripe();
-        const current = await stripe.subscriptions.retrieve(stripeSubId);
-        const itemId = current.items.data[0]?.id;
-        if (!itemId) return reply.code(400).send({ error: "Subscription item not found in Stripe" });
-        const updated = await stripe.subscriptions.update(stripeSubId, {
-          items: [{ id: itemId, price: adminPriceIdForTier(tier) }],
-          metadata: { ...(current.metadata || {}), tier, org_id: String(sub.org_id || "") },
-          proration_behavior: "create_prorations"
-        });
-        const saved = await upsertOrgSubscriptionFromStripe(updated as unknown as Record<string, unknown>, String(sub.org_id || ""));
-        return { success: true, subscription: saved };
+        try {
+          const stripe = getStripe();
+          const current = await stripe.subscriptions.retrieve(stripeSubId);
+          const itemId = current.items.data[0]?.id;
+          if (!itemId) return reply.code(400).send({ error: "Subscription item not found in Stripe" });
+          const updated = await stripe.subscriptions.update(stripeSubId, {
+            items: [{ id: itemId, price: adminPriceIdForTier(tier) }],
+            metadata: { ...(current.metadata || {}), tier, org_id: String(sub.org_id || "") },
+            proration_behavior: "create_prorations"
+          });
+          const saved = await upsertOrgSubscriptionFromStripe(updated as unknown as Record<string, unknown>, String(sub.org_id || ""));
+          return { success: true, subscription: saved };
+        } catch (error) {
+          const friendly = normalizeStripeAdminError(error, "Failed to change subscription tier");
+          return reply.code(400).send({ error: friendly });
+        }
       }
 
       await db.query(`update org_subscriptions set tier = $2, updated_at = now() where id = $1`, [id, tier]);
@@ -862,11 +1063,13 @@ export const adminCompatRoutes: FastifyPluginAsync = async (app) => {
                 end as donor_name,
                 coalesce(d.donor_email, u.email) as user_email,
                 o.name as org_name,
+                ep.name as education_partner_name,
                 coalesce(ds.platform_fee, 0) as platform_fee,
                 coalesce(ds.net_to_org, 0) as net_to_org
          from donations d
          left join users u on u.id = d.user_id
          left join organizations o on o.id = d.org_id
+         left join education_partners ep on ep.id = d.education_partner_id
          left join donation_splits ds on ds.donation_id = d.id
          ${w} order by d.created_at desc
          limit $${values.length + 1} offset $${values.length + 2}`,
@@ -1215,6 +1418,40 @@ export const adminCompatRoutes: FastifyPluginAsync = async (app) => {
           cancel_url: `${baseUrl}/api/payments/checkout-cancel`,
           metadata: { orgId: dOrgId, campaignId: dCampaignId, donorUserId: user.sub },
         });
+
+        const adminPiId = stripeId(session.payment_intent);
+        if (adminPiId) {
+          await stripe.paymentIntents.update(adminPiId, {
+            metadata: {
+              orgId: dOrgId,
+              campaignId: dCampaignId || "",
+              donorUserId: user.sub,
+              type: "donation",
+              checkoutSessionId: session.id,
+            },
+          });
+        }
+
+        await db.query(
+          `insert into donations (
+             org_id, campaign_id, user_id, amount, currency, status, stripe_payment_intent_id,
+             education_partner_id, reinvest_opt_in, reinvest_amount, partner_reinvest_amount, general_reinvest_amount
+           ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+          [
+            dOrgId,
+            dCampaignId || null,
+            user.sub,
+            dAmount,
+            dCurrency,
+            "pending",
+            session.id,
+            null,
+            false,
+            0,
+            0,
+            0,
+          ]
+        );
 
         return { data: { url: session.url, sessionId: session.id }, error: null };
       }

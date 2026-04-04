@@ -1,4 +1,5 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useState, useCallback } from "react";
+import { useFocusEffect } from "@react-navigation/native";
 import {
   View,
   Text,
@@ -12,7 +13,7 @@ import {
 import { useSafeInsets } from "@/lib/safe-area";
 import { useThemeColors } from "@/context/ThemeContext";
 import { useAuth } from "@/context/AuthContext";
-import { getApiUrl, apiGet } from "@/lib/query-client";
+import { donorDisplayName } from "@/lib/donor-display";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 
@@ -25,6 +26,7 @@ interface SubData {
     limits: { max_community_campaigns: number; max_goal_per_campaign: number };
   };
   community_campaign_count: number;
+  organization_campaign_count: number;
 }
 
 interface Campaign {
@@ -43,10 +45,40 @@ interface DonationItem {
   campaign_title?: string;
 }
 
+interface MyDonationsPayload {
+  donations?: DonationItem[];
+  stats?: {
+    all_time_total: unknown;
+    all_time_donors: unknown;
+    month_total: unknown;
+  } | null;
+}
+
+interface MyCampaignsPayload {
+  campaigns?: Campaign[];
+  org_stats?: {
+    total_raised: unknown;
+    donors_count_sum: unknown;
+    month_raised: unknown;
+  } | null;
+}
+
+function parseMoney(v: unknown): number {
+  if (v == null) return 0;
+  const n = typeof v === "number" ? v : Number(String(v).replace(/,/g, ""));
+  return Number.isFinite(n) ? n : 0;
+}
+
+function parseCount(v: unknown): number {
+  if (v == null) return 0;
+  const n = typeof v === "number" ? v : Number(v);
+  return Number.isFinite(n) ? Math.round(n) : 0;
+}
+
 export default function OrgDashboardHome() {
   const insets = useSafeInsets();
   const c = useThemeColors();
-  const { session, user } = useAuth();
+  const { session, user, fetchWithAuth } = useAuth();
   const [subData, setSubData] = useState<SubData | null>(null);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [donations, setDonations] = useState<DonationItem[]>([]);
@@ -56,49 +88,64 @@ export default function OrgDashboardHome() {
   const [totalDonors, setTotalDonors] = useState(0);
   const [monthRaised, setMonthRaised] = useState(0);
 
-  const base = getApiUrl().replace(/\/$/, "");
-  const token = session?.accessToken ?? "";
-
   const loadData = useCallback(async () => {
+    if (!session) return;
     try {
-      let sub: SubData | null = null;
       try {
-        sub = await apiGet<SubData>("/api/charity/my-subscription", token);
-        setSubData(sub);
+        const subRes = await fetchWithAuth("/api/charity/my-subscription", { method: "GET" });
+        if (subRes.ok) {
+          const sub = (await subRes.json()) as SubData;
+          setSubData(sub);
+        }
       } catch {
         // silent – keep existing cached value
       }
-      if (sub?.org_id) {
-        const [orgRes, campRes, donRes] = await Promise.all([
-          fetch(`${base}/api/organizations/${sub.org_id}`),
-          fetch(`${base}/api/org/my-campaigns`, {
-            headers: { Authorization: `Bearer ${token}` },
-          }),
-          fetch(`${base}/api/org/my-donations`, {
-            headers: { Authorization: `Bearer ${token}` },
-          }),
-        ]);
 
-        if (orgRes.ok) {
-          const orgJson = await orgRes.json();
-          setTotalRaised(parseFloat(orgJson.raised) || 0);
-          setTotalDonors(orgJson.donor_count || 0);
-        }
-        if (campRes.ok) {
-          const campJson = await campRes.json();
-          setCampaigns(Array.isArray(campJson.campaigns) ? campJson.campaigns : []);
-        }
-        if (donRes.ok) {
-          const donJson = await donRes.json();
-          const items = Array.isArray(donJson.donations) ? donJson.donations : [];
-          setDonations(items.slice(0, 5));
+      const campRes = await fetchWithAuth("/api/org/my-campaigns", { method: "GET" });
+      const campJson = campRes.ok ? ((await campRes.json()) as MyCampaignsPayload) : {};
+      setCampaigns(Array.isArray(campJson.campaigns) ? campJson.campaigns : []);
+      const orgStats = campJson.org_stats;
+
+      const donRes = await fetchWithAuth("/api/org/my-donations", { method: "GET" });
+      if (donRes.ok) {
+        const donJson = (await donRes.json()) as MyDonationsPayload;
+        const items = Array.isArray(donJson.donations) ? donJson.donations : [];
+        setDonations(items.slice(0, 5));
+        const st = donJson.stats;
+        let raised = 0;
+        let donors = 0;
+        let month = 0;
+        if (st != null && (st.all_time_total != null || st.all_time_donors != null || st.month_total != null)) {
+          raised = parseMoney(st.all_time_total);
+          donors = parseCount(st.all_time_donors);
+          month = parseMoney(st.month_total);
+        } else {
+          const succeeded = items.filter(
+            (d: DonationItem & { status?: string; date?: string }) =>
+              String(d.status || "").toLowerCase() === "succeeded"
+          );
           const now = new Date();
           const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-          const monthTotal = items
-            .filter((d: any) => new Date(d.created_at || d.date) >= monthStart)
-            .reduce((s: number, d: any) => s + (parseFloat(d.amount) || 0), 0);
-          setMonthRaised(monthTotal);
+          month = succeeded
+            .filter((d) => new Date(d.created_at || (d as { date?: string }).date || 0) >= monthStart)
+            .reduce((s: number, d) => s + (parseFloat(String(d.amount)) || 0), 0);
+          raised = succeeded.reduce((s, d) => s + (parseFloat(String(d.amount)) || 0), 0);
+          donors = new Set(succeeded.map((d) => donorDisplayName(d))).size;
         }
+        if (raised <= 0 && orgStats && parseMoney(orgStats.total_raised) > 0) {
+          raised = parseMoney(orgStats.total_raised);
+          donors = parseCount(orgStats.donors_count_sum);
+        }
+        if (month <= 0 && orgStats && parseMoney(orgStats.month_raised) > 0) {
+          month = parseMoney(orgStats.month_raised);
+        }
+        setTotalRaised(raised);
+        setTotalDonors(donors);
+        setMonthRaised(month);
+      } else if (orgStats) {
+        setTotalRaised(parseMoney(orgStats.total_raised));
+        setTotalDonors(parseCount(orgStats.donors_count_sum));
+        setMonthRaised(parseMoney(orgStats.month_raised));
       }
     } catch (e) {
       console.log("Dashboard load error:", e);
@@ -106,11 +153,13 @@ export default function OrgDashboardHome() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [base, token, user?.email]);
+  }, [session, fetchWithAuth, user?.email]);
 
-  useEffect(() => {
-    if (token) loadData();
-  }, [token]);
+  useFocusEffect(
+    useCallback(() => {
+      if (session) loadData();
+    }, [session, loadData])
+  );
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -160,7 +209,9 @@ export default function OrgDashboardHome() {
           </View>
           <View style={styles.planStats}>
             <View style={styles.planStat}>
-              <Text style={styles.planStatValue}>{subData?.community_campaign_count ?? 0}/{maxCampaigns === 999999 ? "∞" : maxCampaigns}</Text>
+              <Text style={styles.planStatValue}>
+                {Math.max(subData?.organization_campaign_count ?? 0, campaigns.length)}/{maxCampaigns === 999999 ? "∞" : maxCampaigns}
+              </Text>
               <Text style={styles.planStatLabel}>Campaigns</Text>
             </View>
             <View style={[styles.planDivider, { backgroundColor: "rgba(255,255,255,0.2)" }]} />
@@ -273,7 +324,7 @@ export default function OrgDashboardHome() {
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.donorName, { color: c.text }]} numberOfLines={1}>
-                    {don.donor_name || "Anonymous"}
+                    {donorDisplayName(don)}
                   </Text>
                   <Text style={[styles.donationDate, { color: c.textMuted }]}>
                     {don.campaign_title || new Date(don.created_at).toLocaleDateString()}

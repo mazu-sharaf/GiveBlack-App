@@ -1,21 +1,47 @@
 import type { FastifyPluginAsync } from "fastify";
+import type { PoolClient } from "pg";
 import { z } from "zod";
 import { db } from "../lib/db.js";
 import { env } from "../config/env.js";
 import { getStripe, verifyStripeWebhook } from "../services/stripe.js";
 import { broadcastChannel } from "../realtime/hub.js";
+import { computeReinvestAllocation } from "../lib/education-reinvest.js";
+import { incrementOrgTotalsFromDonation, markDonationSucceededWithPayout } from "../lib/org-payout-hold.js";
+import { stripeId } from "../lib/stripe-ids.js";
+import { TIER_LIMITS } from "../lib/tier-limits.js";
 
-export const TIER_LIMITS: Record<string, { max_community_campaigns: number; max_goal_per_campaign: number }> = {
-  free: { max_community_campaigns: 1, max_goal_per_campaign: 5000 },
-  growth: { max_community_campaigns: 5, max_goal_per_campaign: 50000 },
-  institutional: { max_community_campaigns: 999999, max_goal_per_campaign: 999999999 },
-};
+export { TIER_LIMITS };
 
 function tierFromProductId(productId: string | null | undefined): string {
   if (!productId) return "free";
   if (productId === env.STRIPE_PRODUCT_GROWTH) return "growth";
   if (productId === env.STRIPE_PRODUCT_INSTITUTIONAL) return "institutional";
   return "free";
+}
+
+/** Resolve tier from Stripe Price ids (robust when test/live products differ from STRIPE_PRODUCT_* env). */
+function tierFromPriceId(priceId: string | null | undefined): string {
+  if (!priceId) return "free";
+  if (priceId === env.STRIPE_PRICE_GROWTH) return "growth";
+  if (priceId === env.STRIPE_PRICE_INSTITUTIONAL) return "institutional";
+  return "free";
+}
+
+function productIdFromSubscriptionItems(items: { data?: Array<{ price?: unknown }> } | undefined): string | undefined {
+  const raw = items?.data?.[0]?.price;
+  if (!raw || typeof raw !== "object") return undefined;
+  const p = raw as { product?: unknown };
+  const prod = p.product;
+  if (typeof prod === "string") return prod;
+  if (prod && typeof prod === "object" && "id" in prod) return String((prod as { id: string }).id);
+  return undefined;
+}
+
+function priceIdFromSubscriptionItems(items: { data?: Array<{ price?: unknown }> } | undefined): string | undefined {
+  const raw = items?.data?.[0]?.price;
+  if (typeof raw === "string") return raw;
+  if (raw && typeof raw === "object" && "id" in raw) return String((raw as { id: string }).id);
+  return undefined;
 }
 
 function priceIdForTier(tier: string): string {
@@ -32,11 +58,136 @@ function normalizeKey(value: string | null | undefined): string {
   return (value || "").toLowerCase().replace(/[^a-z0-9]/g, "");
 }
 
+async function resolveEducationPartnerId(code: string | undefined | null): Promise<string | null> {
+  const key = normalizeKey(code ?? "");
+  if (!key) return null;
+  const res = await db.query(
+    `select id::text from education_partners where lower(code) = $1 and active = true`,
+    [key]
+  );
+  return (res.rows[0] as { id: string } | undefined)?.id ?? null;
+}
+
 function tierForSubscriptionStatus(status: string, paidTier: string): string {
   // Only grant paid features once Stripe confirms the subscription is active/trialing.
   // For lifecycle states like "incomplete" (payment method not confirmed yet), keep the tier as free.
   if (status === "active" || status === "trialing") return paidTier;
   return "free";
+}
+
+/**
+ * If Stripe still reports incomplete but the invoice is paid or the payment_intent succeeded,
+ * treat as active for tier resolution (matches native sync-native behavior).
+ */
+function applySubscriptionPaidHeuristic(subAsRecord: Record<string, unknown>): void {
+  const st = String(subAsRecord.status || "");
+  if (st !== "incomplete") return;
+
+  const latestInvoice = subAsRecord.latest_invoice as Record<string, unknown> | string | undefined;
+  const inv =
+    latestInvoice && typeof latestInvoice === "object" ? (latestInvoice as Record<string, unknown>) : undefined;
+  const paymentIntentRaw = inv?.payment_intent;
+  const paymentIntent =
+    paymentIntentRaw && typeof paymentIntentRaw === "object"
+      ? (paymentIntentRaw as Record<string, unknown>)
+      : undefined;
+  const paymentIntentStatus = paymentIntent?.status as string | undefined;
+  const isPaymentConfirmed = paymentIntentStatus === "succeeded" || paymentIntentStatus === "processing";
+  const invoiceStatus = inv?.status as string | undefined;
+  const invoicePaid = invoiceStatus === "paid";
+  // Paid invoice but PI not expanded in payload (webhook) — still counts as activated for our tier logic.
+  if (isPaymentConfirmed || invoicePaid) {
+    subAsRecord.status = "active";
+  }
+}
+
+async function upsertOrgSubscriptionFromStripe(
+  subscription: Record<string, unknown>,
+  fallbackOrgId?: string
+): Promise<{
+  orgId: string;
+  tier: string;
+  status: string;
+  currentPeriodEnd: string | null;
+  cancelAtPeriodEnd: boolean;
+  subscriptionId: string;
+}> {
+  applySubscriptionPaidHeuristic(subscription);
+
+  const metadata = (subscription.metadata || {}) as Record<string, string>;
+  const orgId = metadata.org_id || fallbackOrgId;
+  if (!orgId) throw new Error("Missing organization id for subscription");
+
+  const items = subscription.items as { data?: Array<{ price?: { product?: string } }> } | undefined;
+  const productId = productIdFromSubscriptionItems(items);
+  const priceId = priceIdFromSubscriptionItems(items);
+  const resolvedTier =
+    (metadata.tier ? String(metadata.tier) : "") || tierFromProductId(productId) || tierFromPriceId(priceId);
+  const status = String(subscription.status || "incomplete");
+  if ((status === "active" || status === "trialing") && resolvedTier === "free" && !metadata.tier) {
+    console.warn("[stripe] Subscription active/trialing but tier resolved to free (check STRIPE_PRODUCT_*, STRIPE_PRICE_* env vs Stripe)", {
+      orgId,
+      productId,
+      priceId,
+    });
+  }
+  const effectiveTier = tierForSubscriptionStatus(status, resolvedTier);
+  const customerId = String(subscription.customer || "");
+  const subscriptionId = String(subscription.id || "");
+  const periodStart = subscription.current_period_start
+    ? new Date(Number(subscription.current_period_start) * 1000).toISOString()
+    : null;
+  const periodEnd = subscription.current_period_end
+    ? new Date(Number(subscription.current_period_end) * 1000).toISOString()
+    : null;
+  const cancelAtPeriodEnd = Boolean(subscription.cancel_at_period_end);
+  const canceledAt = subscription.canceled_at
+    ? new Date(Number(subscription.canceled_at) * 1000).toISOString()
+    : null;
+
+  await db.query(
+    `insert into org_subscriptions (org_id, tier, status, stripe_customer_id, stripe_subscription_id, current_period_start, current_period_end, cancel_at_period_end, canceled_at, updated_at)
+     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, now())
+     on conflict (stripe_subscription_id) do update set
+        -- Manual admin removal sets canceled_at. If the row is manually canceled,
+        -- do not let Stripe "active" updates re-enable the entitlement.
+        tier = case
+          when excluded.status in ('active', 'trialing') and org_subscriptions.canceled_at is null then excluded.tier
+          else org_subscriptions.tier
+        end,
+        status = case
+          when excluded.status in ('active', 'trialing') and org_subscriptions.canceled_at is null then excluded.status
+          else org_subscriptions.status
+        end,
+        stripe_customer_id = excluded.stripe_customer_id,
+        current_period_start = case
+          when excluded.status in ('active', 'trialing') and org_subscriptions.canceled_at is null then excluded.current_period_start
+          else org_subscriptions.current_period_start
+        end,
+        current_period_end = case
+          when excluded.status in ('active', 'trialing') and org_subscriptions.canceled_at is null then excluded.current_period_end
+          else org_subscriptions.current_period_end
+        end,
+        cancel_at_period_end = case
+          when excluded.status in ('active', 'trialing') and org_subscriptions.canceled_at is null then excluded.cancel_at_period_end
+          else org_subscriptions.cancel_at_period_end
+        end,
+        canceled_at = case
+          when excluded.status in ('active', 'trialing') and org_subscriptions.canceled_at is null then excluded.canceled_at
+          else org_subscriptions.canceled_at
+        end,
+        updated_at = now()`,
+    [orgId, effectiveTier, status, customerId || null, subscriptionId, periodStart, periodEnd, cancelAtPeriodEnd, canceledAt]
+  );
+
+  return {
+    orgId,
+    tier: effectiveTier,
+    status,
+    currentPeriodEnd: periodEnd,
+    cancelAtPeriodEnd,
+    subscriptionId,
+  };
 }
 
 const createIntentSchema = z.object({
@@ -45,6 +196,9 @@ const createIntentSchema = z.object({
   // Coerce from string to number so mobile/web JSON bodies are forgiving
   amount: z.coerce.number().positive(),
   currency: z.string().default("usd"),
+  educationPartnerCode: z.string().optional(),
+  reinvestOptIn: z.boolean().optional().default(false),
+  reinvestPct: z.coerce.number().min(0).max(100).optional().default(5),
 });
 
 const donationCheckoutSchema = z.object({
@@ -54,6 +208,9 @@ const donationCheckoutSchema = z.object({
   currency: z.string().default("usd"),
   // Optional return URL for mobile deep link back into the app after web checkout
   returnUrl: z.string().min(1).optional(),
+  educationPartnerCode: z.string().optional(),
+  reinvestOptIn: z.boolean().optional().default(false),
+  reinvestPct: z.coerce.number().min(0).max(100).optional().default(5),
 });
 
 const topupIntentSchema = z.object({
@@ -76,6 +233,10 @@ const mobileSubscriptionSchema = z.object({
 const syncSubscriptionSchema = z.object({
   org_id: z.string().min(1),
   subscription_id: z.string().min(1).optional(),
+});
+
+const syncNativeDonationSchema = z.object({
+  paymentIntentId: z.string().min(1),
 });
 
 const portalSchema = z.object({
@@ -185,57 +346,6 @@ export const stripeRoutes: FastifyPluginAsync = async (app) => {
     return customer.id;
   }
 
-  async function upsertOrgSubscriptionFromStripe(
-    subscription: Record<string, unknown>,
-    fallbackOrgId?: string
-  ): Promise<{ orgId: string; tier: string; status: string; currentPeriodEnd: string | null; cancelAtPeriodEnd: boolean; subscriptionId: string }> {
-    const metadata = (subscription.metadata || {}) as Record<string, string>;
-    const orgId = metadata.org_id || fallbackOrgId;
-    if (!orgId) throw new Error("Missing organization id for subscription");
-
-    const items = subscription.items as { data?: Array<{ price?: { product?: string } }> } | undefined;
-    const productId = items?.data?.[0]?.price?.product as string | undefined;
-    const resolvedTier = metadata.tier || tierFromProductId(productId);
-    const status = String(subscription.status || "incomplete");
-    const effectiveTier = tierForSubscriptionStatus(status, resolvedTier);
-    const customerId = String(subscription.customer || "");
-    const subscriptionId = String(subscription.id || "");
-    const periodStart = subscription.current_period_start
-      ? new Date(Number(subscription.current_period_start) * 1000).toISOString()
-      : null;
-    const periodEnd = subscription.current_period_end
-      ? new Date(Number(subscription.current_period_end) * 1000).toISOString()
-      : null;
-    const cancelAtPeriodEnd = Boolean(subscription.cancel_at_period_end);
-    const canceledAt = subscription.canceled_at
-      ? new Date(Number(subscription.canceled_at) * 1000).toISOString()
-      : null;
-
-    await db.query(
-      `insert into org_subscriptions (org_id, tier, status, stripe_customer_id, stripe_subscription_id, current_period_start, current_period_end, cancel_at_period_end, canceled_at, updated_at)
-       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, now())
-       on conflict (stripe_subscription_id) do update set
-         tier = excluded.tier,
-         status = excluded.status,
-         stripe_customer_id = excluded.stripe_customer_id,
-         current_period_start = excluded.current_period_start,
-         current_period_end = excluded.current_period_end,
-         cancel_at_period_end = excluded.cancel_at_period_end,
-         canceled_at = excluded.canceled_at,
-         updated_at = now()`,
-      [orgId, effectiveTier, status, customerId || null, subscriptionId, periodStart, periodEnd, cancelAtPeriodEnd, canceledAt]
-    );
-
-    return {
-      orgId,
-      tier: effectiveTier,
-      status,
-      currentPeriodEnd: periodEnd,
-      cancelAtPeriodEnd,
-      subscriptionId,
-    };
-  }
-
   app.post(
     "/api/payments/create-intent",
     { preHandler: [app.authenticate] },
@@ -247,11 +357,36 @@ export const stripeRoutes: FastifyPluginAsync = async (app) => {
 
       const customerId = await getOrCreateStripeCustomer(stripe, user.sub);
 
-      const orgRes = await db.query(
-        "select stripe_account_id from organizations where id = $1",
-        [body.orgId]
+      if (body.campaignId) {
+        const campRes = await db.query(
+          `select status, organization_id from campaigns where id = $1`,
+          [body.campaignId]
+        );
+        const camp = campRes.rows[0] as { status: string; organization_id: string } | undefined;
+        if (!camp) {
+          return reply.code(404).send({ error: "Campaign not found" });
+        }
+        if (camp.organization_id !== body.orgId) {
+          return reply.code(400).send({ error: "Campaign does not belong to this organization" });
+        }
+        if (camp.status !== "active") {
+          return reply.code(400).send({ error: "This campaign is not accepting donations" });
+        }
+      }
+
+      const partnerId = await resolveEducationPartnerId(body.educationPartnerCode);
+      const reinvestOptIn = body.reinvestOptIn ?? false;
+      const reinvestPct = body.reinvestPct ?? 5;
+      const alloc = computeReinvestAllocation(body.amount, reinvestOptIn, reinvestPct, partnerId);
+
+      const donorRow = await db.query(
+        `select lower(trim(coalesce(email, ''))) as e, nullif(trim(full_name), '') as full_name
+         from users where id = $1`,
+        [user.sub]
       );
-      const orgStripeAccount = (orgRes.rows[0] as Record<string, unknown> | undefined)?.stripe_account_id as string | null;
+      const dr = donorRow.rows[0] as { e?: string; full_name?: string } | undefined;
+      const donorEmail = String(dr?.e || "").trim() || null;
+      const donorName = String(dr?.full_name || "").trim() || null;
 
       const intentParams: Record<string, unknown> = {
         amount: Math.round(body.amount * 100),
@@ -266,14 +401,15 @@ export const stripeRoutes: FastifyPluginAsync = async (app) => {
           campaignId: body.campaignId || "",
           donorUserId: user.sub,
           type: "donation",
+          epId: partnerId || "",
+          reinvest: reinvestOptIn ? "1" : "0",
+          rAmt: String(alloc.reinvest_amount),
+          pAmt: String(alloc.partner_reinvest_amount),
+          gAmt: String(alloc.general_reinvest_amount),
         },
       };
 
-      if (orgStripeAccount) {
-        const platformFee = Math.round(body.amount * 100 * 0.029 + 30);
-        intentParams.application_fee_amount = platformFee;
-        intentParams.transfer_data = { destination: orgStripeAccount };
-      }
+      // Platform collects full charge; manual Transfer to Connect after hold period (see webhooks + admin release).
 
       const intent = await stripe.paymentIntents.create(intentParams as any);
 
@@ -283,9 +419,26 @@ export const stripeRoutes: FastifyPluginAsync = async (app) => {
       );
 
       await db.query(
-        `insert into donations (org_id, campaign_id, user_id, amount, currency, status, stripe_payment_intent_id)
-         values ($1, $2, $3, $4, $5, $6, $7)`,
-        [body.orgId, body.campaignId || null, user.sub, body.amount, body.currency, "pending", intent.id]
+        `insert into donations (
+           org_id, campaign_id, user_id, donor_email, donor_name, amount, currency, status, stripe_payment_intent_id,
+           education_partner_id, reinvest_opt_in, reinvest_amount, partner_reinvest_amount, general_reinvest_amount
+         ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
+        [
+          body.orgId,
+          body.campaignId || null,
+          user.sub,
+          donorEmail,
+          donorName,
+          body.amount,
+          body.currency,
+          "pending",
+          intent.id,
+          partnerId || null,
+          reinvestOptIn,
+          alloc.reinvest_amount,
+          alloc.partner_reinvest_amount,
+          alloc.general_reinvest_amount,
+        ]
       );
 
       return {
@@ -347,6 +500,32 @@ export const stripeRoutes: FastifyPluginAsync = async (app) => {
         ? `${cancelBase}&cancelled=1`
         : `${cancelBase}?cancelled=1`;
 
+      const partnerId = await resolveEducationPartnerId(body.educationPartnerCode);
+      const reinvestOptIn = body.reinvestOptIn ?? false;
+      const reinvestPct = body.reinvestPct ?? 5;
+      const alloc = computeReinvestAllocation(body.amount, reinvestOptIn, reinvestPct, partnerId);
+
+      const checkoutDonorRow = await db.query(
+        `select lower(trim(coalesce(email, ''))) as e, nullif(trim(full_name), '') as full_name
+         from users where id = $1`,
+        [user.sub]
+      );
+      const cdr = checkoutDonorRow.rows[0] as { e?: string; full_name?: string } | undefined;
+      const checkoutDonorEmail = String(cdr?.e || "").trim() || null;
+      const checkoutDonorName = String(cdr?.full_name || "").trim() || null;
+
+      const donationMeta = {
+        orgId: body.orgId,
+        campaignId: body.campaignId || "",
+        donorUserId: user.sub,
+        type: "donation",
+        epId: partnerId || "",
+        reinvest: reinvestOptIn ? "1" : "0",
+        rAmt: String(alloc.reinvest_amount),
+        pAmt: String(alloc.partner_reinvest_amount),
+        gAmt: String(alloc.general_reinvest_amount),
+      };
+
       const session = await stripe.checkout.sessions.create({
         mode: "payment",
         customer: customerId,
@@ -363,26 +542,44 @@ export const stripeRoutes: FastifyPluginAsync = async (app) => {
           },
         ],
         payment_intent_data: {
-          metadata: {
-            orgId: body.orgId,
-            campaignId: body.campaignId || "",
-            donorUserId: user.sub,
-            type: "donation",
-          },
+          metadata: donationMeta,
         },
         success_url: successUrl,
         cancel_url: cancelUrl,
-        metadata: {
-          orgId: body.orgId,
-          campaignId: body.campaignId || "",
-          donorUserId: user.sub,
-        },
+        metadata: donationMeta,
       });
 
+      const piIdAfterCreate = stripeId(session.payment_intent);
+      if (piIdAfterCreate) {
+        await stripe.paymentIntents.update(piIdAfterCreate, {
+          metadata: {
+            ...Object.fromEntries(Object.entries(donationMeta).map(([k, v]) => [k, String(v ?? "")])),
+            checkoutSessionId: session.id,
+          },
+        });
+      }
+
       await db.query(
-        `insert into donations (org_id, campaign_id, user_id, amount, currency, status, stripe_payment_intent_id)
-         values ($1, $2, $3, $4, $5, $6, $7)`,
-        [body.orgId, body.campaignId || null, user.sub, body.amount, body.currency, "pending", session.id]
+        `insert into donations (
+           org_id, campaign_id, user_id, donor_email, donor_name, amount, currency, status, stripe_payment_intent_id,
+           education_partner_id, reinvest_opt_in, reinvest_amount, partner_reinvest_amount, general_reinvest_amount
+         ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
+        [
+          body.orgId,
+          body.campaignId || null,
+          user.sub,
+          checkoutDonorEmail,
+          checkoutDonorName,
+          body.amount,
+          body.currency,
+          "pending",
+          session.id,
+          partnerId || null,
+          reinvestOptIn,
+          alloc.reinvest_amount,
+          alloc.partner_reinvest_amount,
+          alloc.general_reinvest_amount,
+        ]
       );
 
       return { url: session.url, sessionId: session.id };
@@ -401,35 +598,51 @@ export const stripeRoutes: FastifyPluginAsync = async (app) => {
 
     try {
       const session = await stripe.checkout.sessions.retrieve(sessionId);
-      const paymentIntentId = session.payment_intent as string | null;
-      let donation: { status: string; amount: number; currency: string; org_id: string | null; campaign_id: string | null } | null = null;
+      const paymentIntentId = stripeId(session.payment_intent as string | { id?: string } | null);
+      type DonationRow = {
+        status: string;
+        amount: number;
+        currency: string;
+        org_id: string | null;
+        campaign_id: string | null;
+      };
+      let donationOut: DonationRow | null = null;
 
-      if (paymentIntentId) {
+      const tryDonationLookup = async (key: string): Promise<void> => {
         const donRes = await db.query(
           `select org_id, campaign_id, amount, currency, status
            from donations
            where stripe_payment_intent_id = $1
            limit 1`,
-          [paymentIntentId]
+          [key]
         );
         if (donRes.rowCount && donRes.rows[0]) {
-          const row = donRes.rows[0] as any;
-          donation = {
-            status: row.status,
+          const row = donRes.rows[0] as Record<string, unknown>;
+          donationOut = {
+            status: String(row.status ?? ""),
             amount: Number(row.amount),
-            currency: row.currency,
-            org_id: row.org_id,
-            campaign_id: row.campaign_id,
+            currency: String(row.currency ?? "usd"),
+            org_id: (row.org_id as string | null) ?? null,
+            campaign_id: (row.campaign_id as string | null) ?? null,
           };
         }
+      };
+
+      if (paymentIntentId) {
+        await tryDonationLookup(paymentIntentId);
+      }
+      if (!donationOut) {
+        await tryDonationLookup(sessionId);
       }
 
+      const sess = session as { payment_status?: string; amount_total?: number | null; currency?: string | null };
+      const donationForResponse = donationOut as DonationRow | null;
       return {
         sessionId,
-        paymentStatus: session.payment_status,
-        amountTotal: typeof session.amount_total === "number" ? session.amount_total / 100 : null,
-        currency: (session.currency as string | undefined) || donation?.currency || "usd",
-        donation,
+        paymentStatus: sess.payment_status,
+        amountTotal: typeof sess.amount_total === "number" ? sess.amount_total / 100 : null,
+        currency: sess.currency || donationForResponse?.currency || "usd",
+        donation: donationForResponse,
       };
     } catch (e: any) {
       request.log.error({ err: e }, "Failed to fetch checkout session status");
@@ -564,8 +777,11 @@ export const stripeRoutes: FastifyPluginAsync = async (app) => {
 
   app.get("/api/account/transactions", { preHandler: [app.authenticate] }, async (request, reply) => {
     const user = request.user as { sub: string };
-    const userRes = await db.query("select email from users where id = $1", [user.sub]);
-    const userEmail = ((userRes.rows[0] as Record<string, unknown> | undefined)?.email as string | undefined) || "";
+    const userRes = await db.query(
+      "select lower(trim(coalesce(email, ''))) as email from users where id = $1",
+      [user.sub]
+    );
+    const userEmail = String((userRes.rows[0] as { email?: string } | undefined)?.email || "");
     const historyRes = await db.query(
       `select
          d.id::text as id,
@@ -578,10 +794,11 @@ export const stripeRoutes: FastifyPluginAsync = async (app) => {
        from donations d
        left join organizations o on o.id = d.org_id
        where (
-         d.user_id = $1
+         d.user_id = $1::uuid
          or (
-           d.user_id is null
-           and lower(coalesce(d.donor_email, '')) = lower($2)
+           $2 <> ''
+           and lower(trim(coalesce(d.donor_email, ''))) = $2
+           and (d.user_id is null or d.user_id = $1::uuid)
          )
        )
 
@@ -596,7 +813,7 @@ export const stripeRoutes: FastifyPluginAsync = async (app) => {
          t.created_at as date,
          null::text as org_name
        from transactions t
-       where t.user_id = $1
+       where t.user_id = $1::uuid
 
        order by date desc`,
       [user.sub, userEmail]
@@ -811,19 +1028,8 @@ export const stripeRoutes: FastifyPluginAsync = async (app) => {
       expand: ["latest_invoice.payment_intent"],
     });
 
-    // If the latest invoice payment_intent has succeeded but Stripe hasn't fired the
-    // subscription.updated webhook yet, the status will still be "incomplete".
-    // Treat it as "active" for tier resolution so the user sees their paid plan immediately.
     const subAsRecord = stripeSub as unknown as Record<string, unknown>;
-    const latestInvoice = subAsRecord.latest_invoice as Record<string, unknown> | undefined;
-    const paymentIntent = latestInvoice?.payment_intent as Record<string, unknown> | undefined;
-    const paymentIntentStatus = paymentIntent?.status as string | undefined;
-    const isPaymentConfirmed = paymentIntentStatus === "succeeded" || paymentIntentStatus === "processing";
-
-    if (isPaymentConfirmed && String(subAsRecord.status || "") === "incomplete") {
-      // Payment confirmed on native side; treat subscription as active for tier purposes.
-      subAsRecord.status = "active";
-    }
+    applySubscriptionPaidHeuristic(subAsRecord);
 
     const saved = await upsertOrgSubscriptionFromStripe(subAsRecord, body.org_id);
     return {
@@ -962,12 +1168,20 @@ export const stripeRoutes: FastifyPluginAsync = async (app) => {
       return {
         org_id: null,
         subscription: { tier: "free", status: "active", current_period_end: null, limits: TIER_LIMITS.free },
+        stripe_subscription_id: null,
         community_campaign_count: 0,
+        organization_campaign_count: 0,
       };
     }
 
     const subRes = await db.query(
-      "select * from org_subscriptions where org_id = $1 order by updated_at desc nulls last, created_at desc limit 1",
+      `select * from org_subscriptions where org_id = $1
+       order by
+         (stripe_subscription_id is not null) desc,
+         case when status in ('active', 'trialing') then 1 else 0 end desc,
+         updated_at desc nulls last,
+         created_at desc
+       limit 1`,
       [orgId]
     );
     const sub = subRes.rows[0] as Record<string, unknown> | undefined;
@@ -980,8 +1194,15 @@ export const stripeRoutes: FastifyPluginAsync = async (app) => {
     );
     const campaignCount = Number((countRes.rows[0] as Record<string, unknown>)?.c ?? 0);
 
+    const orgCampRes = await db.query(
+      "select count(*)::int as c from campaigns where organization_id = $1",
+      [orgId]
+    );
+    const organizationCampaignCount = Number((orgCampRes.rows[0] as Record<string, unknown>)?.c ?? 0);
+
     return {
       org_id: orgId,
+      stripe_subscription_id: (sub?.stripe_subscription_id as string | null) ?? null,
       subscription: {
         tier,
         status: (sub?.status as string) || "active",
@@ -990,6 +1211,7 @@ export const stripeRoutes: FastifyPluginAsync = async (app) => {
         limits,
       },
       community_campaign_count: campaignCount,
+      organization_campaign_count: organizationCampaignCount,
     };
   });
 
@@ -997,7 +1219,12 @@ export const stripeRoutes: FastifyPluginAsync = async (app) => {
     const { orgId } = request.params as { orgId: string };
 
     const subRes = await db.query(
-      "select tier, status from org_subscriptions where org_id = $1 and status = 'active' order by updated_at desc nulls last, created_at desc limit 1",
+      `select tier, status from org_subscriptions where org_id = $1 and status in ('active', 'trialing')
+       order by
+         (stripe_subscription_id is not null) desc,
+         updated_at desc nulls last,
+         created_at desc
+       limit 1`,
       [orgId]
     );
     const sub = subRes.rows[0] as Record<string, unknown> | undefined;
@@ -1006,11 +1233,30 @@ export const stripeRoutes: FastifyPluginAsync = async (app) => {
 
     const featureList: string[] = [];
     if (tier === "free") {
-      featureList.push("1 community campaign", "Up to $5,000 goal per campaign", "Standard support");
+      featureList.push(
+        "1 community campaign",
+        "Up to $5,000 goal per campaign",
+        "14-day payout hold before funds transfer",
+        "Standard support"
+      );
     } else if (tier === "growth") {
-      featureList.push("5 community campaigns", "Up to $50,000 goal per campaign", "Volunteer signup", "Everything in Free", "Priority support");
+      featureList.push(
+        "5 community campaigns",
+        "Up to $50,000 goal per campaign",
+        "7-day payout hold before funds transfer",
+        "Volunteer signup",
+        "Everything in Free",
+        "Priority support"
+      );
     } else if (tier === "institutional") {
-      featureList.push("Unlimited community campaigns", "Unlimited goal per campaign", "Volunteer signup", "Everything in Growth", "Dedicated support");
+      featureList.push(
+        "Unlimited community campaigns",
+        "Unlimited goal per campaign",
+        "7-day payout hold before funds transfer",
+        "Volunteer signup",
+        "Everything in Growth",
+        "Dedicated support"
+      );
     }
 
     return {
@@ -1020,6 +1266,181 @@ export const stripeRoutes: FastifyPluginAsync = async (app) => {
       limits,
     };
   });
+
+  /**
+   * Native donation path: same DB updates as payment_intent.succeeded webhook.
+   * Idempotent when the donation row is already succeeded (markDonation returns 0 rows).
+   */
+  async function applyDonationFromSucceededPaymentIntent(client: PoolClient, pi: Record<string, unknown>): Promise<void> {
+    const metadata = (pi.metadata || {}) as Record<string, string>;
+    const grossCents = Number(pi.amount ?? 0);
+    let donationRes = await markDonationSucceededWithPayout(client, String(pi.id), grossCents);
+
+    if (
+      (!donationRes.rowCount || donationRes.rowCount === 0) &&
+      metadata.checkoutSessionId &&
+      String(metadata.checkoutSessionId).startsWith("cs_")
+    ) {
+      await client.query(
+        `update donations
+         set stripe_payment_intent_id = $1
+         where stripe_payment_intent_id = $2 and status = 'pending'`,
+        [String(pi.id), metadata.checkoutSessionId]
+      );
+      donationRes = await markDonationSucceededWithPayout(client, String(pi.id), grossCents);
+    }
+
+    if (donationRes.rowCount && donationRes.rowCount > 0) {
+      const donation = donationRes.rows[0] as {
+        campaign_id: string | null;
+        amount: string;
+        org_id: string | null;
+      };
+      if (donation.campaign_id) {
+        await client.query(
+          `update campaigns set raised = raised + $1, donor_count = donor_count + 1, updated_at = now() where id = $2`,
+          [donation.amount, donation.campaign_id]
+        );
+
+        const campRes = await client.query(
+          `select id, title, raised, goal, status, organization_id from campaigns where id = $1`,
+          [donation.campaign_id]
+        );
+        const camp = campRes.rows[0] as Record<string, unknown> | undefined;
+
+        if (camp?.organization_id) {
+          await incrementOrgTotalsFromDonation(client, camp.organization_id as string, donation.amount);
+        }
+
+        if (camp && camp.status === "active" && Number(camp.raised) >= Number(camp.goal) && Number(camp.goal) > 0) {
+          await client.query(
+            `update campaigns set status = 'completed', updated_at = now() where id = $1`,
+            [donation.campaign_id]
+          );
+
+          try {
+            const orgRes = await client.query(
+              `select name, contact_email from organizations where id = $1`,
+              [camp.organization_id]
+            );
+            const org = orgRes.rows[0] as Record<string, unknown> | undefined;
+            if (org?.contact_email) {
+              const { sendBrevoEmail } = await import("../services/brevo.js");
+              const { emailLayout } = await import("../services/email-template.js");
+              const content = `
+                        <h2 style="color:#ffffff;margin:0 0 8px 0;font-size:22px;">Goal Reached!</h2>
+                        <p style="color:#cccccc;margin:0 0 24px 0;font-size:16px;">Congratulations! <strong>${camp.title}</strong> has reached its fundraising goal.</p>
+                        <div style="background:#1a1a1a;border:2px solid #059669;border-radius:12px;padding:24px;text-align:center;margin-bottom:24px;">
+                          <span style="font-size:32px;font-weight:bold;color:#059669;">$${Number(camp.raised).toLocaleString()}</span>
+                          <p style="color:#999999;margin:8px 0 0 0;font-size:14px;">raised of $${Number(camp.goal).toLocaleString()} goal</p>
+                        </div>
+                        <p style="color:#999999;font-size:14px;">The campaign has been automatically marked as completed. Thank you for making a difference!</p>
+                      `;
+              await sendBrevoEmail({
+                to: org.contact_email as string,
+                subject: `${camp.title} has reached its goal!`,
+                html: emailLayout(content),
+                tags: ["giveblack", "campaign-completed"],
+              });
+            }
+          } catch (emailErr) {
+            app.log.error({ err: emailErr }, "Failed to send campaign completion email");
+          }
+
+          broadcastChannel("campaign_updates", "campaign.completed", { campaignId: donation.campaign_id });
+        }
+      } else if (donation.org_id) {
+        await incrementOrgTotalsFromDonation(client, donation.org_id, donation.amount);
+      }
+
+      await client.query(
+        `with resolved as (
+                   select coalesce(d.user_id, u.id) as uid,
+                          d.amount,
+                          d.created_at
+                   from donations d
+                   left join users u
+                     on d.user_id is null
+                    and u.role = 'donor'
+                    and lower(trim(coalesce(u.email, ''))) = lower(trim(coalesce(d.donor_email, '')))
+                   where d.stripe_payment_intent_id = $1
+                     and d.status = 'succeeded'
+                 )
+                 insert into donor_stats (user_id, total_amount_cents, donation_count, first_donation_at, last_donation_at)
+                 select uid,
+                        (amount * 100)::bigint,
+                        1,
+                        created_at,
+                        created_at
+                 from resolved
+                 where uid is not null
+                 on conflict (user_id) do update set
+                   total_amount_cents = donor_stats.total_amount_cents + excluded.total_amount_cents,
+                   donation_count     = donor_stats.donation_count + 1,
+                   first_donation_at  = least(donor_stats.first_donation_at, excluded.first_donation_at),
+                   last_donation_at   = greatest(donor_stats.last_donation_at, excluded.last_donation_at)`,
+        [pi.id]
+      );
+
+      broadcastChannel("donation_updates", "donation.succeeded", { paymentIntentId: pi.id });
+    }
+  }
+
+  app.post(
+    "/api/payments/sync-native-donation",
+    { preHandler: [app.authenticate] },
+    async (request, reply) => {
+      const body = syncNativeDonationSchema.parse(request.body);
+      const user = request.user as { sub: string };
+      const stripe = requireStripe(reply);
+      if (!stripe) return;
+
+      let pi: Awaited<ReturnType<ReturnType<typeof getStripe>["paymentIntents"]["retrieve"]>>;
+      try {
+        pi = await stripe.paymentIntents.retrieve(body.paymentIntentId);
+      } catch {
+        return reply.code(404).send({ error: "Payment not found" });
+      }
+
+      if (pi.status !== "succeeded") {
+        return reply.code(400).send({ error: "Payment not completed yet" });
+      }
+
+      const md = (pi.metadata || {}) as Record<string, string>;
+      if (md.type === "wallet_topup") {
+        return reply.code(400).send({ error: "Not a donation" });
+      }
+
+      const own = await db.query(`select 1 from donations where stripe_payment_intent_id = $1 and user_id = $2`, [
+        pi.id,
+        user.sub,
+      ]);
+      if (!own.rowCount) {
+        return reply.code(403).send({ error: "No matching donation for this account" });
+      }
+
+      const client = await db.connect();
+      try {
+        await client.query("BEGIN");
+        await applyDonationFromSucceededPaymentIntent(client, pi as unknown as Record<string, unknown>);
+        await client.query("COMMIT");
+      } catch (err) {
+        await client.query("ROLLBACK");
+        app.log.error({ err }, "sync-native-donation failed");
+        return reply.code(500).send({ error: "Failed to sync donation" });
+      } finally {
+        client.release();
+      }
+
+      void import("../services/user-push.js").then((m) =>
+        m.notifyDonationFromPaymentIntent(body.paymentIntentId).catch((err) => {
+          app.log.error({ err }, "notifyDonationFromPaymentIntent sync-native");
+        })
+      );
+
+      return { ok: true };
+    }
+  );
 
   app.post("/api/webhooks/stripe", async (request, reply) => {
     const rawBody = request.rawBody as string | undefined;
@@ -1055,96 +1476,7 @@ export const stripeRoutes: FastifyPluginAsync = async (app) => {
             );
             broadcastChannel("wallet_updates", "wallet.topup", { userId: metadata.userId, amount: amountUsd });
           } else {
-            const donationRes = await client.query(
-              `update donations set status = 'succeeded', paid_at = now()
-               where stripe_payment_intent_id = $1 and status != 'succeeded'
-               returning campaign_id, amount`,
-              [pi.id]
-            );
-
-            if (donationRes.rowCount && donationRes.rowCount > 0) {
-              const donation = donationRes.rows[0] as { campaign_id: string | null; amount: string };
-              if (donation.campaign_id) {
-                await client.query(
-                  `update campaigns set raised = raised + $1, donor_count = donor_count + 1, updated_at = now() where id = $2`,
-                  [donation.amount, donation.campaign_id]
-                );
-
-                const campRes = await client.query(
-                  `select id, title, raised, goal, status, organization_id from campaigns where id = $1`,
-                  [donation.campaign_id]
-                );
-                const camp = campRes.rows[0] as Record<string, unknown> | undefined;
-
-                // Keep organization totals in sync with campaign donations.
-                if (camp?.organization_id) {
-                  await client.query(
-                    `update organizations set raised = raised + $1 where id = $2`,
-                    [donation.amount, camp.organization_id]
-                  );
-                }
-
-                if (camp && camp.status === "active" && Number(camp.raised) >= Number(camp.goal) && Number(camp.goal) > 0) {
-                  await client.query(
-                    `update campaigns set status = 'completed', updated_at = now() where id = $1`,
-                    [donation.campaign_id]
-                  );
-
-                  try {
-                    const orgRes = await client.query(
-                      `select name, contact_email from organizations where id = $1`,
-                      [camp.organization_id]
-                    );
-                    const org = orgRes.rows[0] as Record<string, unknown> | undefined;
-                    if (org?.contact_email) {
-                      const { sendBrevoEmail } = await import("../services/brevo.js");
-                      const { emailLayout } = await import("../services/email-template.js");
-                      const content = `
-                        <h2 style="color:#ffffff;margin:0 0 8px 0;font-size:22px;">Goal Reached!</h2>
-                        <p style="color:#cccccc;margin:0 0 24px 0;font-size:16px;">Congratulations! <strong>${camp.title}</strong> has reached its fundraising goal.</p>
-                        <div style="background:#1a1a1a;border:2px solid #059669;border-radius:12px;padding:24px;text-align:center;margin-bottom:24px;">
-                          <span style="font-size:32px;font-weight:bold;color:#059669;">$${Number(camp.raised).toLocaleString()}</span>
-                          <p style="color:#999999;margin:8px 0 0 0;font-size:14px;">raised of $${Number(camp.goal).toLocaleString()} goal</p>
-                        </div>
-                        <p style="color:#999999;font-size:14px;">The campaign has been automatically marked as completed. Thank you for making a difference!</p>
-                      `;
-                      await sendBrevoEmail({
-                        to: org.contact_email as string,
-                        subject: `${camp.title} has reached its goal!`,
-                        html: emailLayout(content),
-                        tags: ["giveblack", "campaign-completed"],
-                      });
-                    }
-                  } catch (emailErr) {
-                    app.log.error({ err: emailErr }, "Failed to send campaign completion email");
-                  }
-
-                  broadcastChannel("campaign_updates", "campaign.completed", { campaignId: donation.campaign_id });
-                }
-              }
-            }
-
-            // Update donor_stats aggregate for rankings and totals
-            await client.query(
-              `insert into donor_stats (user_id, total_amount_cents, donation_count, first_donation_at, last_donation_at)
-               select d.user_id,
-                      (d.amount * 100)::bigint,
-                      1,
-                      d.created_at,
-                      d.created_at
-               from donations d
-               where d.stripe_payment_intent_id = $1
-                 and d.status = 'succeeded'
-                 and d.user_id is not null
-              on conflict (user_id) do update set
-                total_amount_cents = donor_stats.total_amount_cents + EXCLUDED.total_amount_cents,
-                donation_count     = donor_stats.donation_count + 1,
-                first_donation_at  = least(donor_stats.first_donation_at, EXCLUDED.first_donation_at),
-                last_donation_at   = greatest(donor_stats.last_donation_at, EXCLUDED.last_donation_at)`,
-              [pi.id]
-            );
-
-            broadcastChannel("donation_updates", "donation.succeeded", { paymentIntentId: pi.id });
+            await applyDonationFromSucceededPaymentIntent(client, pi);
           }
           break;
         }
@@ -1160,7 +1492,7 @@ export const stripeRoutes: FastifyPluginAsync = async (app) => {
 
         case "checkout.session.completed": {
           const session = event.data.object as unknown as Record<string, unknown>;
-          const sessionPaymentIntent = session.payment_intent as string | null;
+          const sessionPaymentIntent = stripeId(session.payment_intent as string | { id?: string } | null);
           const sessionId = session.id as string;
           if (sessionPaymentIntent && session.mode === "payment") {
             const updateRes = await client.query(
@@ -1171,23 +1503,62 @@ export const stripeRoutes: FastifyPluginAsync = async (app) => {
             if (updateRes.rowCount === 0) {
               const md = (session.metadata || {}) as Record<string, string>;
               if (md.orgId) {
+                const epId = md.epId && md.epId.length > 0 ? md.epId : null;
+                const reinvestOptIn = md.reinvest === "1";
+                const rAmt = Number.parseFloat(md.rAmt || "0") || 0;
+                const pAmt = Number.parseFloat(md.pAmt || "0") || 0;
+                const gAmt = Number.parseFloat(md.gAmt || "0") || 0;
+                const donorUserId = md.donorUserId && md.donorUserId.length > 0 ? md.donorUserId : null;
+                let whDonorEmail: string | null = null;
+                let whDonorName: string | null = null;
+                if (donorUserId) {
+                  const unr = await client.query(
+                    `select lower(trim(coalesce(email, ''))) as e, nullif(trim(full_name), '') as full_name
+                     from users where id = $1`,
+                    [donorUserId]
+                  );
+                  const ur = unr.rows[0] as { e?: string; full_name?: string } | undefined;
+                  whDonorEmail = String(ur?.e || "").trim() || null;
+                  whDonorName = String(ur?.full_name || "").trim() || null;
+                }
                 await client.query(
-                  `insert into donations (org_id, campaign_id, amount, currency, status, stripe_payment_intent_id)
-                   values ($1, $2, $3, $4, 'pending', $5)
+                  `insert into donations (
+                     org_id, campaign_id, user_id, donor_email, donor_name, amount, currency, status, stripe_payment_intent_id,
+                     education_partner_id, reinvest_opt_in, reinvest_amount, partner_reinvest_amount, general_reinvest_amount
+                   ) values ($1, $2, $3, $4, $5, $6, $7, 'pending', $8, $9, $10, $11, $12, $13)
                    on conflict (stripe_payment_intent_id) do nothing`,
-                  [md.orgId, md.campaignId || null, Number(session.amount_total ?? 0) / 100, "usd", sessionPaymentIntent]
+                  [
+                    md.orgId,
+                    md.campaignId || null,
+                    donorUserId,
+                    whDonorEmail,
+                    whDonorName,
+                    Number(session.amount_total ?? 0) / 100,
+                    "usd",
+                    sessionPaymentIntent,
+                    epId,
+                    reinvestOptIn,
+                    rAmt,
+                    pAmt,
+                    gAmt,
+                  ]
                 );
               }
             }
             if (session.payment_status === "paid") {
-              const checkoutDonationRes = await client.query(
-                `update donations set status = 'succeeded', paid_at = now()
-                 where stripe_payment_intent_id = $1 and status != 'succeeded'
-                 returning campaign_id, amount`,
-                [sessionPaymentIntent]
+              const grossCents =
+                typeof session.amount_total === "number" ? session.amount_total : Number(session.amount_total ?? 0);
+              const checkoutDonationRes = await markDonationSucceededWithPayout(
+                client,
+                sessionPaymentIntent,
+                grossCents
               );
               if (checkoutDonationRes.rowCount && checkoutDonationRes.rowCount > 0) {
-                const cDon = checkoutDonationRes.rows[0] as { campaign_id: string | null; amount: string };
+                const cDon = checkoutDonationRes.rows[0] as {
+                  campaign_id: string | null;
+                  amount: string;
+                  org_id: string | null;
+                };
                 if (cDon.campaign_id) {
                   await client.query(
                     `update campaigns set raised = raised + $1, donor_count = donor_count + 1, updated_at = now() where id = $2`,
@@ -1199,12 +1570,8 @@ export const stripeRoutes: FastifyPluginAsync = async (app) => {
                   );
                   const cCamp = cRes.rows[0] as Record<string, unknown> | undefined;
 
-                  // Keep organization totals in sync with campaign donations.
                   if (cCamp?.organization_id) {
-                    await client.query(
-                      `update organizations set raised = raised + $1 where id = $2`,
-                      [cDon.amount, cCamp.organization_id]
-                    );
+                    await incrementOrgTotalsFromDonation(client, cCamp.organization_id as string, cDon.amount);
                   }
 
                   if (cCamp && cCamp.status === "active" && Number(cCamp.raised) >= Number(cCamp.goal) && Number(cCamp.goal) > 0) {
@@ -1242,7 +1609,31 @@ export const stripeRoutes: FastifyPluginAsync = async (app) => {
                     }
                     broadcastChannel("campaign_updates", "campaign.completed", { campaignId: cDon.campaign_id });
                   }
+                } else if (cDon.org_id) {
+                  await incrementOrgTotalsFromDonation(client, cDon.org_id, cDon.amount);
                 }
+              }
+            }
+          }
+          if (session.mode === "subscription" && env.STRIPE_SECRET_KEY) {
+            const rawSub = session.subscription;
+            const sid =
+              typeof rawSub === "string"
+                ? rawSub
+                : rawSub && typeof rawSub === "object" && rawSub !== null && "id" in rawSub
+                  ? String((rawSub as { id: string }).id)
+                  : "";
+            if (sid) {
+              try {
+                const stripe = getStripe();
+                const stripeSub = await stripe.subscriptions.retrieve(sid, {
+                  expand: ["latest_invoice.payment_intent"],
+                });
+                const subRecord = stripeSub as unknown as Record<string, unknown>;
+                applySubscriptionPaidHeuristic(subRecord);
+                await upsertOrgSubscriptionFromStripe(subRecord);
+              } catch (err) {
+                app.log.error({ err }, "checkout.session.completed: subscription sync failed");
               }
             }
           }
@@ -1254,55 +1645,54 @@ export const stripeRoutes: FastifyPluginAsync = async (app) => {
           const sub = event.data.object as unknown as Record<string, unknown>;
           const metadata = (sub.metadata || {}) as Record<string, string>;
           const orgId = metadata.org_id;
-          if (!orgId) break;
+          if (!orgId || !env.STRIPE_SECRET_KEY) break;
 
-          const items = sub.items as { data?: Array<{ price?: { product?: string } }> } | undefined;
-          const productId = items?.data?.[0]?.price?.product as string | undefined;
-          const resolvedTier = metadata.tier || tierFromProductId(productId);
-          const customerId = sub.customer as string;
-          const subscriptionId = sub.id as string;
-          const status = sub.status as string;
-          const tier = tierForSubscriptionStatus(status, resolvedTier);
-          const periodStart = sub.current_period_start ? new Date((sub.current_period_start as number) * 1000).toISOString() : null;
-          const periodEnd = sub.current_period_end ? new Date((sub.current_period_end as number) * 1000).toISOString() : null;
-          const cancelAtPeriodEnd = Boolean(sub.cancel_at_period_end);
-          const canceledAt = sub.canceled_at ? new Date((sub.canceled_at as number) * 1000).toISOString() : null;
-
-          await client.query(
-            `insert into org_subscriptions (org_id, tier, status, stripe_customer_id, stripe_subscription_id, current_period_start, current_period_end, cancel_at_period_end, canceled_at, updated_at)
-             values ($1, $2, $3, $4, $5, $6, $7, $8, $9, now())
-             on conflict (stripe_subscription_id) do update set
-               tier = excluded.tier,
-               status = excluded.status,
-               stripe_customer_id = excluded.stripe_customer_id,
-               current_period_start = excluded.current_period_start,
-               current_period_end = excluded.current_period_end,
-               cancel_at_period_end = excluded.cancel_at_period_end,
-               canceled_at = excluded.canceled_at,
-               updated_at = now()`,
-            [orgId, tier, status, customerId, subscriptionId, periodStart, periodEnd, cancelAtPeriodEnd, canceledAt]
-          );
+          try {
+            const stripe = getStripe();
+            const subscriptionId = String(sub.id || "");
+            if (!subscriptionId) break;
+            const fullSub = await stripe.subscriptions.retrieve(subscriptionId, {
+              expand: ["latest_invoice.payment_intent"],
+            });
+            const subRecord = fullSub as unknown as Record<string, unknown>;
+            await upsertOrgSubscriptionFromStripe(subRecord, orgId);
+          } catch (err) {
+            app.log.error({ err, orgId }, "customer.subscription.*: sync failed");
+          }
           break;
         }
 
         case "customer.subscription.deleted": {
           const sub = event.data.object as unknown as Record<string, unknown>;
           const subscriptionId = sub.id as string;
-          await client.query(
-            `update org_subscriptions set status = 'canceled', tier = 'free', canceled_at = now(), updated_at = now() where stripe_subscription_id = $1`,
-            [subscriptionId]
-          );
+          // Do not auto-expire admin entitlements based on Stripe lifecycle events.
+          // (manual removals are already handled via canceled_at)
+          await client.query(`update org_subscriptions set updated_at = now() where stripe_subscription_id = $1`, [subscriptionId]);
           break;
         }
 
         case "invoice.paid": {
           const invoice = event.data.object as unknown as Record<string, unknown>;
           const subscriptionId = invoice.subscription as string | null;
-          if (subscriptionId) {
-            await client.query(
-              `update org_subscriptions set status = 'active', updated_at = now() where stripe_subscription_id = $1`,
-              [subscriptionId]
-            );
+          if (subscriptionId && env.STRIPE_SECRET_KEY) {
+            try {
+              const stripe = getStripe();
+              const stripeSub = await stripe.subscriptions.retrieve(subscriptionId, {
+                expand: ["latest_invoice.payment_intent"],
+              });
+              const subRecord = stripeSub as unknown as Record<string, unknown>;
+              applySubscriptionPaidHeuristic(subRecord);
+              await upsertOrgSubscriptionFromStripe(subRecord);
+            } catch (err) {
+              app.log.error({ err, subscriptionId }, "invoice.paid: subscription sync failed");
+              await client.query(`update org_subscriptions set updated_at = now() where stripe_subscription_id = $1`, [
+                subscriptionId,
+              ]);
+            }
+          } else if (subscriptionId) {
+            await client.query(`update org_subscriptions set updated_at = now() where stripe_subscription_id = $1`, [
+              subscriptionId,
+            ]);
           }
           break;
         }
@@ -1311,10 +1701,8 @@ export const stripeRoutes: FastifyPluginAsync = async (app) => {
           const invoice = event.data.object as unknown as Record<string, unknown>;
           const subscriptionId = invoice.subscription as string | null;
           if (subscriptionId) {
-            await client.query(
-              `update org_subscriptions set status = 'past_due', tier = 'free', updated_at = now() where stripe_subscription_id = $1`,
-              [subscriptionId]
-            );
+            // Preserve admin-controlled tier/status; only update timestamps from failed payments.
+            await client.query(`update org_subscriptions set updated_at = now() where stripe_subscription_id = $1`, [subscriptionId]);
           }
           break;
         }
@@ -1344,6 +1732,21 @@ export const stripeRoutes: FastifyPluginAsync = async (app) => {
       throw err;
     } finally {
       client.release();
+    }
+
+    if (event.type === "payment_intent.succeeded") {
+      const pi = event.data.object as unknown as Record<string, unknown>;
+      const metadata = (pi.metadata || {}) as Record<string, string>;
+      if (metadata.type !== "wallet_topup") {
+        const piId = String(pi.id || "");
+        if (piId) {
+          void import("../services/user-push.js").then((m) =>
+            m.notifyDonationFromPaymentIntent(piId).catch((err) => {
+              app.log.error({ err }, "notifyDonationFromPaymentIntent webhook");
+            })
+          );
+        }
+      }
     }
 
     return { received: true };

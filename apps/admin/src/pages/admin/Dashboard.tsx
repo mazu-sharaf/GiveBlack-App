@@ -54,6 +54,8 @@ interface DashOrg {
 interface TopDonor {
   email: string;
   name: string;
+  firstName: string;
+  lastName: string;
   totalAmount: number;
   donationCount: number;
 }
@@ -188,13 +190,20 @@ export default function Dashboard() {
       donations.forEach((d: EnrichedDonation) => {
         const key = d.user_email || d.donor_name || "Anonymous";
         if (key === "Anonymous" && d.is_anonymous) return;
-        if (!donorMap[key]) donorMap[key] = { name: d.donor_name || key, totalAmount: 0, donationCount: 0 };
+        const displayName = (d.donor_name && String(d.donor_name).trim()) || "Anonymous";
+        if (!donorMap[key]) donorMap[key] = { name: displayName, totalAmount: 0, donationCount: 0 };
         donorMap[key].totalAmount += Number(d.amount);
         donorMap[key].donationCount += 1;
       });
       setTopDonors(
         Object.entries(donorMap)
-          .map(([email, info]) => ({ email, ...info }))
+          .map(([email, info]) => {
+            const raw = info.name.trim();
+            const sp = raw.indexOf(" ");
+            const firstName = sp === -1 ? raw : raw.slice(0, sp);
+            const lastName = sp === -1 ? "" : raw.slice(sp + 1).trim();
+            return { email, name: info.name, firstName, lastName, totalAmount: info.totalAmount, donationCount: info.donationCount };
+          })
           .sort((a, b) => b.totalAmount - a.totalAmount)
           .slice(0, 10),
       );
@@ -437,9 +446,14 @@ export default function Dashboard() {
                         )}
                       </TableCell>
                       <TableCell className="font-medium">
-                        {donor.name !== donor.email ? (
-                          <div><div>{donor.name}</div><div className="text-xs text-muted-foreground">{donor.email}</div></div>
-                        ) : donor.email}
+                        {donor.lastName ? (
+                          <div>
+                            <div>{donor.firstName}</div>
+                            <div className="text-xs text-muted-foreground">{donor.lastName}</div>
+                          </div>
+                        ) : (
+                          donor.firstName || donor.name
+                        )}
                       </TableCell>
                       <TableCell className="text-right">{donor.donationCount}</TableCell>
                       <TableCell className="text-right font-semibold text-emerald-500">${donor.totalAmount.toLocaleString()}</TableCell>

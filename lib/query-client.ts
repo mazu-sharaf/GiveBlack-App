@@ -87,6 +87,48 @@ export async function apiPost<T>(path: string, body: unknown, accessToken?: stri
   return (await res.json()) as T;
 }
 
+export async function apiPatch<T>(path: string, body: unknown, accessToken?: string): Promise<T> {
+  const baseUrl = getApiUrl().replace(/\/$/, "");
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+  if (accessToken) {
+    headers["Authorization"] = `Bearer ${accessToken}`;
+  }
+
+  let res = await fetch(`${baseUrl}${path}`, {
+    method: "PATCH",
+    headers,
+    body: JSON.stringify(body),
+  });
+
+  if (res.status === 401 && accessToken) {
+    const newToken = await tryRefreshToken();
+    if (newToken) {
+      headers["Authorization"] = `Bearer ${newToken}`;
+      res = await fetch(`${baseUrl}${path}`, {
+        method: "PATCH",
+        headers,
+        body: JSON.stringify(body),
+      });
+    }
+  }
+
+  if (!res.ok) {
+    let message = "API request failed";
+    try {
+      const data = await res.json();
+      message = data.message || data.error || message;
+    } catch {
+      const text = await res.text();
+      if (text) message = text;
+    }
+    throw new Error(message);
+  }
+  if (res.status === 204) return {} as T;
+  return (await res.json()) as T;
+}
+
 export async function apiGet<T>(path: string, accessToken?: string): Promise<T> {
   const baseUrl = getApiUrl().replace(/\/$/, "");
   const headers: Record<string, string> = {};

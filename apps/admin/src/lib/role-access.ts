@@ -10,15 +10,15 @@
 export type AdminRole = "admin" | "super_admin" | "manager" | "staff";
 
 /** Top-level nav paths allowed per role (exact match for sidebar). */
-const ADMIN_NAV = new Set(["/", "/users", "/organizations", "/campaigns", "/donations", "/community-campaigns", "/charity-requests", "/volunteers", "/subscriptions", "/transactions", "/ledger", "/categories", "/staff", "/admin-emails", "/settings"]);
+const ADMIN_NAV = new Set(["/", "/users", "/organizations", "/campaigns", "/donations", "/community-campaigns", "/charity-requests", "/volunteers", "/subscriptions", "/transactions", "/fund-release", "/ledger", "/categories", "/education-partners", "/staff", "/admin-emails", "/settings"]);
 const MANAGER_NAV = new Set(["/", "/organizations", "/campaigns", "/donations", "/community-campaigns", "/volunteers", "/transactions"]);
 const STAFF_NAV = new Set(["/", "/organizations", "/campaigns", "/donations", "/volunteers"]);
 
 const ADMIN_ROUTES = new Set([
   "/", "/users", "/organizations", "/organizations/:id", "/campaigns", "/campaigns/:id",
   "/donations", "/donors/:email", "/community-campaigns", "/community-campaigns/:id",
-  "/charity-requests", "/volunteers", "/subscriptions", "/transactions", "/ledger",
-  "/categories", "/staff", "/admin-emails", "/settings",
+  "/charity-requests", "/volunteers", "/subscriptions", "/transactions", "/fund-release", "/ledger",
+  "/categories", "/education-partners", "/staff", "/admin-emails", "/settings",
 ]);
 const MANAGER_ROUTES = new Set([
   "/", "/organizations", "/organizations/:id", "/campaigns", "/campaigns/:id",
@@ -47,9 +47,22 @@ export function canAccessNav(role: AdminRole, url: string): boolean {
   return navSetFor(role).has(url);
 }
 
+/**
+ * Strip a leading /admin *segment* only (e.g. /admin/users → /users).
+ * Must not treat /admin-emails as /admin + emails — that broke RoleGuard redirects.
+ */
+export function normalizeAdminPathname(pathname: string): string {
+  if (pathname === "/admin" || pathname === "/admin/") return "/";
+  if (pathname.startsWith("/admin/")) {
+    const rest = pathname.slice("/admin".length);
+    return rest || "/";
+  }
+  return pathname;
+}
+
 /** Check if current pathname is allowed for role (for route guard). */
 export function canAccessRoute(role: AdminRole, pathname: string): boolean {
-  const path = pathname.replace(/^\/admin/, "") || "/";
+  const path = normalizeAdminPathname(pathname) || "/";
   const allowed = routeSetFor(role);
   if (allowed.has(path)) return true;
   if (path.startsWith("/donors/")) return allowed.has("/donors/:email");

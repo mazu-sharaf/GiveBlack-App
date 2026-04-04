@@ -3,8 +3,9 @@ const TOKEN_KEY = "gb_admin_api_token";
 
 export function resolveImageUrl(url?: string | null): string {
   if (!url) return "";
-  if (url.startsWith("http")) return url;
-  return `${API_URL.replace(/\/$/, "")}${url}`;
+  if (url.startsWith("http://") || url.startsWith("https://")) return url;
+  const base = API_URL.replace(/\/$/, "");
+  return `${base}${url.startsWith("/") ? "" : "/"}${url}`;
 }
 
 export function getApiToken(): string | null {
@@ -148,6 +149,54 @@ export async function fetchLedger(params?: { page?: number; limit?: number; acco
 
 export async function fetchSubscriptions() {
   return request<{ subscriptions: Record<string, unknown>[] }>("/api/admin/subscriptions");
+}
+
+export async function adminAddSubscription(id: string, tier: "growth" | "institutional") {
+  return request<{ success: boolean }>(`/api/admin/subscriptions/${encodeURIComponent(id)}/add`, {
+    method: "POST",
+    body: JSON.stringify({ tier }),
+  });
+}
+
+export async function adminRemoveSubscription(id: string) {
+  return request<{ success: boolean }>(`/api/admin/subscriptions/${encodeURIComponent(id)}/remove`, {
+    method: "POST",
+  });
+}
+
+export async function adminAddSubscriptionByOrg(orgId: string, tier: "growth" | "institutional") {
+  return request<{ success: boolean }>(`/api/admin/subscriptions/org/${encodeURIComponent(orgId)}/add`, {
+    method: "POST",
+    body: JSON.stringify({ tier }),
+  });
+}
+
+export async function adminRemoveSubscriptionByOrg(orgId: string) {
+  return request<{ success: boolean }>(`/api/admin/subscriptions/org/${encodeURIComponent(orgId)}/remove`, {
+    method: "POST",
+  });
+}
+
+export interface FundReleaseOrgRow {
+  org_id: string;
+  org_name: string;
+  stripe_account_id: string | null;
+  payouts_enabled: boolean;
+  plan_tier: string;
+  pending_cents: number;
+  eligible_cents: number;
+  total_hold_cents: number;
+}
+
+export async function fetchFundReleaseSummary() {
+  return request<{ organizations: FundReleaseOrgRow[] }>("/api/admin/fund-release/summary");
+}
+
+export async function releaseOrgFunds(orgId: string) {
+  return request<{ success: boolean; transfer_id: string; amount_cents: number; donation_count: number }>(
+    `/api/admin/fund-release/${encodeURIComponent(orgId)}`,
+    { method: "POST" }
+  );
 }
 
 export async function adminCancelSubscription(id: string, immediate = false) {

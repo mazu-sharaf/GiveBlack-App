@@ -43,7 +43,7 @@ This single command:
 
 Options:
 ```bash
-DOMAIN=giveblack.mawa.pro \
+DOMAIN=giveblackapp.com \
 DB_NAME=giveblack_db \
 DB_USER=giveblack_user \
 DB_PASS=your_db_password \
@@ -107,8 +107,9 @@ nano .env   # Fill in DATABASE_URL, JWT secrets, etc.
 DATABASE_URL=postgresql://giveblack_user:YOUR_PASSWORD@localhost:5432/giveblack_db
 JWT_ACCESS_SECRET=<random 64-char string>
 JWT_REFRESH_SECRET=<random 64-char string>
-CORS_ORIGINS=https://giveblack.mawa.pro
-EXPO_PUBLIC_API_URL=https://giveblack.mawa.pro/app
+CORS_ORIGINS=https://giveblackapp.com,https://www.giveblackapp.com
+EXPO_PUBLIC_API_URL=https://giveblackapp.com/app
+VITE_API_URL=https://giveblackapp.com/app
 ```
 
 Generate random secrets:
@@ -126,32 +127,20 @@ This builds the app, initializes the database, and starts PM2.
 
 ### Step 6: Configure Nginx + SSL
 
-```bash
-# Get SSL certificate
-sudo certbot certonly --standalone -d giveblack.mawa.pro --agree-tos -m admin@giveblackapp.com
-
-# Copy Nginx config
-sudo cp deploy/nginx-giveblack-mawa-pro.conf /etc/nginx/sites-available/giveblack.mawa.pro
-sudo ln -sf /etc/nginx/sites-available/giveblack.mawa.pro /etc/nginx/sites-enabled/
-sudo rm -f /etc/nginx/sites-enabled/default
-
-# Test and start
-sudo nginx -t
-sudo systemctl reload nginx
-```
+Use `deploy/nginx-giveblackapp.com.conf` (landing on `/`, API under `/app/`, admin under `/admin/`). See **Switching to Production Domain** below for certbot and file paths, or run `deploy/setup-vps.sh` with `DOMAIN=giveblackapp.com` (defaults to this domain).
 
 ### Step 7: Verify
 
 ```bash
-# API health
-curl https://giveblack.mawa.pro/health
+# API health (through Nginx /app prefix)
+curl https://giveblackapp.com/app/health
 
 # API data
-curl https://giveblack.mawa.pro/app/api/organizations
-curl https://giveblack.mawa.pro/app/api/categories
+curl https://giveblackapp.com/app/api/organizations
+curl https://giveblackapp.com/app/api/categories
 
 # Admin panel (open in browser)
-# https://giveblack.mawa.pro/admin/
+# https://giveblackapp.com/admin/
 ```
 
 ---
@@ -159,7 +148,7 @@ curl https://giveblack.mawa.pro/app/api/categories
 ## Stripe Webhook
 
 1. Go to [Stripe Dashboard > Webhooks](https://dashboard.stripe.com/webhooks)
-2. Add endpoint: `https://giveblack.mawa.pro/app/api/webhooks/stripe`
+2. Add endpoint: `https://giveblackapp.com/app/api/webhooks/stripe`
 3. Select events: `payment_intent.succeeded`, `payment_intent.payment_failed`, `customer.subscription.*`
 4. Copy webhook signing secret to `.env` as `STRIPE_WEBHOOK_SECRET`
 5. Restart: `pm2 restart giveblack-api`
@@ -172,7 +161,7 @@ curl https://giveblack.mawa.pro/app/api/categories
 
 ```bash
 cd /var/www/giveblack
-export EXPO_PUBLIC_API_URL=https://giveblack.mawa.pro/app
+export EXPO_PUBLIC_API_URL=https://giveblackapp.com/app
 npx expo start --tunnel
 ```
 
@@ -203,7 +192,7 @@ bash deploy/deploy.sh
 
 ## Admin Panel
 
-- URL: `https://giveblack.mawa.pro/admin/`
+- URL: `https://giveblackapp.com/admin/`
 - Email: `admin@giveblackapp.com`
 - Password: `Admin@123` (change after first login)
 
@@ -215,8 +204,8 @@ Two Nginx configs are provided:
 
 | File | Domain | Use |
 |------|--------|-----|
-| `deploy/nginx-giveblack-mawa-pro.conf` | `giveblack.mawa.pro` | Temporary staging |
-| `deploy/nginx-giveblackapp.com.conf` | `giveblackapp.com` | Production (with landing page) |
+| `deploy/nginx-giveblackapp.com.conf` | `giveblackapp.com` | Production (landing + `/app/` + `/admin/`) |
+| `deploy/nginx-giveblack-mawa-pro.conf` | `giveblack.mawa.pro` | Optional legacy staging only |
 
 **Key detail**: The `proxy_pass` directive MUST have a trailing slash:
 ```nginx
@@ -271,7 +260,7 @@ pm2 logs giveblack-api
 ### 404 on /app/api/* endpoints
 The Nginx `proxy_pass` is missing the trailing slash. Check:
 ```bash
-cat /etc/nginx/sites-enabled/giveblack.mawa.pro
+cat /etc/nginx/sites-enabled/giveblackapp.com
 # Look for: proxy_pass http://127.0.0.1:5001/;
 # NOT:      proxy_pass http://127.0.0.1:5001;
 ```
@@ -284,7 +273,7 @@ psql postgresql://giveblack_user:PASSWORD@localhost:5432/giveblack_db -c "SELECT
 ### Mobile app can't connect
 1. Check CORS_ORIGINS in `.env` includes your domain
 2. Check EXPO_PUBLIC_API_URL is set correctly
-3. Test from phone browser: `https://giveblack.mawa.pro/app/api/organizations`
+3. Test from phone browser: `https://giveblackapp.com/app/api/organizations`
 
 ### Database permission errors
 ```bash
@@ -326,11 +315,11 @@ pm2 restart giveblack-api
    sudo cp deploy/nginx-giveblackapp.com.conf /etc/nginx/sites-available/giveblackapp.com
    sudo nginx -t && sudo systemctl reload nginx
    ```
-3. Optional: keep `giveblack.mawa.pro` enabled for staging, or remove its symlink when no longer needed.
+3. Optional: keep a separate staging vhost (e.g. `giveblack.mawa.pro`) only if you still use it; otherwise remove its symlink.
 
 ### Env on the VPS (align with public URLs)
 
-- `CORS_ORIGINS=https://giveblackapp.com,https://www.giveblackapp.com` (add `https://giveblack.mawa.pro` if staging UI still uses it)
+- `CORS_ORIGINS=https://giveblackapp.com,https://www.giveblackapp.com`
 - `EXPO_PUBLIC_DOMAIN=giveblackapp.com`
 - `EXPO_PUBLIC_API_URL=https://giveblackapp.com/app`
 - `APP_URL=https://giveblackapp.com`

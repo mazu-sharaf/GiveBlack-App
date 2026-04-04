@@ -24,7 +24,7 @@
 
 💼 ADMIN PANEL
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  URL:       https://giveblackhub.mawa.pro/admin/
+  URL:       https://giveblackapp.com/admin/
   Status:    ✅ ONLINE
   
   Credentials:
@@ -50,9 +50,9 @@
 
 🔌 BACKEND API
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  URL:       https://giveblack.mawa.pro
+  URL:       https://giveblackapp.com/app
   Status:    ✅ RUNNING (PM2)
-  Health:    https://giveblack.mawa.pro/health
+  Health:    https://giveblackapp.com/app/health
   
   Key Endpoints:
   GET  /api/organizations         (47 campaigns)
@@ -102,8 +102,8 @@
   pm2 logs giveblack-api-v2
   
   # Test endpoints
-  curl https://giveblack.mawa.pro/health
-  curl https://giveblack.mawa.pro/api/organizations
+  curl https://giveblackapp.com/app/health
+  curl https://giveblackapp.com/app/api/organizations
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 

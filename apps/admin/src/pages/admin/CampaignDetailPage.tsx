@@ -42,6 +42,7 @@ const STATUS_COLORS: Record<string, string> = {
   completed: "bg-blue-500/20 text-blue-400 border-blue-500/30",
   closed: "bg-red-500/20 text-red-400 border-red-500/30",
   draft: "bg-gray-500/20 text-gray-400 border-gray-500/30",
+  pending_review: "bg-violet-500/20 text-violet-300 border-violet-500/30",
 };
 
 export default function CampaignDetailPage() {
@@ -165,6 +166,22 @@ export default function CampaignDetailPage() {
     }
   };
 
+  const publishCampaign = async () => {
+    if (!campaign) return;
+    try {
+      await dbMutate(
+        "campaigns",
+        "update",
+        { status: "active", updated_at: new Date().toISOString() },
+        [{ column: "id", op: "eq", value: id! }]
+      );
+      toast.success("Campaign published — it is now live for donations");
+      setCampaign((c) => (c ? { ...c, status: "active" } : c));
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to publish");
+    }
+  };
+
   const toggleStatus = async () => {
     if (!campaign) return;
     const newStatus = campaign.status === "active" ? "paused" : "active";
@@ -253,10 +270,16 @@ export default function CampaignDetailPage() {
         <div className="flex gap-2">
           {campaign && campaign.status !== "closed" && (
             <>
-              <Button variant="outline" size="sm" onClick={toggleStatus}>
-                {campaign.status === "active" ? <Pause className="h-4 w-4 mr-1" /> : <Play className="h-4 w-4 mr-1" />}
-                {campaign.status === "active" ? "Pause" : "Activate"}
-              </Button>
+              {campaign.status === "pending_review" ? (
+                <Button size="sm" className="bg-violet-600 hover:bg-violet-700" onClick={publishCampaign}>
+                  Publish
+                </Button>
+              ) : (
+                <Button variant="outline" size="sm" onClick={toggleStatus}>
+                  {campaign.status === "active" ? <Pause className="h-4 w-4 mr-1" /> : <Play className="h-4 w-4 mr-1" />}
+                  {campaign.status === "active" ? "Pause" : "Activate"}
+                </Button>
+              )}
               <Button variant="outline" size="sm" className="text-red-400" onClick={closeCampaign}>
                 <XCircle className="h-4 w-4 mr-1" /> Close
               </Button>

@@ -32,7 +32,7 @@ Set these in `.env`:
 
 ## 4) Stripe setup
 - Point Stripe webhook endpoint to:
-  - `https://your-domain.com/api/webhooks/stripe`
+  - `https://giveblackapp.com/app/api/webhooks/stripe`
 - Enable events:
   - `payment_intent.succeeded`
   - `payment_intent.payment_failed`

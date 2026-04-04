@@ -12,7 +12,7 @@ export default function StripeProviderWrapper({ children }: { children: React.Re
   }
 
   return (
-    <StripeProvider publishableKey={publishableKey} merchantIdentifier="merchant.com.giveblack">
+    <StripeProvider publishableKey={publishableKey} merchantIdentifier="merchant.com.giveblack.app">
       {children}
     </StripeProvider>
   );

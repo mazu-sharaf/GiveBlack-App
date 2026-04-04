@@ -27,6 +27,7 @@ const statusColors: Record<string, string> = {
   completed: "bg-blue-500/20 text-blue-400 border-blue-500/30",
   closed: "bg-red-500/20 text-red-400 border-red-500/30",
   draft: "bg-gray-500/20 text-gray-400 border-gray-500/30",
+  pending_review: "bg-violet-500/20 text-violet-300 border-violet-500/30",
 };
 
 export default function CampaignsPage() {
@@ -65,8 +66,15 @@ export default function CampaignsPage() {
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return rows;
-    return rows.filter((r) => r.title.toLowerCase().includes(q) || r.id.toLowerCase().includes(q));
+    const base = !q
+      ? rows
+      : rows.filter((r) => r.title.toLowerCase().includes(q) || r.id.toLowerCase().includes(q));
+    return [...base].sort((a, b) => {
+      const pa = a.status === "pending_review" ? 0 : 1;
+      const pb = b.status === "pending_review" ? 0 : 1;
+      if (pa !== pb) return pa - pb;
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    });
   }, [rows, search]);
 
   return (

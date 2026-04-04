@@ -94,7 +94,7 @@ pm2 restart giveblack-api-v2
 ```
 
 ### Can't Load Campaigns?
-Check: https://giveblack.mawa.pro/health
+Check: https://giveblackapp.com/app/health
 Should return: `{"ok":true}`
 
 ### Expo Not Starting?
@@ -122,8 +122,8 @@ npm start
 
 ## ✅ All Systems Green
 
-- **Backend API:** ✅ Running (giveblack.mawa.pro)
-- **Admin Panel:** ✅ Live (giveblackhub.mawa.pro)
+- **Backend API:** ✅ Running (giveblackapp.com)
+- **Admin Panel:** ✅ Live (giveblackapp.com)
 - **Database:** ✅ 47 campaigns loaded
 - **Stripe:** ✅ Test mode configured
 - **Authentication:** ✅ JWT + sessions working

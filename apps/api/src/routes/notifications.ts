@@ -4,6 +4,10 @@ import { db } from "../lib/db.js";
 import { sendBrevoEmail } from "../services/brevo.js";
 import { sendExpoPush } from "../services/push.js";
 import { broadcastChannel } from "../realtime/hub.js";
+import {
+  defaultNotificationPreferences,
+  type NotificationPreferenceKey,
+} from "../services/user-push.js";
 
 const registerPushSchema = z.object({
   token: z.string().min(10),
@@ -19,7 +23,55 @@ const userNotifySchema = z.object({
   emailHtml: z.string().min(1)
 });
 
+const notificationSettingsSchema = z.object({
+  donor_receipts: z.boolean().optional(),
+  org_donations: z.boolean().optional(),
+  org_volunteers: z.boolean().optional(),
+  org_campaign_status: z.boolean().optional(),
+  donor_new_campaigns_from_orgs_i_supported: z.boolean().optional(),
+});
+
 export const notificationRoutes: FastifyPluginAsync = async (app) => {
+  app.get("/api/me/notification-settings", { preHandler: [app.authenticate] }, async (request) => {
+    const user = request.user as { sub: string };
+    const res = await db.query(`select notification_preferences from users where id = $1`, [user.sub]);
+    const raw = (res.rows[0] as { notification_preferences?: unknown } | undefined)?.notification_preferences;
+    const defaults = defaultNotificationPreferences();
+    const merged = { ...defaults };
+    if (raw && typeof raw === "object") {
+      const o = raw as Record<string, boolean>;
+      for (const k of Object.keys(defaults) as NotificationPreferenceKey[]) {
+        if (typeof o[k] === "boolean") merged[k] = o[k];
+      }
+    }
+    return { preferences: merged };
+  });
+
+  app.patch("/api/me/notification-settings", { preHandler: [app.authenticate] }, async (request, reply) => {
+    const user = request.user as { sub: string };
+    const body = notificationSettingsSchema.parse(request.body ?? {});
+    const cur = await db.query(`select notification_preferences from users where id = $1`, [user.sub]);
+    const existingRaw = (cur.rows[0] as { notification_preferences?: unknown } | undefined)?.notification_preferences;
+    const base = defaultNotificationPreferences();
+    if (existingRaw && typeof existingRaw === "object") {
+      const o = existingRaw as Record<string, boolean>;
+      for (const k of Object.keys(base) as NotificationPreferenceKey[]) {
+        if (typeof o[k] === "boolean") base[k] = o[k];
+      }
+    }
+    for (const k of Object.keys(body) as (keyof typeof body)[]) {
+      const v = body[k];
+      if (typeof v === "boolean" && k in base) {
+        (base as Record<string, boolean>)[k] = v;
+      }
+    }
+    await db.query(`update users set notification_preferences = $2::jsonb, updated_at = now() where id = $1`, [
+      user.sub,
+      JSON.stringify(base),
+    ]);
+    return { preferences: base };
+  });
+
   app.get("/api/notifications", { preHandler: [app.authenticate] }, async (request, reply) => {
     const user = request.user as { sub: string };
     const limit = Math.min(Number((request.query as Record<string, string>).limit) || 50, 100);

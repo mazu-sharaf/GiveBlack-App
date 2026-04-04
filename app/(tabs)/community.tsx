@@ -18,6 +18,15 @@ import { useThemeColors } from "@/context/ThemeContext";
 import { useAuth } from "@/context/AuthContext";
 import { getApiUrl } from "@/lib/query-client";
 import { getCampaignImage } from "@/constants/images";
+import OrgAvatar from "@/components/OrgAvatar";
+
+function orgInitials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) {
+    return `${parts[0][0] ?? ""}${parts[parts.length - 1][0] ?? ""}`.toUpperCase();
+  }
+  return name.slice(0, 2).toUpperCase() || "?";
+}
 
 export default function CommunityTabScreen() {
   const c = useThemeColors();
@@ -29,6 +38,7 @@ export default function CommunityTabScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [categoryId, setCategoryId] = useState<string>("");
   const [searchQuery, setSearchQuery] = useState("");
+  const [orgsInCategory, setOrgsInCategory] = useState<any[]>([]);
 
   const baseUrl = getApiUrl();
 
@@ -40,18 +50,29 @@ export default function CommunityTabScreen() {
 
   const load = useCallback(async () => {
     try {
-      const [campRes, catRes] = await Promise.all([
+      const orgFetch = categoryId
+        ? fetch(`${baseUrl}api/organizations/category/${encodeURIComponent(categoryId)}`)
+        : Promise.resolve(null);
+      const [campRes, catRes, orgRes] = await Promise.all([
         fetch(`${baseUrl}api/campaigns${categoryId ? `?category_id=${categoryId}` : ""}`),
         fetch(`${baseUrl}api/categories`),
+        orgFetch,
       ]);
       const campData = await campRes.json();
       const catData = catRes.ok ? await catRes.json() : {};
       setCampaigns(Array.isArray(campData) ? campData : []);
       const catList = Array.isArray(catData) ? catData : (catData.categories || []);
       setCategories(catList);
+      if (categoryId && orgRes && orgRes.ok) {
+        const orgData = await orgRes.json();
+        setOrgsInCategory(Array.isArray(orgData) ? orgData : []);
+      } else {
+        setOrgsInCategory([]);
+      }
     } catch {
       setCampaigns([]);
       setCategories([]);
+      setOrgsInCategory([]);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -147,6 +168,36 @@ export default function CommunityTabScreen() {
           </Pressable>
         )}
 
+        {categoryId.length > 0 && orgsInCategory.length > 0 && (
+          <View style={styles.orgSection}>
+            <Text style={[styles.orgSectionTitle, { color: c.text }]}>Organizations in this category</Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.orgScrollContent}
+            >
+              {orgsInCategory.map((org: any) => (
+                <Pressable
+                  key={org.id}
+                  style={[styles.orgChip, { backgroundColor: c.cardBg, borderColor: c.border }]}
+                  onPress={() => router.push({ pathname: "/organization/[id]", params: { id: org.id } })}
+                >
+                  <OrgAvatar
+                    imageUrl={resolveUrl(org.image_url) || undefined}
+                    initials={orgInitials(String(org.name || ""))}
+                    imageColor={c.green}
+                    size={40}
+                    fontSize={12}
+                  />
+                  <Text style={[styles.orgChipName, { color: c.text }]} numberOfLines={2}>
+                    {org.name}
+                  </Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+          </View>
+        )}
+
         {loading ? (
           <View style={styles.loadingWrap}>
             <ActivityIndicator size="large" color={c.green} />
@@ -155,7 +206,11 @@ export default function CommunityTabScreen() {
           <View style={styles.empty}>
             <Ionicons name="search-outline" size={48} color={c.textMuted} />
             <Text style={[styles.emptyText, { color: c.textMuted }]}>
-              {searchQuery.trim() ? "No campaigns match your search" : "No community campaigns yet"}
+              {searchQuery.trim()
+                ? "No campaigns match your search"
+                : categoryId && orgsInCategory.length > 0
+                  ? "No campaigns in this category yet"
+                  : "No community campaigns yet"}
             </Text>
             {user?.type === "charity" && (
               <Pressable style={[styles.createBtnSmall, { borderColor: c.green }]} onPress={() => router.push("/community/create")}>
@@ -249,4 +304,17 @@ const styles = StyleSheet.create({
   progressBg: { height: 6, borderRadius: 3, overflow: "hidden" },
   progressFill: { height: "100%", borderRadius: 3 },
   progressText: { fontSize: 12, marginTop: 6 },
+  orgSection: { marginHorizontal: 20, marginBottom: 8 },
+  orgSectionTitle: { fontSize: 15, fontWeight: "600", marginBottom: 10 },
+  orgScrollContent: { gap: 10, paddingRight: 20 },
+  orgChip: {
+    width: 112,
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: "center",
+    gap: 6,
+  },
+  orgChipName: { fontSize: 12, fontWeight: "500", textAlign: "center" },
 });

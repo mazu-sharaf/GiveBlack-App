@@ -48,7 +48,7 @@ export async function initNativeStripe(publishableKey: string): Promise<void> {
   if (!available || !stripeModule) return;
   if (!publishableKey || publishableKey === initializedPublishableKey) return;
   try {
-    await stripeModule.initStripe({ publishableKey, merchantIdentifier: "merchant.com.giveblack" });
+    await stripeModule.initStripe({ publishableKey, merchantIdentifier: "merchant.com.giveblack.app" });
     initializedPublishableKey = publishableKey;
   } catch {
     stripeAvailable = false;

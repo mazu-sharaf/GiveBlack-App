@@ -103,7 +103,7 @@
 ## 🚀 How to Use
 
 ### Admin Panel
-1. **Login**: https://giveblackhub.mawa.pro/admin/
+1. **Login**: https://giveblackapp.com/admin/
 2. **Email**: `admin@giveblackapp.com`
 3. **Password**: `Admin@123`
 
@@ -151,9 +151,7 @@ npm start
 
 ### Domains Live
 ```
-✅ Production target: https://giveblackapp.com (landing), /app (API), /admin (admin) — see DEPLOYMENT.md
-✅ Staging: https://giveblack.mawa.pro (Mobile App API)
-✅ Staging: https://giveblackhub.mawa.pro/admin/ (Admin Panel)
+✅ Production: https://giveblackapp.com — landing `/`, API `/app/`, admin `/admin/` — see DEPLOYMENT.md
 ```
 
 ### Database
@@ -211,20 +209,20 @@ pm2 logs giveblack-api-v2 --lines 50
 ### API Tests Completed ✅
 ```bash
 # Login test
-curl -X POST https://giveblackhub.mawa.pro/api/admin/login \
+curl -X POST https://giveblackapp.com/app/api/admin/login \
   -H "Content-Type: application/json" \
   -d '{"email":"admin@giveblackapp.com","password":"Admin@123"}'
 # Result: ✅ Token returned
 
 # Query test
-curl -X POST https://giveblackhub.mawa.pro/api/admin/db/query \
+curl -X POST https://giveblackapp.com/app/api/admin/db/query \
   -H "Authorization: Bearer TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"table":"organizations","select":"id,name","limit":3}'
 # Result: ✅ 3 organizations returned
 
 # Public endpoint test
-curl https://giveblackhub.mawa.pro/api/organizations
+curl https://giveblackapp.com/app/api/organizations
 # Result: ✅ 47 organizations returned
 ```
 
@@ -269,7 +267,7 @@ curl https://giveblackhub.mawa.pro/api/organizations
 - ✅ Ready for users
 
 ### Quick Start
-1. **Admin Panel**: Visit https://giveblackhub.mawa.pro/admin/ and login
+1. **Admin Panel**: Visit https://giveblackapp.com/admin/ and login
 2. **Mobile App**: Run `npm start` and scan QR with Expo Go
 3. **Monitor**: Use `pm2 logs giveblack-api-v2` to watch API
 

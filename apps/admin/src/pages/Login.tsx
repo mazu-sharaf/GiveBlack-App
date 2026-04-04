@@ -48,9 +48,6 @@ export default function Login() {
           />
           <div className="space-y-1">
             <h1 className="text-2xl font-bold tracking-tight">Give Black</h1>
-            <p className="text-sm text-muted-foreground leading-snug px-1">
-              Staff sign-in for the admin console—manage nonprofits, campaigns, donations, and payouts in support of Black-led philanthropy.
-            </p>
           </div>
         </CardHeader>
         <CardContent>

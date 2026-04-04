@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   Platform,
   Alert,
+  Linking,
 } from "react-native";
 import { useSafeInsets } from "@/lib/safe-area";
 import { Ionicons } from "@expo/vector-icons";
@@ -19,12 +20,14 @@ import { isNativeStripeAvailable, presentNativePaymentSheet } from "@/lib/stripe
 const FREE_FEATURES = [
   { icon: "megaphone-outline" as const, text: "1 community campaign" },
   { icon: "cash-outline" as const, text: "Up to $5,000 goal per campaign" },
+  { icon: "time-outline" as const, text: "14-day payout hold before funds transfer" },
   { icon: "help-circle-outline" as const, text: "Standard support" },
 ];
 
 const GROWTH_FEATURES = [
   { icon: "megaphone-outline" as const, text: "5 community campaigns" },
   { icon: "cash-outline" as const, text: "Up to $50,000 goal per campaign" },
+  { icon: "time-outline" as const, text: "7-day payout hold before funds transfer" },
   { icon: "hand-left-outline" as const, text: "Volunteer signup" },
   { icon: "checkmark-done-outline" as const, text: "Everything in Free" },
   { icon: "headset-outline" as const, text: "Priority support" },
@@ -33,6 +36,7 @@ const GROWTH_FEATURES = [
 const INSTITUTIONAL_FEATURES = [
   { icon: "megaphone-outline" as const, text: "Unlimited community campaigns" },
   { icon: "cash-outline" as const, text: "Unlimited goal per campaign" },
+  { icon: "time-outline" as const, text: "7-day payout hold before funds transfer" },
   { icon: "hand-left-outline" as const, text: "Volunteer signup" },
   { icon: "checkmark-done-outline" as const, text: "Everything in Growth" },
   { icon: "person-outline" as const, text: "Dedicated support" },
@@ -87,7 +91,27 @@ export default function CharityPlanScreen() {
       const headers: Record<string, string> = {};
       if (session?.accessToken) headers.Authorization = `Bearer ${session.accessToken}`;
       const res = await fetch(`${apiBase}/api/charity/my-subscription`, { headers });
-      const data = await res.json();
+      let data = await res.json();
+      const sub = data.subscription;
+      const needsProactiveSync =
+        data.org_id &&
+        session?.accessToken &&
+        (sub?.status === "incomplete" ||
+          (data.stripe_subscription_id &&
+            sub?.tier === "free" &&
+            (sub?.status === "past_due" ||
+              sub?.status === "unpaid" ||
+              sub?.status === "active" ||
+              sub?.status === "trialing")));
+      if (needsProactiveSync) {
+        try {
+          await apiPost("/api/subscriptions/sync-native", { org_id: data.org_id }, session.accessToken);
+          const res2 = await fetch(`${apiBase}/api/charity/my-subscription`, { headers });
+          if (res2.ok) data = await res2.json();
+        } catch {
+          // Webhooks or pull-to-refresh will update later.
+        }
+      }
       setOrgId(data.org_id || null);
       setTier(data.subscription?.tier || "free");
       setPeriodEnd(data.subscription?.current_period_end || null);
@@ -231,7 +255,9 @@ export default function CharityPlanScreen() {
         )}
         {tier === "free" && (
           <>
-            <Text style={[styles.freeLimits, { color: c.textMuted }]}>1 community campaign · Up to $5,000 goal per campaign · Standard support</Text>
+            <Text style={[styles.freeLimits, { color: c.textMuted }]}>
+              1 community campaign · Up to $5,000 goal per campaign · 14-day payout hold · Standard support
+            </Text>
             {communityCampaignCount !== null && limits && (
               <Text style={[styles.usageText, { color: c.green }]}>{communityCampaignCount}/{limits.max_community_campaigns} campaigns used</Text>
             )}

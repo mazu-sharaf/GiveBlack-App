@@ -1,4 +1,5 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useState, useCallback } from "react";
+import { useFocusEffect } from "@react-navigation/native";
 import {
   View,
   Text,
@@ -12,7 +13,7 @@ import {
 import { useSafeInsets } from "@/lib/safe-area";
 import { useThemeColors } from "@/context/ThemeContext";
 import { useAuth } from "@/context/AuthContext";
-import { getApiUrl } from "@/lib/query-client";
+import { donorDisplayName, donorInitial } from "@/lib/donor-display";
 import { Ionicons } from "@expo/vector-icons";
 
 interface DonationItem {
@@ -21,6 +22,8 @@ interface DonationItem {
   amount: number;
   created_at: string;
   date: string;
+  status?: string;
+  donor_email?: string;
   campaign_title?: string;
   campaign_name?: string;
   message?: string;
@@ -30,40 +33,132 @@ interface DonationItem {
 
 type Period = "7" | "30" | "90" | "all";
 
+interface DonationStats {
+  all_time_total: number;
+  all_time_donors: number;
+  all_time_donation_count: number;
+  month_total: number;
+  month_donors: number;
+  month_donation_count: number;
+  last_7d_total: number;
+  last_7d_donors: number;
+  last_7d_donation_count: number;
+  last_30d_total: number;
+  last_30d_donors: number;
+  last_30d_donation_count: number;
+  last_90d_total: number;
+  last_90d_donors: number;
+  last_90d_donation_count: number;
+}
+
+function normalizeDonationStats(st: Record<string, unknown>): DonationStats {
+  const money = (key: string) => {
+    const v = st[key];
+    if (v == null || v === "") return 0;
+    const x = typeof v === "number" ? v : Number(String(v).replace(/,/g, ""));
+    return Number.isFinite(x) ? x : 0;
+  };
+  const count = (key: string) => Math.round(money(key));
+  return {
+    all_time_total: money("all_time_total"),
+    all_time_donors: count("all_time_donors"),
+    all_time_donation_count: count("all_time_donation_count"),
+    month_total: money("month_total"),
+    month_donors: count("month_donors"),
+    month_donation_count: count("month_donation_count"),
+    last_7d_total: money("last_7d_total"),
+    last_7d_donors: count("last_7d_donors"),
+    last_7d_donation_count: count("last_7d_donation_count"),
+    last_30d_total: money("last_30d_total"),
+    last_30d_donors: count("last_30d_donors"),
+    last_30d_donation_count: count("last_30d_donation_count"),
+    last_90d_total: money("last_90d_total"),
+    last_90d_donors: count("last_90d_donors"),
+    last_90d_donation_count: count("last_90d_donation_count"),
+  };
+}
+
+function statsFromOrgStats(os: Record<string, unknown>): DonationStats {
+  const n = (k: string) => {
+    const v = os[k];
+    if (v == null || v === "") return 0;
+    const x = typeof v === "number" ? v : Number(String(v).replace(/,/g, ""));
+    return Number.isFinite(x) ? x : 0;
+  };
+  const ni = (k: string) => Math.round(n(k));
+  return {
+    all_time_total: n("total_raised"),
+    all_time_donors: ni("donors_count_sum"),
+    all_time_donation_count: ni("campaign_linked_donation_count"),
+    month_total: n("month_raised"),
+    month_donors: ni("month_donation_count"),
+    month_donation_count: ni("month_donation_count"),
+    last_7d_total: n("last_7d_raised"),
+    last_7d_donors: ni("last_7d_donation_count"),
+    last_7d_donation_count: ni("last_7d_donation_count"),
+    last_30d_total: n("last_30d_raised"),
+    last_30d_donors: ni("last_30d_donation_count"),
+    last_30d_donation_count: ni("last_30d_donation_count"),
+    last_90d_total: n("last_90d_raised"),
+    last_90d_donors: ni("last_90d_donation_count"),
+    last_90d_donation_count: ni("last_90d_donation_count"),
+  };
+}
+
 export default function DonationsTab() {
   const insets = useSafeInsets();
   const c = useThemeColors();
-  const { session, user } = useAuth();
+  const { session, user, fetchWithAuth } = useAuth();
   const [donations, setDonations] = useState<DonationItem[]>([]);
+  const [stats, setStats] = useState<DonationStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [period, setPeriod] = useState<Period>("30");
   const [search, setSearch] = useState("");
 
-  const base = getApiUrl().replace(/\/$/, "");
-  const token = session?.accessToken ?? "";
-
   const loadDonations = useCallback(async () => {
+    if (!session) return;
     try {
-      const res = await fetch(`${base}/api/org/my-donations`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await fetchWithAuth("/api/org/my-donations", { method: "GET" });
+      const campRes = await fetchWithAuth("/api/org/my-campaigns", { method: "GET" });
+      let items: DonationItem[] = [];
+      let nextStats: DonationStats | null = null;
+
       if (res.ok) {
         const json = await res.json();
-        const items = Array.isArray(json.donations) ? json.donations : (Array.isArray(json) ? json : []);
-        setDonations(items);
+        items = Array.isArray(json.donations) ? json.donations : (Array.isArray(json) ? json : []);
+        const raw = json.stats;
+        if (raw && typeof raw === "object" && !Array.isArray(raw)) {
+          nextStats = normalizeDonationStats(raw as Record<string, unknown>);
+        }
       }
+
+      if (campRes.ok) {
+        const cj = (await campRes.json()) as { org_stats?: Record<string, unknown> };
+        const os = cj.org_stats;
+        if (os && typeof os === "object") {
+          const fromCamp = statsFromOrgStats(os);
+          if (fromCamp.all_time_total > 0 && (!nextStats || nextStats.all_time_total <= 0)) {
+            nextStats = fromCamp;
+          }
+        }
+      }
+
+      setDonations(items);
+      setStats(nextStats);
     } catch (e) {
       console.log("Donations load error:", e);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [base, token]);
+  }, [session, fetchWithAuth]);
 
-  useEffect(() => {
-    if (token) loadDonations();
-  }, [token]);
+  useFocusEffect(
+    useCallback(() => {
+      if (session) loadDonations();
+    }, [session, loadDonations])
+  );
 
   const onRefresh = () => { setRefreshing(true); loadDonations(); };
 
@@ -72,20 +167,60 @@ export default function DonationsTab() {
   const cutoff = new Date(now.getTime() - periodDays * 24 * 60 * 60 * 1000);
 
   const filteredDonations = donations.filter((d) => {
-    const dDate = new Date(d.created_at || d.date);
-    if (dDate < cutoff) return false;
+    const raw = d.created_at || d.date;
+    const t = raw ? Date.parse(String(raw)) : NaN;
+    if (!Number.isNaN(t)) {
+      const dDate = new Date(t);
+      if (dDate < cutoff) return false;
+    }
     if (search) {
       const q = search.toLowerCase();
-      const name = (d.donor_name || "anonymous").toLowerCase();
+      const name = donorDisplayName(d).toLowerCase();
       const camp = (d.campaign_title || d.campaign_name || "").toLowerCase();
       if (!name.includes(q) && !camp.includes(q)) return false;
     }
     return true;
   });
 
-  const totalInPeriod = filteredDonations.reduce((s, d) => s + (parseFloat(String(d.amount)) || 0), 0);
-  const donorCount = new Set(filteredDonations.map((d) => d.donor_name || "anon")).size;
-  const avgDonation = filteredDonations.length > 0 ? totalInPeriod / filteredDonations.length : 0;
+  const succeededInPeriod = filteredDonations.filter(
+    (d) => String(d.status || "").toLowerCase() === "succeeded"
+  );
+
+  let totalInPeriod: number;
+  let donorCount: number;
+  let avgDonation: number;
+
+  if (stats) {
+    switch (period) {
+      case "7":
+        totalInPeriod = stats.last_7d_total;
+        donorCount = stats.last_7d_donors;
+        avgDonation =
+          stats.last_7d_donation_count > 0 ? stats.last_7d_total / stats.last_7d_donation_count : 0;
+        break;
+      case "30":
+        totalInPeriod = stats.last_30d_total;
+        donorCount = stats.last_30d_donors;
+        avgDonation =
+          stats.last_30d_donation_count > 0 ? stats.last_30d_total / stats.last_30d_donation_count : 0;
+        break;
+      case "90":
+        totalInPeriod = stats.last_90d_total;
+        donorCount = stats.last_90d_donors;
+        avgDonation =
+          stats.last_90d_donation_count > 0 ? stats.last_90d_total / stats.last_90d_donation_count : 0;
+        break;
+      default:
+        totalInPeriod = stats.all_time_total;
+        donorCount = stats.all_time_donors;
+        avgDonation =
+          stats.all_time_donation_count > 0 ? stats.all_time_total / stats.all_time_donation_count : 0;
+    }
+  } else {
+    totalInPeriod = succeededInPeriod.reduce((s, d) => s + (parseFloat(String(d.amount)) || 0), 0);
+    donorCount = new Set(succeededInPeriod.map((d) => donorDisplayName(d))).size;
+    avgDonation = succeededInPeriod.length > 0 ? totalInPeriod / succeededInPeriod.length : 0;
+  }
 
   if (loading) {
     return (
@@ -192,12 +327,12 @@ export default function DonationsTab() {
             <View key={don.id || i} style={[styles.donationCard, { backgroundColor: c.cardBg }]}>
               <View style={[styles.donorAvatar, { backgroundColor: c.green + "15" }]}>
                 <Text style={[styles.donorInitial, { color: c.green }]}>
-                  {(don.donor_name || "A").charAt(0).toUpperCase()}
+                  {donorInitial(don)}
                 </Text>
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={[styles.donorName, { color: c.text }]} numberOfLines={1}>
-                  {don.is_anonymous ? "Anonymous" : (don.donor_name || "Anonymous")}
+                  {donorDisplayName(don)}
                 </Text>
                 <Text style={[styles.donCampaign, { color: c.textMuted }]} numberOfLines={1}>
                   {don.campaign_title || don.campaign_name || "General donation"}

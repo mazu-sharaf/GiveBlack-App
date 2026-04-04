@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -9,6 +9,9 @@ import {
   ScrollView,
   Platform,
   KeyboardAvoidingView,
+  Modal,
+  FlatList,
+  ActivityIndicator,
 } from "react-native";
 import { Image } from "expo-image";
 import { useSafeInsets } from "@/lib/safe-area";
@@ -19,13 +22,19 @@ import * as ImagePicker from "expo-image-picker";
 import Colors from "@/constants/colors";
 import { useAuth } from "@/context/AuthContext";
 import { useThemeColors } from "@/context/ThemeContext";
+import { getApiUrl } from "@/lib/query-client";
+
+type CategoryOption = { id: string; name: string };
 
 export default function CharitySignupScreen() {
   const insets = useSafeInsets();
   const c = useThemeColors();
   const { signUpCharity } = useAuth();
   const [charityName, setCharityName] = useState("");
-  const [category, setCategory] = useState("");
+  const [categories, setCategories] = useState<CategoryOption[]>([]);
+  const [categoriesLoading, setCategoriesLoading] = useState(true);
+  const [selectedCategory, setSelectedCategory] = useState<CategoryOption | null>(null);
+  const [categoryModalVisible, setCategoryModalVisible] = useState(false);
   const [description, setDescription] = useState("");
   const [url, setUrl] = useState("");
   const [firstName, setFirstName] = useState("");
@@ -38,8 +47,39 @@ export default function CharitySignupScreen() {
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [loading, setLoading] = useState(false);
   const [avatarUri, setAvatarUri] = useState<string | null>(null);
+  const [bankName, setBankName] = useState("");
+  const [accountHolder, setAccountHolder] = useState("");
+  const [routingNumber, setRoutingNumber] = useState("");
+  const [accountLast4, setAccountLast4] = useState("");
+  const [accountNumber, setAccountNumber] = useState("");
+  const [taxId, setTaxId] = useState("");
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = insets.bottom;
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const base = getApiUrl().replace(/\/$/, "");
+        const res = await fetch(`${base}/api/categories`);
+        if (!res.ok) throw new Error("Failed to load categories");
+        const data = (await res.json()) as { categories?: unknown[] };
+        const raw = Array.isArray(data.categories) ? data.categories : [];
+        const list: CategoryOption[] = raw.map((row: unknown) => {
+          const r = row as { id?: string; name?: string };
+          return { id: String(r.id ?? ""), name: String(r.name ?? "").trim() };
+        }).filter((x) => x.id && x.name);
+        if (!cancelled) setCategories(list.sort((a, b) => a.name.localeCompare(b.name)));
+      } catch {
+        if (!cancelled) setCategories([]);
+      } finally {
+        if (!cancelled) setCategoriesLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   async function pickAvatar() {
     try {
@@ -69,6 +109,10 @@ export default function CharitySignupScreen() {
       Alert.alert("Error", "Please fill in all required fields");
       return;
     }
+    if (!selectedCategory) {
+      Alert.alert("Error", "Please select an organization category");
+      return;
+    }
     if (!agreedToTerms) {
       Alert.alert("Terms Required", "Please agree to the Terms of Service and Privacy Policy to continue.");
       return;
@@ -85,12 +129,19 @@ export default function CharitySignupScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     const success = await signUpCharity({
       charityName: charityName.trim(),
-      category: category.trim() || "other",
+      category: selectedCategory.name,
+      categoryId: selectedCategory.id,
       description: description.trim(),
       url: url.trim(),
       name: `${firstName.trim()} ${lastName.trim()}`,
       email: email.trim(),
       password,
+      bank_name: bankName.trim() || undefined,
+      account_holder_name: accountHolder.trim() || undefined,
+      routing_number: routingNumber.trim() || undefined,
+      account_last4: accountLast4.trim() || undefined,
+      account_number: accountNumber.trim() || undefined,
+      tax_id: taxId.trim() || undefined,
     });
     setLoading(false);
     if (success) {
@@ -145,17 +196,79 @@ export default function CharitySignupScreen() {
           />
         </View>
 
-        <View style={[styles.inputWrap, { backgroundColor: c.inputBg }]}>
+        <Pressable
+          style={[styles.inputWrap, { backgroundColor: c.inputBg }]}
+          onPress={() => {
+            if (!categoriesLoading && categories.length > 0) setCategoryModalVisible(true);
+            else if (!categoriesLoading && categories.length === 0) {
+              Alert.alert("Categories unavailable", "Could not load categories. Check your connection and try again.");
+            }
+          }}
+          testID="category-picker"
+        >
           <Ionicons name="grid-outline" size={20} color={c.textMuted} style={styles.inputIcon} />
-          <TextInput
-            style={[styles.input, { color: c.text }]}
-            placeholder="Category (e.g. Education, Health)"
-            placeholderTextColor={c.textMuted}
-            value={category}
-            onChangeText={setCategory}
-            testID="category-input"
-          />
-        </View>
+          <Text
+            style={[
+              styles.input,
+              styles.pickerText,
+              { color: selectedCategory ? c.text : c.textMuted },
+            ]}
+            numberOfLines={1}
+          >
+            {categoriesLoading
+              ? "Loading categories…"
+              : selectedCategory
+                ? selectedCategory.name
+                : "Select category"}
+          </Text>
+          {categoriesLoading ? (
+            <ActivityIndicator size="small" color={Colors.green} />
+          ) : (
+            <Ionicons name="chevron-down" size={20} color={c.textMuted} />
+          )}
+        </Pressable>
+
+        <Modal
+          visible={categoryModalVisible}
+          animationType="slide"
+          transparent
+          onRequestClose={() => setCategoryModalVisible(false)}
+        >
+          <Pressable style={styles.modalBackdrop} onPress={() => setCategoryModalVisible(false)}>
+            <Pressable style={[styles.modalSheet, { backgroundColor: c.background }]} onPress={(e) => e.stopPropagation()}>
+              <View style={[styles.modalHeader, { borderBottomColor: c.border }]}>
+                <Text style={[styles.modalTitle, { color: c.text }]}>Organization category</Text>
+                <Pressable onPress={() => setCategoryModalVisible(false)} hitSlop={12}>
+                  <Ionicons name="close" size={26} color={c.text} />
+                </Pressable>
+              </View>
+              <FlatList
+                data={categories}
+                keyExtractor={(item) => item.id}
+                contentContainerStyle={styles.modalList}
+                renderItem={({ item }) => (
+                  <Pressable
+                    style={[
+                      styles.categoryRow,
+                      { borderBottomColor: c.border },
+                      selectedCategory?.id === item.id && { backgroundColor: Colors.green + "18" },
+                    ]}
+                    onPress={() => {
+                      setSelectedCategory(item);
+                      setCategoryModalVisible(false);
+                    }}
+                    testID={`category-option-${item.id}`}
+                  >
+                    <Text style={[styles.categoryRowText, { color: c.text }]}>{item.name}</Text>
+                    {selectedCategory?.id === item.id && (
+                      <Ionicons name="checkmark-circle" size={22} color={Colors.green} />
+                    )}
+                  </Pressable>
+                )}
+              />
+            </Pressable>
+          </Pressable>
+        </Modal>
 
         <View style={[styles.inputWrap, styles.textArea, { backgroundColor: c.inputBg }]}>
           <TextInput
@@ -182,6 +295,79 @@ export default function CharitySignupScreen() {
             keyboardType="url"
             autoCapitalize="none"
             testID="url-input"
+          />
+        </View>
+
+        <Text style={[styles.sectionLabel, { color: c.text, marginTop: 16 }]}>Payout details (optional)</Text>
+        <Text style={[styles.payoutHint, { color: c.textMuted }]}>
+          Bank details help us verify your organization. You can complete Stripe Connect for card payouts after your request is approved, in Settings.
+        </Text>
+        <View style={[styles.inputWrap, { backgroundColor: c.inputBg }]}>
+          <Ionicons name="business-outline" size={20} color={c.textMuted} style={styles.inputIcon} />
+          <TextInput
+            style={[styles.input, { color: c.text }]}
+            placeholder="Bank name"
+            placeholderTextColor={c.textMuted}
+            value={bankName}
+            onChangeText={setBankName}
+            autoCapitalize="words"
+          />
+        </View>
+        <View style={[styles.inputWrap, { backgroundColor: c.inputBg }]}>
+          <Ionicons name="person-outline" size={20} color={c.textMuted} style={styles.inputIcon} />
+          <TextInput
+            style={[styles.input, { color: c.text }]}
+            placeholder="Account holder name"
+            placeholderTextColor={c.textMuted}
+            value={accountHolder}
+            onChangeText={setAccountHolder}
+            autoCapitalize="words"
+          />
+        </View>
+        <View style={styles.nameRow}>
+          <View style={[styles.inputWrap, styles.nameInput, { backgroundColor: c.inputBg }]}>
+            <TextInput
+              style={[styles.input, { color: c.text }]}
+              placeholder="Routing #"
+              placeholderTextColor={c.textMuted}
+              value={routingNumber}
+              onChangeText={setRoutingNumber}
+              keyboardType="number-pad"
+            />
+          </View>
+          <View style={[styles.inputWrap, styles.nameInput, { backgroundColor: c.inputBg }]}>
+            <TextInput
+              style={[styles.input, { color: c.text }]}
+              placeholder="Last 4 digits"
+              placeholderTextColor={c.textMuted}
+              value={accountLast4}
+              onChangeText={(t) => setAccountLast4(t.replace(/\D/g, "").slice(0, 4))}
+              keyboardType="number-pad"
+              maxLength={4}
+            />
+          </View>
+        </View>
+        <View style={[styles.inputWrap, { backgroundColor: c.inputBg }]}>
+          <Ionicons name="keypad-outline" size={20} color={c.textMuted} style={styles.inputIcon} />
+          <TextInput
+            style={[styles.input, { color: c.text }]}
+            placeholder="Full account number (optional)"
+            placeholderTextColor={c.textMuted}
+            value={accountNumber}
+            onChangeText={setAccountNumber}
+            keyboardType="number-pad"
+            secureTextEntry
+          />
+        </View>
+        <View style={[styles.inputWrap, { backgroundColor: c.inputBg }]}>
+          <Ionicons name="document-text-outline" size={20} color={c.textMuted} style={styles.inputIcon} />
+          <TextInput
+            style={[styles.input, { color: c.text }]}
+            placeholder="Tax ID / EIN (optional)"
+            placeholderTextColor={c.textMuted}
+            value={taxId}
+            onChangeText={setTaxId}
+            autoCapitalize="characters"
           />
         </View>
 
@@ -376,6 +562,12 @@ const styles = StyleSheet.create({
     fontSize: 15,
     marginBottom: 12,
   },
+  payoutHint: {
+    fontFamily: "Poppins_400Regular",
+    fontSize: 13,
+    lineHeight: 19,
+    marginBottom: 12,
+  },
   avatarWrap: {
     alignSelf: "center",
     marginBottom: 6,
@@ -438,6 +630,49 @@ const styles = StyleSheet.create({
     flex: 1,
     fontFamily: "Poppins_400Regular",
     fontSize: 15,
+  },
+  pickerText: {
+    paddingVertical: 0,
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    justifyContent: "flex-end",
+  },
+  modalSheet: {
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: "72%",
+    paddingBottom: 24,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  modalTitle: {
+    fontFamily: "Poppins_600SemiBold",
+    fontSize: 17,
+  },
+  modalList: {
+    paddingBottom: 16,
+  },
+  categoryRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  categoryRowText: {
+    fontFamily: "Poppins_500Medium",
+    fontSize: 16,
+    flex: 1,
+    paddingRight: 12,
   },
   textAreaInput: {
     minHeight: 70,

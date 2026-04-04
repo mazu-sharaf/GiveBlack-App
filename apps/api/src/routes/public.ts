@@ -3,6 +3,7 @@ import { z } from "zod";
 import { db } from "../lib/db.js";
 import { env } from "../config/env.js";
 import { getStripe } from "../services/stripe.js";
+import { stripeId } from "../lib/stripe-ids.js";
 
 const publicDonateSchema = z.object({
   campaignId: z.string().min(1),
@@ -58,7 +59,10 @@ export const publicRoutes: FastifyPluginAsync = async (app) => {
       const w = where.join(" and ");
       const result = await db.query(
         `select c.id, c.title, c.description, c.story, c.about, c.main_image_url,
-                c.location, c.goal, c.raised, c.donor_count, c.status,
+                c.location, c.goal,
+                coalesce(cd.raised, 0) as raised,
+                coalesce(cd.donor_count, 0)::int as donor_count,
+                c.status,
                 c.organization_id, c.created_at,
                 o.name as org_name, o.image_url as org_image_url,
                 o.initials as org_initials, o.image_color as org_image_color,
@@ -67,6 +71,12 @@ export const publicRoutes: FastifyPluginAsync = async (app) => {
          from campaigns c
          join organizations o on o.id = c.organization_id
          left join categories cat on cat.id = o.category_id
+         left join lateral (
+           select coalesce(sum(d.amount), 0)::numeric as raised,
+                  count(*)::int as donor_count
+           from donations d
+           where d.campaign_id = c.id and d.status = 'succeeded'
+         ) cd on true
          where ${w}
          order by c.created_at desc
          limit 200`,
@@ -84,7 +94,10 @@ export const publicRoutes: FastifyPluginAsync = async (app) => {
     try {
       const campResult = await db.query(
         `select c.id, c.title, c.description, c.story, c.about, c.main_image_url,
-                c.location, c.goal, c.raised, c.donor_count, c.status,
+                c.location, c.goal,
+                coalesce(cd.raised, 0) as raised,
+                coalesce(cd.donor_count, 0)::int as donor_count,
+                c.status,
                 c.organization_id, c.created_at,
                 o.name as org_name, o.image_url as org_image_url,
                 o.initials as org_initials, o.image_color as org_image_color,
@@ -92,6 +105,12 @@ export const publicRoutes: FastifyPluginAsync = async (app) => {
                 coalesce(s.tier, 'free') as org_tier
          from campaigns c
          join organizations o on o.id = c.organization_id
+         left join lateral (
+           select coalesce(sum(d.amount), 0)::numeric as raised,
+                  count(*)::int as donor_count
+           from donations d
+           where d.campaign_id = c.id and d.status = 'succeeded'
+         ) cd on true
          left join lateral (
            select tier from org_subscriptions
            where org_id = o.id and status = 'active'
@@ -200,22 +219,39 @@ export const publicRoutes: FastifyPluginAsync = async (app) => {
   });
 
   app.post("/api/volunteers", async (request, reply) => {
-    const body = (request.body ?? {}) as {
+    const raw = (request.body ?? {}) as {
       orgId?: string;
       name?: string;
       email?: string;
-      skills?: string;
+      skills?: string | string[];
+      phone?: string;
       message?: string;
+      availability?: string;
     };
-    if (!body.name || !body.email) {
+    if (!raw.name || !raw.email) {
       return reply.code(400).send({ error: "Name and email are required" });
     }
-    if (body.orgId) {
+    let skillsStr: string | null = null;
+    if (raw.skills != null) {
+      if (Array.isArray(raw.skills)) {
+        skillsStr = raw.skills.map((s) => String(s).trim()).filter(Boolean).join(", ") || null;
+      } else {
+        skillsStr = String(raw.skills).trim() || null;
+      }
+    }
+    let messageStr = raw.message?.trim() || null;
+    if (raw.availability && String(raw.availability).trim()) {
+      const avail = String(raw.availability).trim();
+      messageStr = messageStr ? `${messageStr}\n\nAvailability: ${avail}` : `Availability: ${avail}`;
+    }
+    const phoneStr = raw.phone?.trim() || null;
+
+    if (raw.orgId) {
       const subRes = await db.query(
         `select tier from org_subscriptions
-         where org_id = $1 and status = 'active'
+         where org_id = $1 and status in ('active', 'trialing')
          order by created_at desc limit 1`,
-        [body.orgId]
+        [raw.orgId]
       );
       const tier = (subRes.rows[0] as Record<string, unknown> | undefined)?.tier as string || "free";
       const VOLUNTEER_ALLOWED_TIERS = ["growth", "institutional"];
@@ -225,12 +261,19 @@ export const publicRoutes: FastifyPluginAsync = async (app) => {
     }
     try {
       const result = await db.query(
-        `insert into volunteers (org_id, name, email, skills, message)
-         values ($1, $2, $3, $4, $5)
+        `insert into volunteers (org_id, name, email, phone, skills, message)
+         values ($1, $2, $3, $4, $5, $6)
          returning id`,
-        [body.orgId || null, body.name, body.email, body.skills || null, body.message || null]
+        [raw.orgId || null, raw.name, raw.email, phoneStr, skillsStr, messageStr]
       );
-      return { success: true, id: result.rows[0].id };
+      const vid = result.rows[0]?.id;
+      if (raw.orgId && vid) {
+        const { notifyVolunteerSignup } = await import("../services/user-push.js");
+        void notifyVolunteerSignup(raw.orgId, String(raw.name), String(vid)).catch((err) =>
+          console.error("[volunteers] push notify failed", err)
+        );
+      }
+      return { success: true, id: vid };
     } catch (e: unknown) {
       app.log.error(e);
       return reply.code(500).send({ error: "Internal server error" });
@@ -309,6 +352,22 @@ export const publicRoutes: FastifyPluginAsync = async (app) => {
         donorEmail: body.donorEmail,
       },
     });
+
+    const pubPiId = stripeId(session.payment_intent);
+    if (pubPiId) {
+      await stripe.paymentIntents.update(pubPiId, {
+        metadata: {
+          orgId: body.orgId,
+          campaignId: body.campaignId,
+          donorName: body.donorName,
+          donorEmail: body.donorEmail,
+          message: body.message || "",
+          isAnonymous: String(body.isAnonymous),
+          type: "web_donation",
+          checkoutSessionId: session.id,
+        },
+      });
+    }
 
     await db.query(
       `insert into donations (org_id, campaign_id, amount, currency, status, stripe_payment_intent_id, donor_name, donor_email, message, is_anonymous)

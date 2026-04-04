@@ -76,7 +76,7 @@ charity_requests (user_id, organization_name, category, description, website_url
 ## 🔑 Login Credentials (Test Accounts)
 
 ### Admin Panel:
-- **URL**: https://giveblackhub.mawa.pro/
+- **URL**: https://giveblackapp.com/admin/
 - **Email**: `admin@gb.com`
 - **Password**: `Admin@gb`
 
@@ -151,7 +151,7 @@ JWT_ACCESS_TTL=15m
 JWT_REFRESH_TTL_DAYS=30
 
 # Mobile App
-EXPO_PUBLIC_API_URL=https://giveblack.mawa.pro
+EXPO_PUBLIC_API_URL=https://giveblackapp.com/app
 ```
 
 ## 🚀 API Endpoints Summary
@@ -194,7 +194,7 @@ EXPO_PUBLIC_API_URL=https://giveblack.mawa.pro
 ### "Unable to connect" error:
 - Check backend is running: `pm2 status giveblack-api-v2`
 - Verify API URL in `.env`: `EXPO_PUBLIC_API_URL`
-- Test endpoint: `curl https://giveblack.mawa.pro/health`
+- Test endpoint: `curl https://giveblackapp.com/app/health`
 
 ### "Invalid credentials" error:
 - Password minimum 6 characters

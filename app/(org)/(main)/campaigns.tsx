@@ -1,4 +1,5 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useState, useCallback } from "react";
+import { useFocusEffect } from "@react-navigation/native";
 import {
   View,
   Text,
@@ -12,6 +13,7 @@ import {
   Alert,
   Platform,
   KeyboardAvoidingView,
+  useWindowDimensions,
 } from "react-native";
 import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
@@ -41,6 +43,7 @@ interface SubData {
     limits: { max_community_campaigns: number; max_goal_per_campaign: number };
   };
   community_campaign_count: number;
+  organization_campaign_count: number;
 }
 
 const INITIAL_FORM = {
@@ -53,10 +56,16 @@ const INITIAL_FORM = {
   about: "",
 };
 
+const SCREEN_H_PAD = 20;
+const CARD_INNER_PAD = 14;
+
 export default function CampaignsTab() {
   const insets = useSafeInsets();
+  const { width: windowWidth } = useWindowDimensions();
   const c = useThemeColors();
-  const { session, user } = useAuth();
+  const chipPadH = windowWidth < 360 ? 10 : windowWidth < 400 ? 12 : 14;
+  const chipGap = windowWidth < 360 ? 6 : 8;
+  const { session, user, fetchWithAuth } = useAuth();
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [subData, setSubData] = useState<SubData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -65,24 +74,20 @@ export default function CampaignsTab() {
   const [form, setForm] = useState(INITIAL_FORM);
   const [saving, setSaving] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [filter, setFilter] = useState<"all" | "active" | "draft" | "paused" | "completed">("all");
+  const [filter, setFilter] = useState<"all" | "active" | "draft" | "paused" | "completed" | "pending_review">("all");
   const [uploading, setUploading] = useState(false);
   const [imageMode, setImageMode] = useState<"upload" | "url">("upload");
   const [galleryImages, setGalleryImages] = useState<{ id: string; image_url: string; caption: string | null; sort_order: number }[]>([]);
   const [galleryUploading, setGalleryUploading] = useState(false);
 
   const base = getApiUrl().replace(/\/$/, "");
-  const token = session?.accessToken ?? "";
 
   const loadData = useCallback(async () => {
+    if (!session) return;
     try {
       const [subRes, campRes] = await Promise.all([
-        fetch(`${base}/api/charity/my-subscription`, {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
-        fetch(`${base}/api/org/my-campaigns`, {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
+        fetchWithAuth("/api/charity/my-subscription", { method: "GET" }),
+        fetchWithAuth("/api/org/my-campaigns", { method: "GET" }),
       ]);
       if (subRes.ok) {
         const sub = await subRes.json();
@@ -98,20 +103,27 @@ export default function CampaignsTab() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [base, token]);
+  }, [session, fetchWithAuth]);
 
-  useEffect(() => {
-    if (token) loadData();
-  }, [token]);
+  useFocusEffect(
+    useCallback(() => {
+      if (session) loadData();
+    }, [session, loadData])
+  );
 
   const onRefresh = () => { setRefreshing(true); loadData(); };
 
   const maxCampaigns = subData?.subscription.limits.max_community_campaigns ?? 1;
   const maxGoal = subData?.subscription.limits.max_goal_per_campaign ?? 5000;
-  const currentCount = subData?.community_campaign_count ?? campaigns.length;
+  const currentCount = Math.max(subData?.organization_campaign_count ?? 0, campaigns.length);
   const canCreate = maxCampaigns === 999999 || currentCount < maxCampaigns;
 
   const filteredCampaigns = filter === "all" ? campaigns : campaigns.filter((c) => c.status === filter);
+
+  function formatCampaignStatus(status: string): string {
+    if (status === "pending_review") return "Pending admin approval";
+    return status;
+  }
 
   function openCreate() {
     if (!canCreate) {
@@ -141,9 +153,7 @@ export default function CampaignsTab() {
     setShowForm(true);
 
     try {
-      const res = await fetch(`${base}/api/org/campaign-images/${camp.id}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await fetchWithAuth(`/api/org/campaign-images/${camp.id}`, { method: "GET" });
       if (res.ok) {
         const data = await res.json();
         setGalleryImages(data.images || []);
@@ -187,9 +197,8 @@ export default function CampaignsTab() {
         } as any);
       }
 
-      const res = await fetch(`${base}/api/upload/image`, {
+      const res = await fetchWithAuth("/api/upload/image", {
         method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
         body: formData,
       });
 
@@ -202,7 +211,8 @@ export default function CampaignsTab() {
         Alert.alert("Upload Failed", err.error || "Could not upload image");
       }
     } catch (e) {
-      Alert.alert("Upload Error", "Something went wrong while uploading");
+      const msg = e instanceof Error ? e.message : "Something went wrong while uploading";
+      Alert.alert("Upload Error", msg.includes("Session expired") ? msg : "Something went wrong while uploading");
     } finally {
       setUploading(false);
     }
@@ -242,9 +252,8 @@ export default function CampaignsTab() {
         } as any);
       }
 
-      const uploadRes = await fetch(`${base}/api/upload/image`, {
+      const uploadRes = await fetchWithAuth("/api/upload/image", {
         method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
         body: formData,
       });
 
@@ -256,12 +265,9 @@ export default function CampaignsTab() {
 
       const uploadJson = await uploadRes.json();
 
-      const addRes = await fetch(`${base}/api/org/campaign-images/${editingId}`, {
+      const addRes = await fetchWithAuth(`/api/org/campaign-images/${editingId}`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           image_url: uploadJson.url,
           sort_order: galleryImages.length,
@@ -288,9 +294,8 @@ export default function CampaignsTab() {
 
   async function removeGalleryImage(imageId: string) {
     try {
-      const res = await fetch(`${base}/api/org/campaign-images/${imageId}`, {
+      const res = await fetchWithAuth(`/api/org/campaign-images/${imageId}`, {
         method: "DELETE",
-        headers: { Authorization: `Bearer ${token}` },
       });
       if (res.ok) {
         setGalleryImages((prev) => prev.filter((img) => img.id !== imageId));
@@ -321,29 +326,19 @@ export default function CampaignsTab() {
         about: form.about.trim() || null,
       };
 
-      let url: string;
-      let method: string;
+      const path = editingId ? `/api/org/campaigns/${editingId}` : "/api/org/campaigns";
+      const method = editingId ? "PUT" : "POST";
 
-      if (editingId) {
-        url = `${base}/api/org/campaigns/${editingId}`;
-        method = "PUT";
-      } else {
-        url = `${base}/api/org/campaigns`;
-        method = "POST";
-      }
-
-      const res = await fetch(url, {
+      const res = await fetchWithAuth(path, {
         method,
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(campaignData),
       });
 
       if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || "Failed to save campaign");
+        const err = (await res.json().catch(() => ({}))) as { error?: string; message?: string };
+        const apiMsg = err.error || err.message || (res.status >= 500 ? "Server error. Please try again later." : "Failed to save campaign");
+        throw new Error(apiMsg);
       }
 
       setShowForm(false);
@@ -351,7 +346,11 @@ export default function CampaignsTab() {
       setEditingId(null);
       loadData();
     } catch (e) {
-      Alert.alert("Error", e instanceof Error ? e.message : "Failed to save");
+      const msg = e instanceof Error ? e.message : "Failed to save";
+      Alert.alert(
+        "Error",
+        msg === "Unauthorized" || msg.includes("Session expired") ? "Session expired. Please sign in again." : msg
+      );
     } finally {
       setSaving(false);
     }
@@ -359,12 +358,9 @@ export default function CampaignsTab() {
 
   async function updateStatus(campId: string, newStatus: string) {
     try {
-      const res = await fetch(`${base}/api/org/campaigns/${campId}`, {
+      const res = await fetchWithAuth(`/api/org/campaigns/${campId}`, {
         method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: newStatus }),
       });
       if (!res.ok) {
@@ -383,9 +379,8 @@ export default function CampaignsTab() {
         style: "destructive",
         onPress: async () => {
           try {
-            const res = await fetch(`${base}/api/org/campaigns/${campId}`, {
+            const res = await fetchWithAuth(`/api/org/campaigns/${campId}`, {
               method: "DELETE",
-              headers: { Authorization: `Bearer ${token}` },
             });
             if (!res.ok) {
               const err = await res.json().catch(() => ({}));
@@ -403,6 +398,7 @@ export default function CampaignsTab() {
     draft: "#94a3b8",
     paused: "#f59e0b",
     completed: "#6366f1",
+    pending_review: "#a855f7",
   };
 
   if (loading) {
@@ -425,27 +421,37 @@ export default function CampaignsTab() {
         </Pressable>
       </View>
 
-      <View style={[styles.usageBar, { backgroundColor: c.cardBg }]}>
-        <Text style={[styles.usageText, { color: c.textMuted }]}>
-          Using <Text style={{ color: c.text, fontFamily: "Poppins_600SemiBold" }}>{currentCount}/{maxCampaigns === 999999 ? "\u221e" : maxCampaigns}</Text> campaigns
-          {" \u00b7 "}Max goal: <Text style={{ color: c.text, fontFamily: "Poppins_600SemiBold" }}>${maxGoal >= 999999 ? "\u221e" : maxGoal.toLocaleString()}</Text>
-        </Text>
-      </View>
+      <View style={styles.usageAndFilters}>
+        <View style={[styles.usageBar, { backgroundColor: c.cardBg }]}>
+          <Text style={[styles.usageText, { color: c.textMuted }]}>
+            Using <Text style={{ color: c.text, fontFamily: "Poppins_600SemiBold" }}>{currentCount}/{maxCampaigns === 999999 ? "\u221e" : maxCampaigns}</Text> campaigns
+            {" \u00b7 "}Max goal: <Text style={{ color: c.text, fontFamily: "Poppins_600SemiBold" }}>${maxGoal >= 999999 ? "\u221e" : maxGoal.toLocaleString()}</Text>
+          </Text>
+        </View>
 
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={styles.filterRow}
-        contentContainerStyle={{ paddingHorizontal: 20, gap: 8 }}
-      >
-        {(["all", "active", "draft", "paused", "completed"] as const).map((f) => (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator
+          bounces
+          style={styles.filterRowScroll}
+          contentContainerStyle={[
+            styles.filterRowContent,
+            {
+              paddingLeft: CARD_INNER_PAD,
+              paddingRight: 20,
+            },
+          ]}
+        >
+        {(["all", "active", "pending_review", "draft", "paused", "completed"] as const).map((f, idx, arr) => (
           <Pressable
             key={f}
             style={[
               styles.filterChip,
+              idx < arr.length - 1 && { marginRight: chipGap },
               {
                 backgroundColor: filter === f ? c.green : c.cardBg,
                 borderColor: filter === f ? c.green : c.border,
+                paddingHorizontal: chipPadH,
               },
             ]}
             onPress={() => setFilter(f)}
@@ -454,13 +460,15 @@ export default function CampaignsTab() {
               style={[
                 styles.filterChipText,
                 { color: filter === f ? "#fff" : c.textMuted },
+                ...(Platform.OS === "android" ? [styles.filterChipTextAndroid] : []),
               ]}
             >
-              {f.charAt(0).toUpperCase() + f.slice(1)}
+              {f === "pending_review" ? "Pending" : f.charAt(0).toUpperCase() + f.slice(1)}
             </Text>
           </Pressable>
         ))}
-      </ScrollView>
+        </ScrollView>
+      </View>
 
       <ScrollView
         contentContainerStyle={[styles.list, { paddingBottom: insets.bottom + 90 }]}
@@ -495,7 +503,9 @@ export default function CampaignsTab() {
                     <Text style={[styles.campTitle, { color: c.text }]} numberOfLines={2}>{camp.title}</Text>
                     <View style={[styles.statusBadge, { backgroundColor: sColor + "15" }]}>
                       <View style={[styles.statusDot, { backgroundColor: sColor }]} />
-                      <Text style={[styles.statusText, { color: sColor }]}>{camp.status}</Text>
+                      <Text style={[styles.statusText, { color: sColor }]} numberOfLines={2}>
+                        {formatCampaignStatus(camp.status)}
+                      </Text>
                     </View>
                   </View>
                 </View>
@@ -818,9 +828,9 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingHorizontal: 20,
+    paddingHorizontal: SCREEN_H_PAD,
     paddingTop: 12,
-    paddingBottom: 12,
+    paddingBottom: 10,
   },
   headerTitle: { fontFamily: "Poppins_700Bold", fontSize: 26 },
   createBtn: {
@@ -832,23 +842,43 @@ const styles = StyleSheet.create({
     borderRadius: 14,
   },
   createBtnText: { fontFamily: "Poppins_600SemiBold", fontSize: 14, color: "#fff" },
+  /** Shared horizontal inset with header + list so usage, filters, and cards share one column. */
+  usageAndFilters: {
+    marginHorizontal: SCREEN_H_PAD,
+    marginBottom: 10,
+  },
   usageBar: {
-    marginHorizontal: 20,
     paddingVertical: 10,
-    paddingHorizontal: 14,
+    paddingHorizontal: CARD_INNER_PAD,
     borderRadius: 12,
-    marginBottom: 12,
+    marginBottom: 10,
   },
   usageText: { fontFamily: "Poppins_400Regular", fontSize: 13 },
-  filterRow: { marginBottom: 12, maxHeight: 44 },
-  filterChip: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    borderWidth: StyleSheet.hairlineWidth,
+  filterRowScroll: {
+    alignSelf: "stretch",
   },
-  filterChipText: { fontFamily: "Poppins_500Medium", fontSize: 13 },
-  list: { paddingHorizontal: 20 },
+  filterRowContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 4,
+  },
+  filterChip: {
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  filterChipText: {
+    fontFamily: "Poppins_500Medium",
+    fontSize: 13,
+    lineHeight: 16,
+    textAlign: "center",
+  },
+  filterChipTextAndroid: {
+    includeFontPadding: false,
+  },
+  list: { paddingHorizontal: SCREEN_H_PAD },
   emptyCard: {
     borderRadius: 16,
     padding: 40,
