@@ -1,11 +1,41 @@
 ---
-description: GiveBlack monorepo — layout, commands, env, conventions, Git
+description: GiveBlack — setup, git pull, layout, commands, env, conventions
 alwaysApply: true
 ---
 
 # GiveBlack — local dev context
 
 You are helping on **GiveBlack**, a monorepo for a philanthropy app (Black-led orgs, donations, campaigns, volunteers).
+
+## First-time setup (do all in order)
+
+1. **Clone** (if you do not have the repo yet):
+   - `git clone https://github.com/mazu-sharaf/GiveBlack-App.git`
+   - `cd GiveBlack-App`
+2. **Dependencies** (always from repository root):
+   - `npm install`
+3. **Environment** — never commit secrets:
+   - `cp .env.example .env`
+   - Edit `.env`: set `DATABASE_URL`, `JWT_*` secrets, local URLs (`EXPO_PUBLIC_API_URL`, `VITE_API_URL`) to your machine or staging (e.g. `http://localhost:5001/app` if the API is wired that way — match how `apps/api` is mounted in dev).
+4. **Database** — PostgreSQL required for the API. Create a DB user/db matching `DATABASE_URL`, then from root:
+   - `npm run api:db:init`
+5. **Run services** (separate terminals from root):
+   - API: `npm run api:dev`
+   - Admin: `npm run dev:admin`
+   - Mobile: `npm start` / `npx expo start`
+6. **Optional**: iOS/Android native builds use Expo / EAS; see `eas.json` and `app.json` (`extra.eas.projectId`). Apple signing is configured in EAS, not in this repo alone.
+
+Details and endpoints: **`apps/api/README.md`**.
+
+## Git: stay up to date (`git pull`)
+
+- **Before starting work** each day (or after teammates push):
+  - `git checkout main`
+  - `git pull origin main`
+  - If `package-lock.json` changed, run **`npm install`** again.
+- **If `origin` is not GitHub**, use the remote you cloned from (e.g. `git remote -v`, then `git pull <remote> main`).
+- After pull: if the app breaks, check **new env vars** in `.env.example` and merge them into your local `.env`.
+- **Merge conflicts**: resolve files, then `git add` and `git commit`; never commit `.env`.
 
 ## Repo layout
 
@@ -17,6 +47,7 @@ You are helping on **GiveBlack**, a monorepo for a philanthropy app (Black-led o
 ## Commands (from repository root)
 
 - Install: `npm install`
+- DB init (after Postgres + `.env`): `npm run api:db:init`
 - Mobile: `npm start` / `npx expo start`
 - API: `npm run api:dev`
 - Admin: `npm run dev:admin`
@@ -33,7 +64,7 @@ You are helping on **GiveBlack**, a monorepo for a philanthropy app (Black-led o
 - **Stripe**: prefer Checkout / PaymentIntents / Billing, not legacy Charges.
 - **Mobile**: bundle id **`com.giveblack.app`**; EAS via `app.json` `extra.eas.projectId`; iOS builds need Apple credentials on EAS.
 
-## Git
+## Git remotes
 
 - **GitHub**: `mazu-sharaf/GiveBlack-App` (often `origin` after clone).
 - **GitLab** may exist as another remote — do not remove remotes without being asked.
