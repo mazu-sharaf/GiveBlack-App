@@ -41,6 +41,22 @@ Use **`npx eas-cli@latest`** (or global `eas`). Set **`$env:EXPO_TOKEN`** in Pow
 
 After **submit**, open **[App Store Connect](https://appstoreconnect.apple.com)** → **TestFlight** (wait for processing), then **Distribution** → attach build to the target **iOS version** → **Submit for Review**. **Cursor cannot** complete Apple web UI or review for you.
 
+## Chat shortcuts (when the user says these, map to the command)
+
+Interpret from **repository root**. Do not ask clarifying questions unless the request is impossible; prefer running or printing the exact command.
+
+| User says | Action |
+|-----------|--------|
+| **run eas ios** / **eas build ios** | `npx eas-cli@latest build --platform ios --profile production` |
+| **run eas android** / **eas build android** | `npx eas-cli@latest build --platform android --profile production` |
+| **run ship ios** / **eas submit ios** / **submit ios** | `npx eas-cli@latest submit --platform ios --latest` |
+| **run ship android** / **eas submit android** | `npx eas-cli@latest submit --platform android --latest` |
+| **run expo** / **start app** | `npm start` or `npx expo start` |
+| **run api** | `npm run api:dev` |
+| **run admin** | `npm run dev:admin` |
+
+The word **run** alone is ambiguous — if the user only says **run**, ask which row above they mean **or** default to **run eas ios** only if they were discussing iOS in the last message.
+
 ## Git: stay up to date (`git pull`)
 
 - **Before starting work** each day (or after teammates push):
