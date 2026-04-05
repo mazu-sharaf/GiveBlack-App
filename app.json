@@ -16,6 +16,7 @@
     },
     "ios": {
       "supportsTablet": false,
+      "appleTeamId": "W5NB3UT9SS",
       "buildNumber": "1",
       "bundleIdentifier": "com.giveblack.app",
       "infoPlist": {
