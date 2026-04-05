@@ -3,7 +3,7 @@
     "name": "GiveBlack",
     "slug": "giveblack",
     "description": "The go-to app for Black Philanthropy. Created for us, by us. Donate to verified Black-led organizations, track your impact, volunteer, and share campaigns -- all in one place. Give back with purpose.",
-    "version": "1.1.1",
+    "version": "2.2.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "giveblack",
