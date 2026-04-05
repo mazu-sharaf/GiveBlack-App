@@ -123,7 +123,8 @@ export default function CampaignDetailScreen() {
     try {
       // Public campaign page URL for sharing
       const pubHost = process.env.EXPO_PUBLIC_DOMAIN || "giveblackapp.com";
-      const shareUrl = `https://${pubHost}/admin/c/${camp!.id}`;
+      /** Public short URL: server-rendered OG tags at /c/:id (not /admin/c/, which only serves SPA shell to crawlers). */
+      const shareUrl = `https://${pubHost}/c/${camp!.id}`;
       if (Platform.OS === "web" && typeof navigator !== "undefined" && "share" in navigator) {
         try {
           await navigator.share({

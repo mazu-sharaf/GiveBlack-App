@@ -113,7 +113,53 @@ export const campaignPageRoutes: FastifyPluginAsync = async (app) => {
 
   app.get("/c/:campaignId", async (request, reply) => {
     const { campaignId } = request.params as { campaignId: string };
-    return reply.redirect(`/admin/c/${encodeURIComponent(campaignId)}`, 302);
+    const proto = (request.headers["x-forwarded-proto"] as string) || request.protocol || "https";
+    const host = (request.headers["x-forwarded-host"] as string) || request.hostname;
+    const baseUrl = `${proto}://${host}`;
+    const publicBase = env.EXPO_PUBLIC_API_URL?.replace(/\/$/, "") || baseUrl;
+    const defaultOg = `${baseUrl.replace(/\/$/, "")}${DEFAULT_CAMPAIGN_OG_PATH}`;
+
+    try {
+      const campRes = await db.query(
+        `SELECT c.title, c.description, c.main_image_url, o.name AS org_name
+         FROM campaigns c
+         JOIN organizations o ON o.id = c.organization_id
+         WHERE c.id = $1
+         LIMIT 1`,
+        [campaignId]
+      );
+      if (!campRes.rows.length) {
+        return reply.type("text/html").send(notFoundPage());
+      }
+      const row = campRes.rows[0] as {
+        title: string;
+        description: string | null;
+        main_image_url: string | null;
+        org_name: string;
+      };
+      const plainDesc = stripHtmlForMeta(
+        row.description || `Support ${row.org_name} on Give Black — ${row.title}.`
+      ).slice(0, 300);
+      const pageTitle = `Support ${row.title} on Give Black`;
+      const ogImage = resolveCampaignOgImage(row.main_image_url, publicBase, defaultOg);
+      const canonicalUrl = `${baseUrl}/c/${encodeURIComponent(campaignId)}`;
+      const webCampaignUrl = `${baseUrl}/admin/c/${encodeURIComponent(campaignId)}`;
+
+      const html = campaignShareLandingPage({
+        pageTitle,
+        metaDescription: plainDesc,
+        ogTitle: pageTitle,
+        ogDescription: plainDesc,
+        ogImage,
+        canonicalUrl,
+        webCampaignUrl,
+        campaignTitle: row.title,
+      });
+      return reply.type("text/html").send(html);
+    } catch (e) {
+      app.log.error(e);
+      return reply.type("text/html").send(notFoundPage());
+    }
   });
 
   app.post("/api/payments/public-donate-checkout", async (request, reply) => {
@@ -251,6 +297,76 @@ export const campaignPageRoutes: FastifyPluginAsync = async (app) => {
     return { url: session.url, sessionId: session.id };
   });
 };
+
+const DEFAULT_CAMPAIGN_OG_PATH = "/admin/giveblack-og.png";
+
+function stripHtmlForMeta(s: string): string {
+  return s.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function resolveCampaignOgImage(
+  mainImageUrl: string | null | undefined,
+  publicBase: string,
+  fallbackAbsolute: string
+): string {
+  if (!mainImageUrl || !String(mainImageUrl).trim()) return fallbackAbsolute;
+  const u = String(mainImageUrl).trim();
+  if (u.startsWith("http://") || u.startsWith("https://")) return u;
+  const base = publicBase.replace(/\/$/, "");
+  return `${base}${u.startsWith("/") ? u : `/${u}`}`;
+}
+
+function campaignShareLandingPage(opts: {
+  pageTitle: string;
+  metaDescription: string;
+  ogTitle: string;
+  ogDescription: string;
+  ogImage: string;
+  canonicalUrl: string;
+  webCampaignUrl: string;
+  campaignTitle: string;
+}): string {
+  const t = escHtml(opts.pageTitle);
+  const d = escHtml(opts.metaDescription);
+  const ogT = escHtml(opts.ogTitle);
+  const ogD = escHtml(opts.ogDescription);
+  const img = escHtml(opts.ogImage);
+  const canon = escHtml(opts.canonicalUrl);
+  const web = escHtml(opts.webCampaignUrl);
+  const cTitle = escHtml(opts.campaignTitle);
+  return `<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>${t}</title>
+<meta name="description" content="${d}"/>
+<link rel="canonical" href="${canon}"/>
+<meta property="og:title" content="${ogT}"/>
+<meta property="og:description" content="${ogD}"/>
+<meta property="og:type" content="website"/>
+<meta property="og:url" content="${canon}"/>
+<meta property="og:image" content="${img}"/>
+<meta property="og:site_name" content="Give Black"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<meta name="twitter:title" content="${ogT}"/>
+<meta name="twitter:description" content="${ogD}"/>
+<meta name="twitter:image" content="${img}"/>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:system-ui,-apple-system,sans-serif;background:#fafafa;color:#111;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;text-align:center;}
+.brand{color:#059669;font-weight:800;font-size:18px;margin-bottom:16px;}
+h1{font-size:22px;font-weight:700;margin-bottom:12px;line-height:1.25;max-width:420px;}
+p{color:#6b7280;font-size:15px;margin-bottom:24px;max-width:400px;line-height:1.45;}
+a.btn{display:inline-block;padding:14px 28px;background:#059669;color:#fff;border-radius:12px;font-weight:700;text-decoration:none;font-size:16px;}
+a.btn:hover{background:#047857;}
+</style>
+</head><body>
+<div class="brand">Give Black</div>
+<h1>${cTitle}</h1>
+<p>${d}</p>
+<p><a class="btn" href="${web}">View campaign &amp; donate</a></p>
+</body></html>`;
+}
 
 function notFoundPage() {
   return `<!DOCTYPE html>
