@@ -23,7 +23,9 @@ You are helping on **GiveBlack**, a monorepo for a philanthropy app (Black-led o
    - API: `npm run api:dev`
    - Admin: `npm run dev:admin`
    - Mobile: `npm start` / `npx expo start`
-6. **Optional**: iOS/Android native builds use Expo / EAS; see `eas.json` and `app.json` (`extra.eas.projectId`). Apple signing is configured in EAS, not in this repo alone.
+6. **EAS builds** (`eas.json`, `app.json` `extra.eas.projectId`):
+   - **Android** (Play Store): `eas build --platform android --profile production` — works once credentials exist on Expo.
+   - **iOS** (App Store / TestFlight): same profile uses **`distribution: store`** and **`ios.autoIncrement`**. The **first** iOS build must set up Apple signing: run **`eas build --platform ios --profile production`** on a Mac (or add an App Store Connect API key under the project’s **Credentials** on [expo.dev](https://expo.dev)) so EAS can create/use the distribution certificate and provisioning profile for **`com.giveblack.app`**. After that, CI non-interactive builds can work.
 
 Details and endpoints: **`apps/api/README.md`**.
 
