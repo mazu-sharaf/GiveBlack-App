@@ -20,6 +20,7 @@ import { useThemeColors } from "@/context/ThemeContext";
 
 import { logoBlack, logoWhite, onboardingPeople } from "@/constants/images";
 import { useTheme } from "@/context/ThemeContext";
+import { markOnboardingComplete } from "@/lib/onboarding-storage";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -98,17 +99,22 @@ export default function OnboardingScreen() {
     setCurrentPage(page);
   };
 
+  const goToWelcome = async () => {
+    await markOnboardingComplete();
+    router.replace("/(auth)/welcome");
+  };
+
   const goNext = () => {
     if (currentPage < 2) {
       scrollRef.current?.scrollTo({ x: (currentPage + 1) * SCREEN_WIDTH, animated: true });
       setCurrentPage(currentPage + 1);
     } else {
-      router.replace("/(auth)/welcome");
+      goToWelcome();
     }
   };
 
   const skip = () => {
-    router.replace("/(auth)/welcome");
+    goToWelcome();
   };
 
   return (
