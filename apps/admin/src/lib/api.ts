@@ -1,10 +1,24 @@
 const API_URL = import.meta.env.VITE_API_URL || "";
 const TOKEN_KEY = "gb_admin_api_token";
 
+/**
+ * Turn API-stored paths into absolute URLs for <img src>.
+ * Uploads live at `{origin}/uploads/...` (nginx → Node). `VITE_API_URL` is often
+ * `https://domain/app` for JSON routes — must NOT prefix `/uploads/` with `/app` or images 404.
+ */
 export function resolveImageUrl(url?: string | null): string {
   if (!url) return "";
   if (url.startsWith("http://") || url.startsWith("https://")) return url;
+  const path = url.startsWith("/") ? url : `/${url}`;
   const base = API_URL.replace(/\/$/, "");
+  if (path.startsWith("/uploads/")) {
+    const siteRoot = base.replace(/\/app$/, "");
+    if (siteRoot) return `${siteRoot}${path}`;
+    if (typeof window !== "undefined" && window.location?.origin) {
+      return `${window.location.origin}${path}`;
+    }
+    return path;
+  }
   return `${base}${url.startsWith("/") ? "" : "/"}${url}`;
 }
 
