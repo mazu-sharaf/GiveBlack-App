@@ -4,7 +4,8 @@ import { db } from "../lib/db.js";
 import { getStripe } from "../services/stripe.js";
 
 const DAVID_FULL_NAME = "David Hughes";
-const DAVID_DONOR_EMAIL = "david.hughes@giveblackapp.com";
+/** Matches provision-review-accounts.mjs (App Store review donor). */
+const DAVID_DONOR_EMAIL = "davidchughes02@gmail.com";
 const DAVID_TOTAL_AMOUNT_CENTS = 500000; // $5,000.00
 const DAVID_DONATION_COUNT = 8;
 const DAVID_RANK = 8;
@@ -24,8 +25,7 @@ export const donorsRoutes: FastifyPluginAsync = async (app) => {
     async (request) => {
       const user = request.user as { sub: string };
 
-      // Deterministic demo behavior for the client test account.
-      // We force David's summary + ranking so UI tests are stable.
+      // Deterministic impact summary for the App Store review donor (provision-review-accounts.mjs).
       const davidCheckRes = await db.query(
         "select full_name, email from users where id = $1 limit 1",
         [user.sub]

@@ -3,6 +3,7 @@ import pg from "pg";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import bcrypt from "bcryptjs";
+import { ensureReviewAccounts } from "./provision-review-accounts.mjs";
 
 const { Pool } = pg;
 
@@ -137,10 +138,6 @@ function demoDonorEmail(i) {
 
 const demoDonorPassword = "DemoPass123!";
 
-const DAVID_FULL_NAME = "David Hughes";
-const DAVID_DONOR_EMAIL = "david.hughes@giveblackapp.com";
-const DAVID_CHARITY_EMAIL = "david.hughes.charity@giveblackapp.com";
-
 const DEMO_DONOR_FULL_NAMES = [
   "Ava Johnson",
   "Noah Williams",
@@ -188,133 +185,6 @@ const DEMO_DONOR_FULL_NAMES = [
 function demoDonorFullName(i) {
   const idx = i % DEMO_DONOR_FULL_NAMES.length;
   return DEMO_DONOR_FULL_NAMES[idx];
-}
-
-async function ensureDavidAccounts(passwordHash) {
-  // Donor David
-  await pool.query(
-    `
-      insert into users (email, full_name, password_hash, role)
-      values ($1, $2, $3, 'donor')
-      on conflict (email) do update
-      set full_name = excluded.full_name,
-          password_hash = excluded.password_hash,
-          role = excluded.role
-    `,
-    [DAVID_DONOR_EMAIL, DAVID_FULL_NAME, passwordHash]
-  );
-
-  const donorIdRes = await pool.query(`select id from users where email = $1 limit 1`, [DAVID_DONOR_EMAIL]);
-  const donorId = donorIdRes.rows[0]?.id;
-
-  if (donorId) {
-    // Not required for login (type falls back to donor), but helps keep profile consistent.
-    await pool.query(
-      `
-        insert into profiles (id, name, email, user_type)
-        values ($1, $2, $3, 'donor')
-        on conflict (id) do update set
-          name = excluded.name,
-          email = excluded.email,
-          user_type = excluded.user_type
-      `,
-      [donorId, DAVID_FULL_NAME, DAVID_DONOR_EMAIL]
-    );
-  }
-
-  // Charity David (charity_owner)
-  await pool.query(
-    `
-      insert into users (email, full_name, password_hash, role)
-      values ($1, $2, $3, 'charity_owner')
-      on conflict (email) do update
-      set full_name = excluded.full_name,
-          password_hash = excluded.password_hash,
-          role = excluded.role
-    `,
-    [DAVID_CHARITY_EMAIL, DAVID_FULL_NAME, passwordHash]
-  );
-
-  const charityIdRes = await pool.query(`select id from users where email = $1 limit 1`, [DAVID_CHARITY_EMAIL]);
-  const charityId = charityIdRes.rows[0]?.id;
-
-  if (charityId) {
-    const reqRes = await pool.query(
-      `select id from charity_requests where user_id = $1 order by created_at desc limit 1`,
-      [charityId]
-    );
-    const reqId = reqRes.rows[0]?.id;
-
-    if (!reqId) {
-      await pool.query(
-        `
-          insert into charity_requests
-            (user_id, charity_name, contact_name, contact_email, category, description, website, status)
-          values
-            ($1, $2, $3, $4, $5, $6, $7, 'approved')
-        `,
-        [
-          charityId,
-          DAVID_FULL_NAME,
-          DAVID_FULL_NAME,
-          DAVID_CHARITY_EMAIL,
-          "other",
-          "Demo charity account for testing login and impact screens.",
-          "https://giveblackapp.com",
-        ]
-      );
-    } else {
-      await pool.query(
-        `
-          update charity_requests
-          set charity_name = $2,
-              contact_name = $3,
-              contact_email = $4,
-              category = $5,
-              description = $6,
-              website = $7,
-              status = 'approved',
-              reviewed_at = now()
-          where id = $1
-        `,
-        [
-          reqId,
-          DAVID_FULL_NAME,
-          DAVID_FULL_NAME,
-          DAVID_CHARITY_EMAIL,
-          "other",
-          "Demo charity account for testing login and impact screens.",
-          "https://giveblackapp.com",
-        ]
-      );
-    }
-
-    await pool.query(
-      `
-        insert into profiles
-          (id, name, email, user_type, charity_name, charity_category, charity_description, charity_url)
-        values
-          ($1, $2, $3, 'charity', $4, $5, $6, $7)
-        on conflict (id) do update set
-          name = excluded.name,
-          email = excluded.email,
-          user_type = excluded.user_type,
-          charity_name = excluded.charity_name,
-          charity_category = excluded.charity_category,
-          charity_description = excluded.charity_description,
-          charity_url = excluded.charity_url
-      `,
-      [
-        charityId,
-        DAVID_FULL_NAME,
-        DAVID_CHARITY_EMAIL,
-        DAVID_FULL_NAME,
-        "other",
-        "Demo charity account for testing login and impact screens.",
-        "https://giveblackapp.com",
-      ]
-    );
-  }
 }
 
 async function getOldDemoOrgTotals() {
@@ -390,8 +260,8 @@ async function main() {
 
   const passwordHash = await bcrypt.hash(demoDonorPassword, 12);
 
-  // Ensure David accounts exist for the client demo login buttons.
-  await ensureDavidAccounts(passwordHash);
+  // App Store review donor + charity + org (passwords are set inside; not DemoPass123).
+  await ensureReviewAccounts(pool);
 
   for (let i = 0; i < demoDonorEmails.length; i++) {
     const email = demoDonorEmails[i];

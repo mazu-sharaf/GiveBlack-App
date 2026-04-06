@@ -74,10 +74,6 @@ const TOKEN_KEY = "@gb_access_token";
 const REFRESH_TOKEN_KEY = "@gb_refresh_token";
 const USER_KEY = "@gb_user";
 
-const DAVID_FULL_NAME = "David Hughes";
-const DAVID_DEMO_EMAILS = ["david.hughes@giveblackapp.com", "david.hughes.charity@giveblackapp.com"];
-const DAVID_DISPLAY_EMAIL = "davidhughes@gmail.com";
-
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   /** Prevents parallel refresh calls (e.g. Promise.all) from racing and invalidating the refresh token. */
   const refreshInFlightRef = useRef<Promise<string | null> | null>(null);
@@ -269,10 +265,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           const userProfile: UserProfile = {
             id: data.user.id,
             name: data.user.full_name || data.user.name || "User",
-            email:
-              (String(data.user.email).trim() && DAVID_DEMO_EMAILS.includes(String(data.user.email).trim()) && (data.user.full_name || data.user.name) === DAVID_FULL_NAME)
-                ? DAVID_DISPLAY_EMAIL
-                : data.user.email,
+            email: String(data.user.email || ""),
             type: serverType,
             phone: data.user.phone,
             zipCode: data.user.zip_code || data.user.zipCode,

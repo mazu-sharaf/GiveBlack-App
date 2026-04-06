@@ -27,7 +27,7 @@ Landing site: build in `/var/www/Giveblack-website` (e.g. `npm run build`) and e
 | **Stripe webhook** | Dashboard → Webhooks → Add endpoint **`https://giveblackapp.com/app/api/webhooks/stripe`**; select events: `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`, `payment_intent.succeeded`; copy Signing secret → set `STRIPE_WEBHOOK_SECRET` on VPS. |
 | **Supabase** | Use same project for app + admin; set `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_ANON_KEY` in API server env on VPS. |
 | **VPS env** | Set all vars in §4 (Stripe, Supabase, `EXPO_PUBLIC_DOMAIN=giveblackapp.com`, `EXPO_PUBLIC_API_URL=https://giveblackapp.com/app`, `PORT=5001`, `CORS_ORIGINS` including `https://giveblackapp.com`). |
-| **Nginx** | Use `deploy/nginx-giveblackapp-http-bootstrap.conf` first if certs do not exist, run certbot, then `deploy/nginx-giveblackapp.com.conf`. Ensure DNS A records for `giveblackapp.com` point to this VPS before certbot. |
+| **Nginx** | Use `deploy/nginx-giveblackapp-http-bootstrap.conf` first if certs do not exist, run certbot, then `deploy/nginx-giveblackapp.com.conf`. Ensure DNS A records for `giveblackapp.com` point to this VPS before certbot. The repo includes `location ^~ /support` so **`https://giveblackapp.com/support/`** is served by the API (port 5001); copy the updated config and reload nginx after deploy. |
 | **Paths on VPS** | Ensure landing at `/var/www/Giveblack-website/out`, admin at `/var/www/giveblack/apps/admin/dist`, repo at `/var/www/giveblack`. |
 | **Start API** | Run `node server_dist/index.js` (or PM2) with `PORT=5000` and the env above. |
 

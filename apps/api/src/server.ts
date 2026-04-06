@@ -10,6 +10,7 @@ import httpProxy from "@fastify/http-proxy";
 import path from "node:path";
 import { env, getCorsOrigins } from "./config/env.js";
 import { healthRoutes } from "./routes/health.js";
+import { supportPageRoutes } from "./routes/support-page.js";
 import { authRoutes } from "./routes/auth.js";
 import { publicRoutes } from "./routes/public.js";
 import { educationPartnersRoutes } from "./routes/education-partners.js";
@@ -141,6 +142,7 @@ export function buildServer() {
   });
 
   app.register(healthRoutes);
+  app.register(supportPageRoutes);
   app.register(orgCampaignRoutes);
   app.register(orgVolunteerRoutes);
   app.register(orgConnectRoutes);
