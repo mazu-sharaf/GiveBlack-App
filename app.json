@@ -39,7 +39,7 @@
       [
         "expo-router",
         {
-          "origin": "https://replit.com/"
+          "origin": "https://giveblackapp.com/"
         }
       ],
       [
@@ -57,7 +57,7 @@
     },
     "extra": {
       "router": {
-        "origin": "https://replit.com/"
+        "origin": "https://giveblackapp.com/"
       },
       "eas": {
         "projectId": "aac9a673-6322-424e-b349-dfcf7f9331d2"
