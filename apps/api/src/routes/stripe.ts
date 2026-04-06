@@ -550,6 +550,7 @@ export const stripeRoutes: FastifyPluginAsync = async (app) => {
       });
 
       const piIdAfterCreate = stripeId(session.payment_intent);
+      const donationStripeKey = piIdAfterCreate ?? session.id;
       if (piIdAfterCreate) {
         await stripe.paymentIntents.update(piIdAfterCreate, {
           metadata: {
@@ -573,7 +574,7 @@ export const stripeRoutes: FastifyPluginAsync = async (app) => {
           body.amount,
           body.currency,
           "pending",
-          session.id,
+          donationStripeKey,
           partnerId || null,
           reinvestOptIn,
           alloc.reinvest_amount,
@@ -1386,6 +1387,160 @@ export const stripeRoutes: FastifyPluginAsync = async (app) => {
     }
   }
 
+  const finalizeCheckoutDonationSchema = z.object({
+    sessionId: z.string().min(1),
+  });
+
+  /**
+   * Browser callback after Stripe Checkout redirect (success URL includes `session_id`).
+   * Marks the donation succeeded immediately so the admin UI is not stuck on "pending" when webhooks lag or fail.
+   */
+  app.post("/api/payments/finalize-checkout-donation", async (request, reply) => {
+    let body: z.infer<typeof finalizeCheckoutDonationSchema>;
+    try {
+      body = finalizeCheckoutDonationSchema.parse(request.body);
+    } catch {
+      return reply.code(400).send({ error: "sessionId required" });
+    }
+
+    const stripe = requireStripe(reply);
+    if (!stripe) return;
+
+    let session: Awaited<ReturnType<typeof stripe.checkout.sessions.retrieve>>;
+    try {
+      session = await stripe.checkout.sessions.retrieve(body.sessionId);
+    } catch {
+      return reply.code(400).send({ error: "Invalid or expired checkout session" });
+    }
+
+    if (session.payment_status !== "paid") {
+      return reply.code(400).send({
+        error: "Payment not completed yet",
+        paymentStatus: session.payment_status,
+      });
+    }
+
+    const piId = stripeId(session.payment_intent as string | { id?: string } | null);
+    if (!piId) {
+      return reply.code(400).send({ error: "No payment intent for this session" });
+    }
+
+    let piObj: Awaited<ReturnType<typeof stripe.paymentIntents.retrieve>>;
+    try {
+      piObj = await stripe.paymentIntents.retrieve(piId);
+    } catch {
+      return reply.code(400).send({ error: "Could not load payment intent" });
+    }
+
+    const md = (piObj.metadata || {}) as Record<string, string>;
+    if (md.type === "wallet_topup") {
+      return reply.code(400).send({ error: "Not a donation" });
+    }
+
+    if (piObj.status !== "succeeded") {
+      return reply.code(400).send({ error: "Payment not succeeded yet", piStatus: piObj.status });
+    }
+
+    const client = await db.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query(
+        `update donations set stripe_payment_intent_id = $1
+         where stripe_payment_intent_id = $2 and status = 'pending'`,
+        [piId, body.sessionId]
+      );
+      await applyDonationFromSucceededPaymentIntent(client, piObj as unknown as Record<string, unknown>);
+      await client.query("COMMIT");
+    } catch (e: unknown) {
+      await client.query("ROLLBACK").catch(() => {});
+      app.log.error({ err: e }, "finalize-checkout-donation");
+      return reply.code(500).send({ error: e instanceof Error ? e.message : "Finalize failed" });
+    } finally {
+      client.release();
+    }
+
+    return { ok: true, paymentIntentId: piId };
+  });
+
+  /**
+   * One-shot repair: pending rows whose Stripe Checkout session id (`cs_`) or PI id did not get webhook processing.
+   * Safe to run repeatedly (idempotent when already succeeded).
+   */
+  app.post(
+    "/api/admin/reconcile-pending-donations",
+    { preHandler: [app.authenticate, app.requireRole("admin", "super_admin", "manager")] },
+    async (request, reply) => {
+      const stripe = requireStripe(reply);
+      if (!stripe) return;
+
+      const pendingRes = await db.query<{ id: string; stripe_payment_intent_id: string | null }>(
+        `select id, stripe_payment_intent_id from donations
+         where status = 'pending' and stripe_payment_intent_id is not null
+         order by created_at desc
+         limit 80`
+      );
+
+      let fixed = 0;
+      const errors: string[] = [];
+
+      for (const row of pendingRes.rows) {
+        const key = String(row.stripe_payment_intent_id || "").trim();
+        if (!key) continue;
+
+        const client = await db.connect();
+        try {
+          await client.query("BEGIN");
+
+          if (key.startsWith("cs_")) {
+            const session = await stripe.checkout.sessions.retrieve(key);
+            const piId = stripeId(session.payment_intent as string | { id?: string } | null);
+            if (session.payment_status !== "paid" || !piId) {
+              await client.query("ROLLBACK");
+              continue;
+            }
+            const piObj = await stripe.paymentIntents.retrieve(piId);
+            const md = (piObj.metadata || {}) as Record<string, string>;
+            if (md.type === "wallet_topup") {
+              await client.query("ROLLBACK");
+              continue;
+            }
+            await client.query(
+              `update donations set stripe_payment_intent_id = $1 where id = $2 and status = 'pending'`,
+              [piId, row.id]
+            );
+            await applyDonationFromSucceededPaymentIntent(client, piObj as unknown as Record<string, unknown>);
+          } else if (key.startsWith("pi_")) {
+            const piObj = await stripe.paymentIntents.retrieve(key);
+            const md = (piObj.metadata || {}) as Record<string, string>;
+            if (md.type === "wallet_topup") {
+              await client.query("ROLLBACK");
+              continue;
+            }
+            if (piObj.status !== "succeeded") {
+              await client.query("ROLLBACK");
+              continue;
+            }
+            await applyDonationFromSucceededPaymentIntent(client, piObj as unknown as Record<string, unknown>);
+          } else {
+            await client.query("ROLLBACK");
+            continue;
+          }
+
+          await client.query("COMMIT");
+          fixed++;
+        } catch (e: unknown) {
+          await client.query("ROLLBACK").catch(() => {});
+          const msg = e instanceof Error ? e.message : String(e);
+          errors.push(`${row.id}: ${msg}`);
+        } finally {
+          client.release();
+        }
+      }
+
+      return { ok: true, fixed, checked: pendingRes.rows.length, errors };
+    }
+  );
+
   app.post(
     "/api/payments/sync-native-donation",
     { preHandler: [app.authenticate] },
@@ -1490,7 +1645,8 @@ export const stripeRoutes: FastifyPluginAsync = async (app) => {
           break;
         }
 
-        case "checkout.session.completed": {
+        case "checkout.session.completed":
+        case "checkout.session.async_payment_succeeded": {
           const session = event.data.object as unknown as Record<string, unknown>;
           const sessionPaymentIntent = stripeId(session.payment_intent as string | { id?: string } | null);
           const sessionId = session.id as string;

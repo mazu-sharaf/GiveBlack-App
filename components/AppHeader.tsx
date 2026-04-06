@@ -5,6 +5,7 @@ import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeInsets } from "@/lib/safe-area";
 import { useTheme, useThemeColors } from "@/context/ThemeContext";
+import { useApp } from "@/context/AppContext";
 
 interface AppHeaderProps {
   variant?: "donor" | "org";
@@ -13,6 +14,11 @@ interface AppHeaderProps {
   showNotifications?: boolean;
   showSearch?: boolean;
   rightAction?: React.ReactNode;
+  /** Override header background (e.g. green-tinted notifications screen) */
+  headerBackgroundColor?: string;
+  headerBorderColor?: string;
+  /** Pills behind back / search icons when using a custom header background */
+  headerSurfaceColor?: string;
 }
 
 export default function AppHeader({
@@ -22,10 +28,19 @@ export default function AppHeader({
   showNotifications = true,
   showSearch = true,
   rightAction,
+  headerBackgroundColor,
+  headerBorderColor,
+  headerSurfaceColor,
 }: AppHeaderProps) {
   const insets = useSafeInsets();
   const c = useThemeColors();
   const { isDark } = useTheme();
+  const { unreadNotificationCount } = useApp();
+
+  const barBg = headerBackgroundColor ?? c.background;
+  const barBorder = headerBorderColor ?? c.border;
+  const pillBg = headerSurfaceColor ?? c.cardBg;
+  const dividerColor = headerBorderColor ?? c.border;
 
   const logoSource = isDark
     ? require("@/assets/images/logo-white.webp")
@@ -37,8 +52,8 @@ export default function AppHeader({
         styles.container,
         {
           paddingTop: insets.top + 4,
-          backgroundColor: c.background,
-          borderBottomColor: c.border,
+          backgroundColor: barBg,
+          borderBottomColor: barBorder,
         },
       ]}
     >
@@ -46,7 +61,7 @@ export default function AppHeader({
         <View style={styles.left}>
           {showBack && (
             <Pressable
-              style={[styles.backBtn, { backgroundColor: c.cardBg }]}
+              style={[styles.backBtn, { backgroundColor: pillBg }]}
               onPress={() => router.back()}
               hitSlop={6}
             >
@@ -58,7 +73,7 @@ export default function AppHeader({
               <Image source={logoSource} style={styles.logo} contentFit="contain" cachePolicy="memory-disk" />
               {title ? (
                 <View style={styles.dividerWrap}>
-                  <View style={[styles.divider, { backgroundColor: c.border }]} />
+                  <View style={[styles.divider, { backgroundColor: dividerColor }]} />
                   <Text style={[styles.title, { color: c.text }]} numberOfLines={1}>
                     {title}
                   </Text>
@@ -80,7 +95,7 @@ export default function AppHeader({
           {rightAction}
           {showSearch && (
             <Pressable
-              style={[styles.iconBtn, { backgroundColor: c.cardBg }]}
+              style={[styles.iconBtn, { backgroundColor: pillBg }]}
               onPress={() => router.push("/search")}
               hitSlop={6}
             >
@@ -89,12 +104,14 @@ export default function AppHeader({
           )}
           {showNotifications && (
             <Pressable
-              style={[styles.iconBtn, { backgroundColor: c.cardBg }]}
+              style={[styles.iconBtn, { backgroundColor: pillBg }]}
               onPress={() => router.push("/notifications")}
               hitSlop={6}
             >
               <Ionicons name="notifications-outline" size={19} color={c.text} />
-              <View style={[styles.notifDot, { borderColor: c.cardBg }]} />
+              {unreadNotificationCount > 0 ? (
+                <View style={[styles.notifDot, { borderColor: pillBg }]} />
+              ) : null}
             </Pressable>
           )}
         </View>

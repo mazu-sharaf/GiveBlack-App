@@ -88,11 +88,47 @@ export default function CampaignPublicPage() {
   }, [slug]);
 
   useEffect(() => {
-    if (searchParams.get("donation") === "success") {
-      toast.success("Thank you for your donation!");
-    } else if (searchParams.get("donation") === "canceled") {
+    const donation = searchParams.get("donation");
+    const sessionId = searchParams.get("session_id");
+
+    if (donation === "canceled") {
       toast.info("Donation was canceled.");
+      return;
     }
+
+    if (donation !== "success") return;
+
+    if (sessionId) {
+      let cancelled = false;
+      void (async () => {
+        try {
+          const res = await fetch(`${API_URL}/api/payments/finalize-checkout-donation`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ sessionId }),
+          });
+          if (!cancelled) {
+            if (res.ok) {
+              toast.success("Thank you for your donation!");
+            } else {
+              toast.success("Thank you! If status still shows pending, it will update in a moment.");
+            }
+            const path = window.location.pathname;
+            window.history.replaceState({}, "", `${path}?donation=success`);
+          }
+        } catch {
+          if (!cancelled) {
+            toast.success("Thank you for your donation!");
+            window.history.replaceState({}, "", `${window.location.pathname}?donation=success`);
+          }
+        }
+      })();
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    toast.success("Thank you for your donation!");
   }, [searchParams]);
 
   const handleSignup = async () => {
@@ -251,7 +287,7 @@ export default function CampaignPublicPage() {
         <div className="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between">
           <Link to="/" className="flex items-center gap-2">
             <img
-              src={`${import.meta.env.BASE_URL}giveblack-icon.jpg`}
+              src={`${import.meta.env.BASE_URL}giveblack-icon.png`}
               alt=""
               aria-hidden
               width={32}

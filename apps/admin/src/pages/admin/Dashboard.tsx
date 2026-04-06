@@ -17,6 +17,7 @@ import {
   PieChart, Pie, Cell, Legend, LineChart, Line,
 } from "recharts";
 import { format, subDays, subMonths, parseISO, startOfMonth } from "date-fns";
+import { useIsMobile } from "@/hooks/use-media-query";
 
 interface KPI {
   totalDonations: number;
@@ -76,7 +77,11 @@ const labelColor = { color: "hsl(210, 20%, 92%)" };
 
 export default function Dashboard() {
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
   const role = getCurrentRole();
+  const chartHeight = isMobile ? 240 : 300;
+  const chartHeightSm = isMobile ? 200 : 250;
+  const pieOuter = isMobile ? 72 : 100;
   const [kpi, setKpi] = useState<KPI>({
     totalDonations: 0, totalOrgs: 0, totalDonors: 0, totalUsers: 0,
     totalVolunteers: 0, pendingRequests: 0, communityCampaigns: 0,
@@ -232,9 +237,9 @@ export default function Dashboard() {
 
   if (loading) {
     return (
-      <div className="space-y-6">
-        <h2 className="text-2xl font-bold">Dashboard</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="space-y-6 w-full max-w-full min-w-0">
+        <h2 className="text-xl sm:text-2xl font-bold">Dashboard</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
           {[1, 2, 3, 4, 5, 6].map((i) => (
             <Card key={i}><CardContent className="pt-6"><Skeleton className="h-16 w-full" /></CardContent></Card>
           ))}
@@ -244,43 +249,43 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold">Dashboard</h2>
-        <Button variant="outline" size="sm" onClick={load}>
+    <div className="space-y-5 sm:space-y-6 w-full max-w-full min-w-0">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <h2 className="text-xl sm:text-2xl font-bold">Dashboard</h2>
+        <Button variant="outline" size="sm" onClick={load} className="w-full sm:w-auto shrink-0 touch-manipulation">
           <TrendingUp className="h-4 w-4 mr-1" /> Refresh
         </Button>
       </div>
 
-      <div className="flex flex-wrap gap-2">
+      <div className="grid grid-cols-1 min-[480px]:grid-cols-2 xl:grid-cols-3 gap-2 sm:flex sm:flex-wrap">
         {canAccessNav(role, "/charity-requests") && (
-          <Button size="sm" onClick={() => navigate("/charity-requests")}>
-            <FileText className="h-4 w-4 mr-1" /> Review Requests {kpi.pendingRequests > 0 && `(${kpi.pendingRequests})`}
+          <Button size="sm" className="w-full min-[480px]:w-auto justify-center touch-manipulation" onClick={() => navigate("/charity-requests")}>
+            <FileText className="h-4 w-4 mr-1 shrink-0" /> Review Requests {kpi.pendingRequests > 0 && `(${kpi.pendingRequests})`}
           </Button>
         )}
         {canAccessNav(role, "/organizations") && (
-          <Button size="sm" variant="secondary" onClick={() => navigate("/organizations")}>
-            <Building2 className="h-4 w-4 mr-1" /> Manage Orgs
+          <Button size="sm" variant="secondary" className="w-full min-[480px]:w-auto justify-center touch-manipulation" onClick={() => navigate("/organizations")}>
+            <Building2 className="h-4 w-4 mr-1 shrink-0" /> Manage Orgs
           </Button>
         )}
         {canAccessNav(role, "/donations") && (
-          <Button size="sm" variant="secondary" onClick={() => navigate("/donations")}>
-            <DollarSign className="h-4 w-4 mr-1" /> View Donations
+          <Button size="sm" variant="secondary" className="w-full min-[480px]:w-auto justify-center touch-manipulation" onClick={() => navigate("/donations")}>
+            <DollarSign className="h-4 w-4 mr-1 shrink-0" /> View Donations
           </Button>
         )}
         {canAccessNav(role, "/users") && (
-          <Button size="sm" variant="secondary" onClick={() => navigate("/users")}>
-            <Users className="h-4 w-4 mr-1" /> Manage Users
+          <Button size="sm" variant="secondary" className="w-full min-[480px]:w-auto justify-center touch-manipulation" onClick={() => navigate("/users")}>
+            <Users className="h-4 w-4 mr-1 shrink-0" /> Manage Users
           </Button>
         )}
         {canAccessNav(role, "/community-campaigns") && (
-          <Button size="sm" variant="secondary" onClick={() => navigate("/community-campaigns")}>
-            <Handshake className="h-4 w-4 mr-1" /> Campaigns
+          <Button size="sm" variant="secondary" className="w-full min-[480px]:w-auto justify-center touch-manipulation" onClick={() => navigate("/community-campaigns")}>
+            <Handshake className="h-4 w-4 mr-1 shrink-0" /> Campaigns
           </Button>
         )}
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
         {kpiCards.map((c) => (
           <Card key={c.title} className="hover:shadow-md transition-shadow">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -296,97 +301,127 @@ export default function Dashboard() {
         ))}
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-sm font-medium text-muted-foreground">Donations -- Last 30 Days</CardTitle>
+      <Card className="min-w-0 overflow-hidden">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-medium text-muted-foreground">Donations — Last 30 Days</CardTitle>
         </CardHeader>
-        <CardContent>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(207, 12%, 20%)" />
-              <XAxis dataKey="date" tick={tickStyle} interval="preserveStartEnd" />
-              <YAxis tick={tickStyle} />
-              <Tooltip contentStyle={tooltipStyle} labelStyle={labelColor} />
-              <Bar dataKey="amount" fill="hsl(152, 55%, 40%)" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
+        <CardContent className="pl-2 pr-0 sm:px-6">
+          <div className="w-full min-w-0" style={{ height: chartHeight }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={chartData} margin={{ top: 8, right: 8, left: isMobile ? 0 : 4, bottom: isMobile ? 28 : 8 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(207, 12%, 20%)" />
+                <XAxis
+                  dataKey="date"
+                  tick={tickStyle}
+                  interval={isMobile ? 5 : 2}
+                  angle={isMobile ? -40 : 0}
+                  textAnchor={isMobile ? "end" : "middle"}
+                  height={isMobile ? 48 : 32}
+                />
+                <YAxis tick={tickStyle} width={isMobile ? 36 : 44} tickFormatter={(v) => (isMobile && v >= 1000 ? `${v / 1000}k` : v)} />
+                <Tooltip contentStyle={tooltipStyle} labelStyle={labelColor} />
+                <Bar dataKey="amount" fill="hsl(152, 55%, 40%)" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card>
-          <CardHeader>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 min-w-0">
+        <Card className="min-w-0 overflow-hidden">
+          <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Donations by Category</CardTitle>
           </CardHeader>
           <CardContent>
             {categoryData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={300}>
-                <PieChart>
-                  <Pie data={categoryData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} innerRadius={50} paddingAngle={2}
-                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}>
-                    {categoryData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-                  </Pie>
-                  <Tooltip contentStyle={tooltipStyle} labelStyle={labelColor} formatter={(value: number) => `$${value.toLocaleString()}`} />
-                  <Legend wrapperStyle={{ fontSize: 12, color: "hsl(210, 12%, 55%)" }} />
-                </PieChart>
-              </ResponsiveContainer>
+              <div className="w-full min-w-0" style={{ height: chartHeight }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={categoryData}
+                      dataKey="value"
+                      nameKey="name"
+                      cx="50%"
+                      cy="50%"
+                      outerRadius={pieOuter}
+                      innerRadius={isMobile ? 40 : 50}
+                      paddingAngle={2}
+                      label={
+                        isMobile
+                          ? false
+                          : ({ name, percent }) => `${String(name).slice(0, 12)}${String(name).length > 12 ? "…" : ""} ${(percent * 100).toFixed(0)}%`
+                      }
+                    >
+                      {categoryData.map((_, i) => (
+                        <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip contentStyle={tooltipStyle} labelStyle={labelColor} formatter={(value: number) => `$${value.toLocaleString()}`} />
+                    <Legend wrapperStyle={{ fontSize: 11, color: "hsl(210, 12%, 55%)" }} verticalAlign="bottom" />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
             ) : (
-              <div className="flex items-center justify-center h-[300px] text-muted-foreground text-sm">No category data</div>
+              <div className="flex items-center justify-center h-[200px] sm:h-[300px] text-muted-foreground text-sm">No category data</div>
             )}
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
+        <Card className="min-w-0 overflow-hidden">
+          <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Top Organizations by Raised</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="pl-1 sm:pl-6 pr-0 sm:pr-6">
             {topOrgs.length > 0 ? (
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={topOrgs} layout="vertical" margin={{ left: 10 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(207, 12%, 20%)" horizontal={false} />
-                  <XAxis type="number" tick={tickStyle} />
-                  <YAxis type="category" dataKey="name" tick={tickStyle} width={110} />
-                  <Tooltip contentStyle={tooltipStyle} labelStyle={labelColor} formatter={(value: number) => `$${value.toLocaleString()}`} />
-                  <Bar dataKey="raised" fill="hsl(152, 55%, 40%)" radius={[0, 4, 4, 0]} name="Raised" />
-                  <Bar dataKey="goal" fill="hsl(207, 12%, 25%)" radius={[0, 4, 4, 0]} name="Goal" />
-                </BarChart>
-              </ResponsiveContainer>
+              <div className="w-full min-w-0" style={{ height: chartHeight }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={topOrgs} layout="vertical" margin={{ left: 4, right: 8, top: 4, bottom: 4 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(207, 12%, 20%)" horizontal={false} />
+                    <XAxis type="number" tick={tickStyle} tickFormatter={(v) => (isMobile && v >= 1000 ? `${v / 1000}k` : v)} />
+                    <YAxis type="category" dataKey="name" tick={{ ...tickStyle, fontSize: 10 }} width={isMobile ? 88 : 118} />
+                    <Tooltip contentStyle={tooltipStyle} labelStyle={labelColor} formatter={(value: number) => `$${value.toLocaleString()}`} />
+                    <Bar dataKey="raised" fill="hsl(152, 55%, 40%)" radius={[0, 4, 4, 0]} name="Raised" />
+                    <Bar dataKey="goal" fill="hsl(207, 12%, 25%)" radius={[0, 4, 4, 0]} name="Goal" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
             ) : (
-              <div className="flex items-center justify-center h-[300px] text-muted-foreground text-sm">No organization data</div>
+              <div className="flex items-center justify-center h-[200px] sm:h-[300px] text-muted-foreground text-sm">No organization data</div>
             )}
           </CardContent>
         </Card>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm font-medium text-muted-foreground">Donor Retention -- Last 6 Months</CardTitle>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 min-w-0">
+        <Card className="min-w-0 overflow-hidden">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Donor Retention — Last 6 Months</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="pl-2 pr-0 sm:px-6">
             {retentionData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={250}>
-                <LineChart data={retentionData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(207, 12%, 20%)" />
-                  <XAxis dataKey="month" tick={tickStyle} />
-                  <YAxis tick={tickStyle} />
-                  <Tooltip contentStyle={tooltipStyle} labelStyle={labelColor} />
-                  <Legend wrapperStyle={{ fontSize: 12 }} />
-                  <Line type="monotone" dataKey="returning" stroke="hsl(152, 55%, 40%)" strokeWidth={2} dot={{ r: 4, fill: "hsl(152, 55%, 40%)" }} name="Returning" />
-                  <Line type="monotone" dataKey="newDonors" stroke="hsl(45, 80%, 55%)" strokeWidth={2} dot={{ r: 4, fill: "hsl(45, 80%, 55%)" }} name="New" />
-                </LineChart>
-              </ResponsiveContainer>
+              <div className="w-full min-w-0" style={{ height: chartHeightSm }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={retentionData} margin={{ left: 0, right: 8 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(207, 12%, 20%)" />
+                    <XAxis dataKey="month" tick={tickStyle} interval={isMobile ? 1 : 0} angle={isMobile ? -25 : 0} textAnchor={isMobile ? "end" : "middle"} height={isMobile ? 40 : 30} />
+                    <YAxis tick={tickStyle} width={isMobile ? 28 : 36} />
+                    <Tooltip contentStyle={tooltipStyle} labelStyle={labelColor} />
+                    <Legend wrapperStyle={{ fontSize: 11 }} />
+                    <Line type="monotone" dataKey="returning" stroke="hsl(152, 55%, 40%)" strokeWidth={2} dot={{ r: 3, fill: "hsl(152, 55%, 40%)" }} name="Returning" />
+                    <Line type="monotone" dataKey="newDonors" stroke="hsl(45, 80%, 55%)" strokeWidth={2} dot={{ r: 3, fill: "hsl(45, 80%, 55%)" }} name="New" />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
             ) : (
-              <div className="flex items-center justify-center h-[250px] text-muted-foreground text-sm">No retention data</div>
+              <div className="flex items-center justify-center h-[200px] text-muted-foreground text-sm">No retention data</div>
             )}
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
+        <Card className="min-w-0 overflow-hidden">
+          <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Recent Donations</CardTitle>
-            <Button variant="ghost" size="sm" onClick={() => navigate("/donations")}>
+            <Button variant="ghost" size="sm" className="self-start sm:self-auto touch-manipulation" onClick={() => navigate("/donations")}>
               View All <ArrowUpRight className="h-3 w-3 ml-1" />
             </Button>
           </CardHeader>
@@ -413,22 +448,22 @@ export default function Dashboard() {
         </Card>
       </div>
 
-      <Card>
-        <CardHeader>
+      <Card className="min-w-0 overflow-hidden">
+        <CardHeader className="pb-2">
           <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-            <Trophy className="h-4 w-4 text-emerald-500" /> Top Donors -- Leaderboard
+            <Trophy className="h-4 w-4 text-emerald-500 shrink-0" /> Top Donors — Leaderboard
           </CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="px-2 sm:px-6">
           {topDonors.length > 0 ? (
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto overscroll-x-contain touch-pan-x">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-12">Rank</TableHead>
-                    <TableHead>Donor</TableHead>
-                    <TableHead className="text-right">Donations</TableHead>
-                    <TableHead className="text-right">Total Given</TableHead>
+                    <TableHead className="w-10 sm:w-12 text-xs sm:text-sm">Rank</TableHead>
+                    <TableHead className="text-xs sm:text-sm min-w-[7rem]">Donor</TableHead>
+                    <TableHead className="text-right text-xs sm:text-sm whitespace-nowrap">Donations</TableHead>
+                    <TableHead className="text-right text-xs sm:text-sm whitespace-nowrap">Total Given</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>

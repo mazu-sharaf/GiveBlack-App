@@ -39,7 +39,7 @@ export default function Login() {
       <Card className="w-full max-w-sm mx-4">
         <CardHeader className="text-center space-y-3 pb-2">
           <img
-            src={`${import.meta.env.BASE_URL}giveblack-icon.jpg`}
+            src={`${import.meta.env.BASE_URL}giveblack-icon.png`}
             alt=""
             aria-hidden
             width={48}

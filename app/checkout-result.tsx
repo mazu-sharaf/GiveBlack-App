@@ -55,6 +55,17 @@ export default function CheckoutResultScreen() {
           throw new Error(data.error || "Could not verify payment status");
         }
         const data = await res.json();
+        if (data.paymentStatus === "paid" && data.donation?.status === "pending") {
+          try {
+            await fetch(`${base}/api/payments/finalize-checkout-donation`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ sessionId: String(session_id) }),
+            });
+          } catch {
+            /* webhook or reconcile may still apply */
+          }
+        }
         const paid =
           data.paymentStatus === "paid" ||
           data.donation?.status === "succeeded";

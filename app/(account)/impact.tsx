@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
+import { useFocusEffect } from "@react-navigation/native";
 import { View, Text, StyleSheet, ScrollView, ActivityIndicator } from "react-native";
 import { Image } from "expo-image";
 import { useSafeInsets } from "@/lib/safe-area";
@@ -26,7 +27,13 @@ interface TopDonor {
 }
 
 export default function ImpactScreen() {
-  const { user, avatarUrl, donationSummary } = useAuth();
+  const { user, avatarUrl, donationSummary, refreshDonationSummary } = useAuth();
+
+  useFocusEffect(
+    useCallback(() => {
+      void refreshDonationSummary();
+    }, [refreshDonationSummary])
+  );
   const insets = useSafeInsets();
   const c = useThemeColors();
   const [topDonors, setTopDonors] = useState<TopDonor[]>([]);
@@ -49,6 +56,13 @@ export default function ImpactScreen() {
   }, []);
 
   const total = (donationSummary?.total_amount_cents ?? 0) / 100;
+  const lastDonationLabel = donationSummary?.last_donation_at
+    ? `Last donation: ${new Date(donationSummary.last_donation_at).toLocaleDateString(undefined, {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+      })}`
+    : null;
 
   return (
     <View style={[styles.container, { backgroundColor: c.background }]}>
@@ -77,6 +91,9 @@ export default function ImpactScreen() {
             <Text style={[styles.metric, { color: c.text }]}>
               Total donated: ${total.toFixed(2)}
             </Text>
+            {lastDonationLabel && (
+              <Text style={[styles.metric, { color: c.textMuted, fontSize: 13 }]}>{lastDonationLabel}</Text>
+            )}
             {donationSummary?.rank && (
               <Text style={[styles.metric, { color: c.green }]}>
                 Global rank: #{donationSummary.rank}

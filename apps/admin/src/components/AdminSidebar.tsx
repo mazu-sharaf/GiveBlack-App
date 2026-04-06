@@ -2,7 +2,7 @@ import { useNavigate, NavLink } from "react-router-dom";
 import {
   LayoutDashboard, Building2, Grid3X3, Heart, Users, FileText, CreditCard,
   LogOut, Settings, BookOpen, Zap, Megaphone, X, Shield,
-  Handshake, Mail, GraduationCap, Landmark,
+  Handshake, Mail, GraduationCap, Landmark, Bell,
 } from "lucide-react";
 import { logout, getCurrentName, getCurrentRole } from "@/lib/admin-auth";
 import { canAccessNav } from "@/lib/role-access";
@@ -45,6 +45,7 @@ const navGroups = [
       { title: "Education partners", url: "/education-partners", icon: GraduationCap },
       { title: "Staff", url: "/staff", icon: Shield },
       { title: "Admin Emails", url: "/admin-emails", icon: Mail },
+      { title: "Notify donors", url: "/broadcast", icon: Bell },
       { title: "Settings", url: "/settings", icon: Settings },
     ],
   },
@@ -70,7 +71,8 @@ export function AdminSidebar({ open, onClose }: { open: boolean; onClose: () => 
   return (
     <aside
       className={cn(
-        "fixed inset-y-0 left-0 z-50 w-64 bg-card border-r border-border flex flex-col transition-transform duration-200 ease-in-out",
+        "fixed inset-y-0 left-0 z-50 w-[min(18rem,100vw-2rem)] max-w-[85vw] bg-card border-r border-border flex flex-col transition-transform duration-200 ease-in-out",
+        "pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]",
         "lg:translate-x-0",
         open ? "translate-x-0" : "-translate-x-full"
       )}
@@ -78,7 +80,7 @@ export function AdminSidebar({ open, onClose }: { open: boolean; onClose: () => 
       <div className="h-14 flex items-center justify-between px-4 border-b border-border shrink-0">
         <div className="flex items-center gap-2.5 min-w-0">
           <img
-            src={`${import.meta.env.BASE_URL}giveblack-icon.jpg`}
+            src={`${import.meta.env.BASE_URL}giveblack-icon.png`}
             alt=""
             aria-hidden
             width={32}
@@ -112,6 +114,7 @@ export function AdminSidebar({ open, onClose }: { open: boolean; onClose: () => 
                     key={item.url}
                     to={item.url}
                     end={item.url === "/"}
+                    onClick={() => onClose()}
                     className={({ isActive }) =>
                       cn(
                         "flex items-center gap-2.5 px-2.5 py-2 rounded-md text-sm font-medium transition-colors",

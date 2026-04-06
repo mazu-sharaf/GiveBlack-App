@@ -144,6 +144,7 @@ export const campaignPageRoutes: FastifyPluginAsync = async (app) => {
       const ogImage = resolveCampaignOgImage(row.main_image_url, publicBase, defaultOg);
       const canonicalUrl = `${baseUrl}/c/${encodeURIComponent(campaignId)}`;
       const webCampaignUrl = `${baseUrl}/admin/c/${encodeURIComponent(campaignId)}`;
+      const brandIconUrl = `${baseUrl.replace(/\/$/, "")}/admin/giveblack-icon.png`;
 
       const html = campaignShareLandingPage({
         pageTitle,
@@ -154,6 +155,7 @@ export const campaignPageRoutes: FastifyPluginAsync = async (app) => {
         canonicalUrl,
         webCampaignUrl,
         campaignTitle: row.title,
+        brandIconUrl,
       });
       return reply.type("text/html").send(html);
     } catch (e) {
@@ -258,6 +260,9 @@ export const campaignPageRoutes: FastifyPluginAsync = async (app) => {
 
     const session = await stripe.checkout.sessions.create(sessionParams as any);
 
+    /** Prefer Payment Intent id so `payment_intent.succeeded` matches this row immediately (session id alone relies on `checkout.session.completed`). */
+    const donationStripeKey = stripeId(session.payment_intent) ?? session.id;
+
     const campPiId = stripeId(session.payment_intent);
     if (campPiId) {
       const piMeta: Record<string, string> = {
@@ -286,7 +291,7 @@ export const campaignPageRoutes: FastifyPluginAsync = async (app) => {
         body.amount,
         body.currency,
         "pending",
-        session.id,
+        donationStripeKey,
         body.isAnonymous ? "Anonymous" : (resolvedName || null),
         body.isAnonymous ? null : resolvedEmail,
         body.message || null,
@@ -325,6 +330,7 @@ function campaignShareLandingPage(opts: {
   canonicalUrl: string;
   webCampaignUrl: string;
   campaignTitle: string;
+  brandIconUrl: string;
 }): string {
   const t = escHtml(opts.pageTitle);
   const d = escHtml(opts.metaDescription);
@@ -334,6 +340,7 @@ function campaignShareLandingPage(opts: {
   const canon = escHtml(opts.canonicalUrl);
   const web = escHtml(opts.webCampaignUrl);
   const cTitle = escHtml(opts.campaignTitle);
+  const iconHref = escHtml(opts.brandIconUrl);
   return `<!DOCTYPE html>
 <html lang="en"><head>
 <meta charset="utf-8"/>
@@ -341,11 +348,14 @@ function campaignShareLandingPage(opts: {
 <title>${t}</title>
 <meta name="description" content="${d}"/>
 <link rel="canonical" href="${canon}"/>
+<link rel="icon" type="image/png" href="${iconHref}"/>
+<link rel="apple-touch-icon" href="${iconHref}"/>
 <meta property="og:title" content="${ogT}"/>
 <meta property="og:description" content="${ogD}"/>
 <meta property="og:type" content="website"/>
 <meta property="og:url" content="${canon}"/>
 <meta property="og:image" content="${img}"/>
+<meta property="og:image:alt" content="${ogT}"/>
 <meta property="og:site_name" content="Give Black"/>
 <meta name="twitter:card" content="summary_large_image"/>
 <meta name="twitter:title" content="${ogT}"/>

@@ -8,15 +8,15 @@
   "theme_color": "#004010",
   "icons": [
     {
-      "src": "giveblack-icon.jpg",
-      "sizes": "512x512",
-      "type": "image/jpeg",
+      "src": "giveblack-icon.png",
+      "sizes": "1024x1024",
+      "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "giveblack-icon.jpg",
-      "sizes": "512x512",
-      "type": "image/jpeg",
+      "src": "giveblack-icon.png",
+      "sizes": "1024x1024",
+      "type": "image/png",
       "purpose": "maskable"
     }
   ]

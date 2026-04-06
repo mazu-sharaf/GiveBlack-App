@@ -119,36 +119,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     void session;
   }, [session]);
 
-  const refreshDonationSummary = useCallback(async () => {
-    const token = session?.accessToken;
-    if (!token) {
-      setDonationSummary(null);
-      return;
-    }
-    if (user?.type !== "donor") {
-      setDonationSummary(null);
-      return;
-    }
-    try {
-      const baseUrl = getApiUrl().replace(/\/$/, "");
-      const res = await fetch(`${baseUrl}/api/me/donations/summary`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (res.ok) {
-        const summaryJson = (await res.json()) as DonationSummary;
-        setDonationSummary(summaryJson);
-      }
-    } catch {
-      // non-fatal
-    }
-  }, [session?.accessToken, user?.type, user?.id]);
-
-  useEffect(() => {
-    if (session?.accessToken && user?.type === "donor") {
-      void refreshDonationSummary();
-    }
-  }, [session?.accessToken, user?.type, user?.id, refreshDonationSummary]);
-
   useEffect(() => {
     if (!session?.accessToken || !user?.id || isGuest) return;
     let cancelled = false;
@@ -683,6 +653,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     },
     [session]
   );
+
+  const refreshDonationSummary = useCallback(async () => {
+    if (!session?.accessToken) {
+      setDonationSummary(null);
+      return;
+    }
+    if (user?.type !== "donor") {
+      setDonationSummary(null);
+      return;
+    }
+    try {
+      const res = await fetchWithAuth("/api/me/donations/summary");
+      if (res.ok) {
+        const summaryJson = (await res.json()) as DonationSummary;
+        setDonationSummary(summaryJson);
+      }
+    } catch {
+      // non-fatal
+    }
+  }, [session?.accessToken, user?.type, user?.id, fetchWithAuth]);
+
+  useEffect(() => {
+    if (session?.accessToken && user?.type === "donor") {
+      void refreshDonationSummary();
+    }
+  }, [session?.accessToken, user?.type, user?.id, refreshDonationSummary]);
 
   return (
     <AuthContext.Provider

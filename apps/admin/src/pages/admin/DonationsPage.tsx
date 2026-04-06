@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { fetchDonations } from "@/lib/api";
+import { fetchDonations, reconcilePendingDonationsWithStripe } from "@/lib/api";
+import { getCurrentRole } from "@/lib/admin-auth";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -29,6 +30,9 @@ export default function DonationsPage() {
   const [dateTo, setDateTo] = useState("");
   const [feeDetail, setFeeDetail] = useState<Record<string, unknown> | null>(null);
   const [total, setTotal] = useState(0);
+  const [reconciling, setReconciling] = useState(false);
+  const role = getCurrentRole();
+  const canReconcileStripe = ["admin", "super_admin", "manager"].includes(role);
 
   const load = async () => {
     setLoading(true);
@@ -51,6 +55,28 @@ export default function DonationsPage() {
   useEffect(() => { load(); }, [statusFilter]);
 
   const handleSearch = (e: React.FormEvent) => { e.preventDefault(); load(); };
+
+  const handleReconcileStripe = async () => {
+    setReconciling(true);
+    try {
+      const res = await reconcilePendingDonationsWithStripe();
+      if (res.errors?.length) {
+        toast.warning(`Updated ${res.fixed} donation(s). ${res.errors.length} row(s) had errors — see console.`);
+        console.warn("[reconcile]", res.errors);
+      } else {
+        toast.success(
+          res.fixed > 0
+            ? `Synced with Stripe: ${res.fixed} donation(s) marked succeeded.`
+            : "No pending donations needed updating (or none matched Stripe as paid).",
+        );
+      }
+      await load();
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Sync failed");
+    } finally {
+      setReconciling(false);
+    }
+  };
 
   const totalAmount = donations.reduce((s, d) => s + Number(d.amount || 0), 0);
   const totalFees = donations.reduce((s, d) => s + Number(d.platform_fee || 0), 0);
@@ -78,9 +104,16 @@ export default function DonationsPage() {
             {total} donations -- Total: ${totalAmount.toLocaleString()} -- Fees: ${totalFees.toLocaleString()}
           </p>
         </div>
-        <Button variant="outline" size="sm" onClick={exportCSV}>
-          <Download className="h-4 w-4 mr-1" /> Export CSV
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          {canReconcileStripe && (
+            <Button variant="secondary" size="sm" disabled={reconciling} onClick={handleReconcileStripe}>
+              <DollarSign className="h-4 w-4 mr-1" /> {reconciling ? "Syncing…" : "Sync pending with Stripe"}
+            </Button>
+          )}
+          <Button variant="outline" size="sm" onClick={exportCSV}>
+            <Download className="h-4 w-4 mr-1" /> Export CSV
+          </Button>
+        </div>
       </div>
 
       <Card>

@@ -71,8 +71,25 @@
   * {
     @apply border-border;
   }
+  html {
+    height: 100%;
+  }
+
   body {
     @apply bg-background text-foreground font-sans;
     font-family: 'Inter', sans-serif;
+    -webkit-tap-highlight-color: transparent;
+    min-height: 100%;
+  }
+
+  #root {
+    min-height: 100%;
+  }
+
+  /* Improve text scaling on very small phones */
+  @media (max-width: 380px) {
+    html {
+      font-size: 15px;
+    }
   }
 }

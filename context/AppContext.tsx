@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from "react";
 import { Platform } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { getApiUrl } from "@/lib/query-client";
+import { apiPatch, getApiUrl } from "@/lib/query-client";
 import { useAuth } from "./AuthContext";
 
 export interface AppNotification {
@@ -88,6 +88,8 @@ interface AppContextValue {
     [key: string]: unknown;
   }>;
   notifications: AppNotification[];
+  unreadNotificationCount: number;
+  markNotificationRead: (id: string) => Promise<void>;
   topUpWallet: (amount: number, paymentMethodId?: string) => Promise<boolean>;
   savedCards: Array<{ id: string; last4?: string; [key: string]: unknown }>;
   addCard: (card: { last4?: string; [key: string]: unknown }) => void;
@@ -194,8 +196,23 @@ function normalizeCat(raw: Record<string, unknown>): Category {
   };
 }
 
+const NOTIF_TYPES = new Set(["success", "info", "new", "warning"]);
+
+function normalizeNotification(raw: Record<string, unknown>): AppNotification {
+  const t = String(raw.type ?? "info");
+  const type = NOTIF_TYPES.has(t) ? (t as AppNotification["type"]) : "info";
+  return {
+    id: String(raw.id ?? ""),
+    title: String(raw.title ?? ""),
+    message: String(raw.message ?? ""),
+    type,
+    read: Boolean(raw.read),
+    created_at: String(raw.created_at ?? new Date().toISOString()),
+  };
+}
+
 export function AppProvider({ children }: { children: React.ReactNode }) {
-  const { user, session, refreshDonationSummary } = useAuth();
+  const { user, session, refreshDonationSummary, fetchWithAuth, donationSummary } = useAuth();
   const userId = user?.id || "guest";
   
   const [organizations, setOrganizations] = useState<Organization[]>([]);
@@ -255,25 +272,25 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const refresh = useCallback(async () => {
     const base = getApiUrl().replace(/\/$/, "");
+    if (!accessToken) {
+      setNotifications([]);
+      setTransactions([]);
+    }
     try {
-      const fetches: Promise<Response>[] = [
+      const pubPromise = Promise.all([
         fetch(`${base}/api/organizations`),
         fetch(`${base}/api/campaigns`),
         fetch(`${base}/api/categories`),
-      ];
-      if (accessToken) {
-        fetches.push(
-          fetch(`${base}/api/notifications`, {
-            headers: { Authorization: `Bearer ${accessToken}` },
-          })
-        );
-        fetches.push(
-          fetch(`${base}/api/account/transactions`, {
-            headers: { Authorization: `Bearer ${accessToken}` },
-          })
-        );
-      }
-      const [orgRes, campRes, catRes, notifRes, txRes] = await Promise.all(fetches);
+      ]);
+      const authPromise = accessToken
+        ? Promise.all([
+            fetchWithAuth("/api/notifications"),
+            fetchWithAuth("/api/account/transactions"),
+          ])
+        : Promise.resolve<[null, null]>([null, null]);
+
+      const [[orgRes, campRes, catRes], authPair] = await Promise.all([pubPromise, authPromise]);
+      const [notifRes, txRes] = authPair;
       
       if (orgRes.ok) {
         const data: Record<string, unknown> = await orgRes.json();
@@ -294,8 +311,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }
 
       if (notifRes?.ok) {
-        const data = await notifRes.json() as { notifications: AppNotification[] };
-        setNotifications(Array.isArray(data.notifications) ? data.notifications : []);
+        const data = await notifRes.json() as { notifications: Record<string, unknown>[] };
+        const list = Array.isArray(data.notifications) ? data.notifications : [];
+        setNotifications(list.map((n) => normalizeNotification(n)));
       }
 
       if (txRes?.ok) {
@@ -329,7 +347,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setIsOffline(true);
     }
     await refreshDonationSummary();
-  }, [accessToken, refreshDonationSummary]);
+  }, [accessToken, refreshDonationSummary, fetchWithAuth]);
 
   useEffect(() => {
     refresh();
@@ -361,6 +379,32 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     };
   }, [refresh]);
 
+  const markNotificationRead = useCallback(
+    async (id: string) => {
+      if (!accessToken || !id) return;
+      let snapshotForRevert: AppNotification[] | null = null;
+      setNotifications((p) => {
+        const target = p.find((n) => n.id === id);
+        if (!target || target.read) return p;
+        snapshotForRevert = p;
+        return p.map((n) => (n.id === id ? { ...n, read: true } : n));
+      });
+      if (snapshotForRevert === null) return;
+      try {
+        await apiPatch<{ success?: boolean }>(
+          `/api/notifications/${encodeURIComponent(id)}/read`,
+          {},
+          accessToken
+        );
+      } catch {
+        setNotifications(snapshotForRevert);
+      }
+    },
+    [accessToken]
+  );
+
+  const unreadNotificationCount = notifications.filter((n) => !n.read).length;
+
   const isFavorite = useCallback((orgId: string) => favorites.includes(orgId), [favorites]);
   const toggleFavorite = useCallback((orgId: string) => {
     saveFavorites(
@@ -368,7 +412,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     );
   }, [favorites, saveFavorites]);
 
-  const totalDonated = transactions.reduce((sum, t) => sum + Number(t.amount || 0), 0);
+  const txTotal = transactions.reduce((sum, t) => sum + Number(t.amount || 0), 0);
+  const totalDonated =
+    user?.type === "donor" && donationSummary != null
+      ? donationSummary.total_amount_cents / 100
+      : txTotal;
 
   const value: AppContextValue = {
     organizations,
@@ -398,6 +446,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     },
     transactions,
     notifications,
+    unreadNotificationCount,
+    markNotificationRead,
     topUpWallet: async (amount: number) => {
       setWalletBalance((prev) => prev + amount);
       setTransactions((prev) => [

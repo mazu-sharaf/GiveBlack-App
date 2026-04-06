@@ -45,7 +45,16 @@ export function buildServer() {
     credentials: true
   });
   app.register(helmet, {
-    contentSecurityPolicy: env.NODE_ENV === "development" ? false : undefined,
+    contentSecurityPolicy:
+      env.NODE_ENV === "development"
+        ? false
+        : {
+            useDefaults: true,
+            directives: {
+              // Default is img-src 'self' data: — campaign pages embed org-hosted hero/gallery URLs.
+              imgSrc: ["'self'", "data:", "https:", "blob:"],
+            },
+          },
     crossOriginEmbedderPolicy: false,
   });
   app.register(websocket);

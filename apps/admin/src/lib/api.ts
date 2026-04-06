@@ -5,21 +5,50 @@ const TOKEN_KEY = "gb_admin_api_token";
  * Turn API-stored paths into absolute URLs for <img src>.
  * Uploads live at `{origin}/uploads/...` (nginx → Node). `VITE_API_URL` is often
  * `https://domain/app` for JSON routes — must NOT prefix `/uploads/` with `/app` or images 404.
+ *
+ * In the browser, `/uploads/*` is resolved with `window.location.origin` first so campaign
+ * pages still load images if `VITE_API_URL` was wrong at build time (e.g. localhost baked in).
+ * Absolute URLs that point at localhost while the page is on a public host are rewritten.
  */
 export function resolveImageUrl(url?: string | null): string {
-  if (!url) return "";
-  if (url.startsWith("http://") || url.startsWith("https://")) return url;
-  const path = url.startsWith("/") ? url : `/${url}`;
+  if (url == null) return "";
+  const s = String(url).trim();
+  if (!s) return "";
+
+  if (s.startsWith("http://") || s.startsWith("https://")) {
+    if (typeof window !== "undefined" && window.location?.origin) {
+      try {
+        const u = new URL(s);
+        const srcLocal = u.hostname === "localhost" || u.hostname === "127.0.0.1";
+        const pageLocal =
+          window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+        if (srcLocal && !pageLocal && u.pathname.startsWith("/uploads/")) {
+          return `${window.location.origin}${u.pathname}${u.search}`;
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+    return s;
+  }
+
+  let path = s.startsWith("/") ? s : `/${s}`;
+  if (path.startsWith("/app/uploads/")) {
+    path = `/uploads/${path.slice("/app/uploads/".length)}`;
+  }
+
   const base = API_URL.replace(/\/$/, "");
+
   if (path.startsWith("/uploads/")) {
-    const siteRoot = base.replace(/\/app$/, "");
-    if (siteRoot) return `${siteRoot}${path}`;
     if (typeof window !== "undefined" && window.location?.origin) {
       return `${window.location.origin}${path}`;
     }
+    const siteRoot = base.replace(/\/app$/, "");
+    if (siteRoot) return `${siteRoot}${path}`;
     return path;
   }
-  return `${base}${url.startsWith("/") ? "" : "/"}${url}`;
+
+  return `${base}${s.startsWith("/") ? "" : "/"}${s}`;
 }
 
 export function getApiToken(): string | null {
@@ -165,6 +194,50 @@ export async function fetchSubscriptions() {
   return request<{ subscriptions: Record<string, unknown>[] }>("/api/admin/subscriptions");
 }
 
+export interface DonorRecipientRow {
+  id: string;
+  email: string;
+  full_name: string;
+  role: string;
+}
+
+/** Paginated non–staff users for notification targeting (admin/super_admin only). */
+export async function fetchDonorRecipients(params: { q?: string; page?: number; limit?: number }) {
+  const q = new URLSearchParams();
+  if (params.q?.trim()) q.set("q", params.q.trim());
+  if (params.page) q.set("page", String(params.page));
+  if (params.limit) q.set("limit", String(params.limit));
+  const qs = q.toString();
+  return request<{ donors: DonorRecipientRow[]; total: number }>(
+    `/api/admin/notifications/donor-recipients${qs ? `?${qs}` : ""}`
+  );
+}
+
+/** All donor ids matching search, for “select all matching” (admin/super_admin only). */
+export async function fetchDonorRecipientIds(q?: string) {
+  const params = new URLSearchParams();
+  if (q?.trim()) params.set("q", q.trim());
+  const qs = params.toString();
+  return request<{ ids: string[]; total: number }>(
+    `/api/admin/notifications/donor-recipient-ids${qs ? `?${qs}` : ""}`
+  );
+}
+
+/** Push + in-app notification to selected donor user ids (admin/super_admin only). No email. */
+export async function sendNotificationsToUserIds(payload: {
+  userIds: string[];
+  pushTitle: string;
+  pushBody: string;
+}) {
+  return request<{ success: boolean; users: number; pushTokens: number }>(
+    "/api/admin/notifications/send-to-users",
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }
+  );
+}
+
 export async function adminAddSubscription(id: string, tier: "growth" | "institutional") {
   return request<{ success: boolean }>(`/api/admin/subscriptions/${encodeURIComponent(id)}/add`, {
     method: "POST",
@@ -276,6 +349,14 @@ export async function fetchDonations(params?: {
     donations: EnrichedDonation[];
     total: number; page: number; limit: number; totalPages: number;
   }>(`/api/admin/donations?${q}`);
+}
+
+/** Ask Stripe for payment status and mark succeeded donations that were stuck `pending` (missed webhooks / legacy `cs_` ids). */
+export async function reconcilePendingDonationsWithStripe() {
+  return request<{ ok: boolean; fixed: number; checked: number; errors: string[] }>(
+    "/api/admin/reconcile-pending-donations",
+    { method: "POST" }
+  );
 }
 
 export async function fetchCommunityCampaigns(params?: {

@@ -317,7 +317,7 @@ export const publicRoutes: FastifyPluginAsync = async (app) => {
       ? env.EXPO_PUBLIC_API_URL.replace(/\/app\/?$/, "").replace(/\/$/, "")
       : `${request.protocol}://${request.hostname}`;
 
-    const successUrl = `${adminDomain}/admin/c/${body.campaignId}?donation=success`;
+    const successUrl = `${adminDomain}/admin/c/${body.campaignId}?donation=success&session_id={CHECKOUT_SESSION_ID}`;
     const cancelUrl = `${adminDomain}/admin/c/${body.campaignId}?donation=canceled`;
 
     const session = await stripe.checkout.sessions.create({
@@ -353,6 +353,8 @@ export const publicRoutes: FastifyPluginAsync = async (app) => {
       },
     });
 
+    const donationStripeKey = stripeId(session.payment_intent) ?? session.id;
+
     const pubPiId = stripeId(session.payment_intent);
     if (pubPiId) {
       await stripe.paymentIntents.update(pubPiId, {
@@ -378,7 +380,7 @@ export const publicRoutes: FastifyPluginAsync = async (app) => {
         body.amount,
         body.currency,
         "pending",
-        session.id,
+        donationStripeKey,
         body.donorName,
         body.donorEmail,
         body.message || null,

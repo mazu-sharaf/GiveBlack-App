@@ -26,6 +26,7 @@ import FundReleasePage from "./pages/admin/FundReleasePage";
 import TransactionsPage from "./pages/admin/TransactionsPage";
 import StaffPage from "./pages/admin/StaffPage";
 import AdminEmailsPage from "./pages/admin/AdminEmailsPage";
+import BroadcastNotificationsPage from "./pages/admin/BroadcastNotificationsPage";
 import SettingsPage from "./pages/admin/SettingsPage";
 import EducationPartnersPage from "./pages/admin/EducationPartnersPage";
 import DonorDetailPage from "./pages/admin/DonorDetailPage";
@@ -73,6 +74,7 @@ const App = () => (
             <Route path="/transactions" element={<AdminPage><TransactionsPage /></AdminPage>} />
             <Route path="/staff" element={<AdminPage><StaffPage /></AdminPage>} />
             <Route path="/admin-emails" element={<AdminPage><AdminEmailsPage /></AdminPage>} />
+            <Route path="/broadcast" element={<AdminPage><BroadcastNotificationsPage /></AdminPage>} />
             <Route path="/education-partners" element={<AdminPage><EducationPartnersPage /></AdminPage>} />
             <Route path="/settings" element={<AdminPage><SettingsPage /></AdminPage>} />
             <Route path="*" element={<NotFound />} />
