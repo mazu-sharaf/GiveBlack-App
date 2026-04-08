@@ -12,6 +12,7 @@ import { env, getCorsOrigins } from "./config/env.js";
 import { healthRoutes } from "./routes/health.js";
 import { supportPageRoutes } from "./routes/support-page.js";
 import { authRoutes } from "./routes/auth.js";
+import { oauthRoutes } from "./routes/oauth.js";
 import { publicRoutes } from "./routes/public.js";
 import { educationPartnersRoutes } from "./routes/education-partners.js";
 import { stripeRoutes } from "./routes/stripe.js";
@@ -172,6 +173,7 @@ export function buildServer() {
     app.register(educationPartnersRoutes);
     app.register(publicRoutes);
     app.register(authRoutes);
+    app.register(oauthRoutes);
     app.register(donorsRoutes);
     app.register(notificationRoutes);
     app.register(adminCompatRoutes);

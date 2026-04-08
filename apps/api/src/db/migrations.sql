@@ -22,6 +22,21 @@ CREATE TABLE IF NOT EXISTS education_partners (
 CREATE INDEX IF NOT EXISTS education_partners_code_lower_idx ON education_partners (lower(code));
 
 ALTER TABLE donations ADD COLUMN IF NOT EXISTS education_partner_id uuid NULL REFERENCES education_partners(id) ON DELETE SET NULL;
+
+ALTER TABLE categories ADD COLUMN IF NOT EXISTS icon_bg_color text null;
+ALTER TABLE categories ADD COLUMN IF NOT EXISTS icon_border_color text null;
+
+ALTER TABLE users ALTER COLUMN password_hash DROP NOT NULL;
+
+CREATE TABLE IF NOT EXISTS oauth_identities (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references users(id) on delete cascade,
+  provider text not null check (provider in ('google', 'apple', 'facebook')),
+  provider_user_id text not null,
+  created_at timestamptz not null default now(),
+  unique (provider, provider_user_id)
+);
+CREATE INDEX IF NOT EXISTS oauth_identities_user_id_idx ON oauth_identities(user_id);
 ALTER TABLE donations ADD COLUMN IF NOT EXISTS reinvest_opt_in boolean NOT NULL DEFAULT false;
 ALTER TABLE donations ADD COLUMN IF NOT EXISTS reinvest_amount numeric(12,2) NOT NULL DEFAULT 0;
 ALTER TABLE donations ADD COLUMN IF NOT EXISTS partner_reinvest_amount numeric(12,2) NOT NULL DEFAULT 0;

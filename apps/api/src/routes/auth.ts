@@ -264,11 +264,17 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
       email: string;
       full_name: string;
       role: Role;
-      password_hash: string;
+      password_hash: string | null;
       disabled_at?: string | null;
     };
 
     if (user.disabled_at) return reply.code(403).send({ error: "This account has been disabled." });
+
+    if (!user.password_hash) {
+      return reply.code(401).send({
+        error: "This account uses social sign-in. Continue with Google or Apple.",
+      });
+    }
 
     const ok = await verifyPassword(body.password, user.password_hash);
     if (!ok) return reply.code(401).send({ error: "Invalid credentials" });

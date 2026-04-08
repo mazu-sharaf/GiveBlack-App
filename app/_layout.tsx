@@ -1,6 +1,7 @@
-import React from "react";
+import React, { useState, useCallback } from "react";
 import { View, Platform } from "react-native";
 import { Stack } from "expo-router";
+import * as SplashScreen from "expo-splash-screen";
 import { ThemeProvider, useTheme } from "@/context/ThemeContext";
 import { AuthProvider } from "@/context/AuthContext";
 import { AppProvider } from "@/context/AppContext";
@@ -8,6 +9,9 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import StripeProviderWrapper from "@/components/StripeProviderWrapper";
 import { NotificationNavigationHandler } from "@/components/NotificationNavigationHandler";
+import { SplashLogoAnimation } from "@/components/SplashLogoAnimation";
+
+void SplashScreen.preventAutoHideAsync().catch(() => {});
 
 function InnerLayout() {
   const { isDark, colors: c } = useTheme();
@@ -42,6 +46,9 @@ function InnerLayout() {
 }
 
 export default function RootLayout() {
+  const [splashDone, setSplashDone] = useState(false);
+  const onSplashComplete = useCallback(() => setSplashDone(true), []);
+
   return (
     <ThemeProvider>
       <AuthProvider>
@@ -49,6 +56,7 @@ export default function RootLayout() {
           <StripeProviderWrapper>
             <SafeAreaProvider>
               <InnerLayout />
+              {!splashDone ? <SplashLogoAnimation onComplete={onSplashComplete} /> : null}
             </SafeAreaProvider>
           </StripeProviderWrapper>
         </AppProvider>

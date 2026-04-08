@@ -10,7 +10,7 @@ import {
 import { Image } from "expo-image";
 import { router } from "expo-router";
 import { useSafeInsets } from "@/lib/safe-area";
-import { Ionicons, MaterialCommunityIcons, FontAwesome6 } from "@expo/vector-icons";
+import { Ionicons } from "@expo/vector-icons";
 import Animated, {
   FadeInDown,
   useSharedValue,
@@ -19,69 +19,26 @@ import Animated, {
 } from "react-native-reanimated";
 import Colors from "@/constants/colors";
 import { useTheme, useThemeColors } from "@/context/ThemeContext";
-import { useApp } from "@/context/AppContext";
+import { useApp, type Category } from "@/context/AppContext";
 import { useAuth } from "@/context/AuthContext";
 
-// Font/glyph existence checks so we can reliably fall back to a letter.
-// If we try to render an icon name that doesn't exist in the glyph map,
-// vector-icons may display a '?' placeholder.
-const FA6_GLYPH_MAP: Record<string, unknown> = (() => {
-  try {
-    // FontAwesome6Free glyph names used by @expo/vector-icons FontAwesome6.
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    return require("@expo/vector-icons/build/vendor/react-native-vector-icons/glyphmaps/FontAwesome6Free.json");
-  } catch {
-    return {};
-  }
-})();
+/** When API has no per-category colors, match admin default (#059669). */
+const DEFAULT_CATEGORY_THEME = "#059669";
+const CATEGORY_ROW_BG_DARK = "#1C1C1E";
 
-const MCI_GLYPH_MAP: Record<string, unknown> = (() => {
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    return require("@expo/vector-icons/build/vendor/react-native-vector-icons/glyphmaps/MaterialCommunityIcons.json");
-  } catch {
-    return {};
-  }
-})();
-
-function CategoryRow({ cat, index }: { cat: any; index: number }) {
+function CategoryRow({ cat, index }: { cat: Category; index: number }) {
   const c = useThemeColors();
   const { isDark } = useTheme();
   const scale = useSharedValue(1);
   const animStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
 
-  // `categories.icon` values stored from the admin panel look like:
-  //   color-palette-outline, megaphone-outline, people-outline, ...
-  // Those are NOT valid Ionicons names, so the icon renderer falls back to `?`.
-  // Map known values to valid MaterialCommunityIcons names.
-  const MCI_ICON_MAP: Record<string, string> = {
-    "color-palette-outline": "palette-outline",
-    "megaphone-outline": "bullhorn-outline",
-    "people-outline": "account-group-outline",
-    "trending-up-outline": "trending-up",
-    "school-outline": "school-outline",
-    "leaf-outline": "leaf",
-    "star-outline": "star-outline",
-    "heart-outline": "heart-outline",
-    "home-outline": "home-outline",
-    "happy-outline": "emoticon-happy-outline",
-  };
-
-  const iconVal = (cat.icon || "").trim();
-  const mappedMci = MCI_ICON_MAP[iconVal];
-
-  // Support Font Awesome 6 icons stored directly from admin (example: `users-rays`).
-  // We only treat it as FontAwesome when it doesn't look like an MCI/Ionicons name (most MCI values end with `-outline`).
-  const faName =
-    iconVal.startsWith("fa-")
-      ? iconVal.replace(/^fa-/, "")
-      : !iconVal.includes("outline") && iconVal.includes("-")
-        ? iconVal
-        : "";
-
   const iconLetter = (cat.name ? String(cat.name).trim().charAt(0) : "?").toUpperCase();
-  const hasFa6 = Boolean(faName && FA6_GLYPH_MAP[faName]);
-  const hasMci = Boolean(mappedMci && MCI_GLYPH_MAP[mappedMci]);
+  const rowBg = isDark ? CATEGORY_ROW_BG_DARK : c.cardBg;
+  const rowBorder = isDark ? "rgba(255,255,255,0.06)" : c.border;
+  const count = cat.count ?? 0;
+  const iconBg = cat.iconBgColor || DEFAULT_CATEGORY_THEME;
+  const iconBorder = cat.iconBorderColor || DEFAULT_CATEGORY_THEME;
+  const letterColor = cat.color || DEFAULT_CATEGORY_THEME;
 
   return (
     <Animated.View entering={FadeInDown.delay(index * 40).duration(400)} style={animStyle}>
@@ -89,31 +46,23 @@ function CategoryRow({ cat, index }: { cat: any; index: number }) {
         onPressIn={() => { scale.value = withSpring(0.97); }}
         onPressOut={() => { scale.value = withSpring(1); }}
         onPress={() => router.push({ pathname: "/category/[id]", params: { id: cat.id } })}
-        style={[styles.categoryRow, { backgroundColor: c.cardBg }]}
+        style={[styles.categoryRow, { backgroundColor: rowBg, borderColor: rowBorder }]}
       >
-        <View style={[styles.catIconWrap, { backgroundColor: cat.imageUrl ? 'transparent' : (isDark ? `${cat.color}33` : cat.color) }]}>
+        <View
+          style={[
+            styles.catIconWrap,
+            { backgroundColor: iconBg, borderColor: iconBorder },
+          ]}
+        >
           {cat.imageUrl ? (
-            <Image source={{ uri: cat.imageUrl }} style={styles.catImage} cachePolicy="memory-disk" transition={200} />
+            <Image source={{ uri: cat.imageUrl }} style={styles.catImage} contentFit="cover" cachePolicy="memory-disk" transition={200} />
           ) : (
-            hasFa6 ? (
-              <FontAwesome6 name={faName as any} size={26} color={isDark ? cat.color : Colors.primary} />
-            ) : hasMci ? (
-              <MaterialCommunityIcons
-                name={mappedMci as any}
-                size={26}
-                color={isDark ? cat.color : Colors.primary}
-              />
-            ) : (
-              // If icon is missing/unknown, show first letter (never '?').
-              <Text style={{ fontSize: 22, fontWeight: "700", color: isDark ? cat.color : Colors.primary }}>
-                {iconLetter}
-              </Text>
-            )
+            <Text style={[styles.fallbackLetter, { color: letterColor }]}>{iconLetter}</Text>
           )}
         </View>
         <View style={styles.catTextWrap}>
           <Text style={[styles.catName, { color: c.text }]}>{cat.name}</Text>
-          <Text style={[styles.catCount, { color: c.textMuted }]}>{cat.count} organizations</Text>
+          <Text style={[styles.catCount, { color: c.textMuted }]}>{count} organizations</Text>
         </View>
         <Ionicons name="chevron-forward" size={18} color={c.textLight} />
       </Pressable>
@@ -268,39 +217,46 @@ const styles = StyleSheet.create({
   categoryRow: {
     borderRadius: 16,
     padding: 14,
+    borderWidth: 1,
     flexDirection: "row",
     alignItems: "center",
     gap: 14,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
-    elevation: 1,
+    shadowOpacity: 0.08,
+    shadowRadius: 7,
+    elevation: 2,
   },
   catIconWrap: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
+    width: 58,
+    height: 58,
+    borderRadius: 29,
+    borderWidth: 2,
     alignItems: "center",
     justifyContent: "center",
     overflow: "hidden" as const,
   },
   catImage: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
+    width: 58,
+    height: 58,
+    borderRadius: 29,
+  },
+  fallbackLetter: {
+    fontSize: 22,
+    fontWeight: "700",
   },
   catTextWrap: {
     flex: 1,
   },
   catName: {
     fontFamily: "Poppins_600SemiBold",
-    fontSize: 14,
-    lineHeight: 22,
+    fontSize: 15,
+    lineHeight: 23,
   },
   catCount: {
     fontFamily: "Poppins_400Regular",
     fontSize: 12,
+    marginTop: 1,
   },
   emptyState: {
     alignItems: "center",

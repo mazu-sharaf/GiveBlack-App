@@ -909,10 +909,15 @@ export const adminCompatRoutes: FastifyPluginAsync = async (app) => {
     async () => {
       const result = await db.query(
         `select c.id, c.name, c.icon, c.color, c.image_url,
-                count(o.id)::int as count
+                c.icon_bg_color, c.icon_border_color,
+                coalesce(oc.cnt, 0)::int as count
          from categories c
-         left join organizations o on o.category_id = c.id and o.archived_at is null
-         group by c.id
+         left join (
+           select category_id, count(*)::int as cnt
+           from organizations
+           where archived_at is null and category_id is not null
+           group by category_id
+         ) oc on oc.category_id = c.id
          order by c.name`
       );
       return { categories: result.rows };
@@ -923,11 +928,26 @@ export const adminCompatRoutes: FastifyPluginAsync = async (app) => {
     "/api/admin/categories",
     { preHandler: [app.authenticate, app.requireRole("admin", "super_admin")] },
     async (request) => {
-      const body = (request.body ?? {}) as { name: string; icon?: string; color?: string; image_url?: string | null };
+      const body = (request.body ?? {}) as {
+        name: string;
+        icon?: string;
+        color?: string;
+        image_url?: string | null;
+        icon_bg_color?: string | null;
+        icon_border_color?: string | null;
+      };
       const id = `cat-${body.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/-+$/, "")}`;
       await db.query(
-        `insert into categories (id, name, icon, color, image_url) values ($1, $2, $3, $4, $5)`,
-        [id, body.name, body.icon || null, body.color || null, body.image_url || null]
+        `insert into categories (id, name, icon, color, image_url, icon_bg_color, icon_border_color) values ($1, $2, $3, $4, $5, $6, $7)`,
+        [
+          id,
+          body.name,
+          body.icon || null,
+          body.color || null,
+          body.image_url || null,
+          body.icon_bg_color ?? null,
+          body.icon_border_color ?? null,
+        ]
       );
       return { success: true, id };
     }
@@ -938,13 +958,22 @@ export const adminCompatRoutes: FastifyPluginAsync = async (app) => {
     { preHandler: [app.authenticate, app.requireRole("admin", "super_admin")] },
     async (request) => {
       const { id } = request.params as { id: string };
-      const body = (request.body ?? {}) as { name?: string; icon?: string; color?: string; image_url?: string | null };
+      const body = (request.body ?? {}) as {
+        name?: string;
+        icon?: string;
+        color?: string;
+        image_url?: string | null;
+        icon_bg_color?: string | null;
+        icon_border_color?: string | null;
+      };
       const sets: string[] = [];
       const values: unknown[] = [];
       if (body.name !== undefined) { values.push(body.name); sets.push(`name = $${values.length}`); }
       if (body.icon !== undefined) { values.push(body.icon); sets.push(`icon = $${values.length}`); }
       if (body.color !== undefined) { values.push(body.color); sets.push(`color = $${values.length}`); }
       if (body.image_url !== undefined) { values.push(body.image_url); sets.push(`image_url = $${values.length}`); }
+      if (body.icon_bg_color !== undefined) { values.push(body.icon_bg_color); sets.push(`icon_bg_color = $${values.length}`); }
+      if (body.icon_border_color !== undefined) { values.push(body.icon_border_color); sets.push(`icon_border_color = $${values.length}`); }
       if (sets.length) {
         values.push(id);
         await db.query(`update categories set ${sets.join(", ")} where id = $${values.length}`, values);

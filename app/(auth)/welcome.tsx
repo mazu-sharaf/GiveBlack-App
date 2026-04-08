@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -6,6 +6,8 @@ import {
   Pressable,
   Platform,
   ScrollView,
+  ActivityIndicator,
+  Alert,
 } from "react-native";
 import { Image } from "expo-image";
 import { useSafeInsets } from "@/lib/safe-area";
@@ -18,9 +20,25 @@ import { navigateAfterAuth } from "@/lib/auth-navigation";
 
 import { logoBlack, logoWhite } from "@/constants/images";
 
-function SocialButton({ icon, label, onPress, c }: { icon: string; label: string; onPress?: () => void; c: any }) {
+function SocialButton({
+  icon,
+  label,
+  onPress,
+  c,
+  disabled,
+}: {
+  icon: string;
+  label: string;
+  onPress?: () => void;
+  c: { cardBg: string; border: string; text: string };
+  disabled?: boolean;
+}) {
   return (
-    <Pressable style={[styles.socialBtn, { backgroundColor: c.cardBg, borderColor: c.border }]} onPress={onPress}>
+    <Pressable
+      style={[styles.socialBtn, { backgroundColor: c.cardBg, borderColor: c.border }, disabled && { opacity: 0.55 }]}
+      onPress={onPress}
+      disabled={disabled}
+    >
       <Ionicons name={icon as any} size={20} color={c.text} style={{ marginRight: 12 }} />
       <Text style={[styles.socialBtnText, { color: c.text }]}>{label}</Text>
     </Pressable>
@@ -31,9 +49,34 @@ export default function WelcomeScreen() {
   const insets = useSafeInsets();
   const c = useThemeColors();
   const { isDark } = useTheme();
-  const { guestLogin, isAuthenticated, isGuest, isLoading, user } = useAuth();
+  const { guestLogin, isAuthenticated, isGuest, isLoading, user, loginWithGoogle, loginWithApple } = useAuth();
+  const [oauthBusy, setOauthBusy] = useState<null | "google" | "apple">(null);
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = insets.bottom;
+
+  async function runOAuth(
+    provider: "google" | "apple",
+    fn: () => Promise<{ success: boolean; error?: string; errorType?: string }>
+  ) {
+    if (oauthBusy) return;
+    setOauthBusy(provider);
+    try {
+      const r = await fn();
+      if (r.success) return;
+      if (r.errorType === "cancelled") return;
+      const msg = r.error?.trim() || "Sign-in failed. Please try again.";
+      if (r.errorType === "conflict") {
+        Alert.alert("Account exists", msg, [
+          { text: "Cancel", style: "cancel" },
+          { text: "Sign in with password", onPress: () => router.push("/(auth)/donor-login") },
+        ]);
+        return;
+      }
+      Alert.alert("Sign-in", msg);
+    } finally {
+      setOauthBusy(null);
+    }
+  }
 
   useEffect(() => {
     if (isLoading || !isAuthenticated || isGuest || !user?.id) return;
@@ -57,13 +100,32 @@ export default function WelcomeScreen() {
           <Image source={isDark ? logoWhite : logoBlack} style={styles.logo} contentFit="contain" cachePolicy="memory-disk" />
         </View>
 
-        <Text style={[styles.title, { color: c.text }]}>Let's Get Started!</Text>
+        <Text style={[styles.title, { color: c.text }]}>{"Let's Get Started!"}</Text>
 
         <View style={styles.socialGroup}>
-          <SocialButton icon="logo-facebook" label="Continue with Facebook" c={c} />
-          <SocialButton icon="logo-google" label="Continue with Google" c={c} />
-          <SocialButton icon="logo-apple" label="Continue with Apple" c={c} />
+          <SocialButton
+            icon="logo-google"
+            label="Continue with Google"
+            c={c}
+            disabled={!!oauthBusy}
+            onPress={() => runOAuth("google", loginWithGoogle)}
+          />
+          {Platform.OS === "ios" && (
+            <SocialButton
+              icon="logo-apple"
+              label="Continue with Apple"
+              c={c}
+              disabled={!!oauthBusy}
+              onPress={() => runOAuth("apple", loginWithApple)}
+            />
+          )}
         </View>
+        {oauthBusy ? (
+          <View style={styles.oauthSpinnerRow}>
+            <ActivityIndicator color={c.textMuted} />
+            <Text style={[styles.oauthSpinnerText, { color: c.textMuted }]}>Signing in…</Text>
+          </View>
+        ) : null}
 
         <View style={styles.dividerRow}>
           <View style={[styles.dividerLine, { backgroundColor: c.border }]} />
@@ -80,7 +142,7 @@ export default function WelcomeScreen() {
         </Pressable>
 
         <View style={styles.signupRow}>
-          <Text style={[styles.signupLabel, { color: c.textMuted }]}>Don't have an account? </Text>
+          <Text style={[styles.signupLabel, { color: c.textMuted }]}>{"Don't have an account? "}</Text>
           <Pressable onPress={() => router.push("/(auth)/donor-signup")}>
             <Text style={styles.signupLink}>Sign up</Text>
           </Pressable>
@@ -90,7 +152,7 @@ export default function WelcomeScreen() {
           style={styles.businessLink}
           onPress={() => router.push("/(auth)/charity-login")}
         >
-          <Text style={styles.businessLinkText}>I'm a Business / Charity</Text>
+          <Text style={styles.businessLinkText}>{"I'm a Business / Charity"}</Text>
           <Ionicons name="arrow-forward" size={14} color={Colors.green} />
         </Pressable>
 
@@ -145,7 +207,18 @@ const styles = StyleSheet.create({
   socialGroup: {
     width: "100%",
     gap: 12,
-    marginBottom: 20,
+    marginBottom: 12,
+  },
+  oauthSpinnerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    marginBottom: 16,
+  },
+  oauthSpinnerText: {
+    fontFamily: "Poppins_400Regular",
+    fontSize: 14,
   },
   socialBtn: {
     flexDirection: "row",

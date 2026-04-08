@@ -4,7 +4,7 @@ create table if not exists users (
   id uuid primary key default gen_random_uuid(),
   email text not null unique,
   full_name text not null,
-  password_hash text not null,
+  password_hash text null,
   role text not null default 'donor',
   disabled_at timestamptz null,
   created_at timestamptz not null default now(),
@@ -12,6 +12,16 @@ create table if not exists users (
   avatar_url text null,
   avatar_source text null
 );
+
+create table if not exists oauth_identities (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references users(id) on delete cascade,
+  provider text not null check (provider in ('google', 'apple', 'facebook')),
+  provider_user_id text not null,
+  created_at timestamptz not null default now(),
+  unique (provider, provider_user_id)
+);
+create index if not exists oauth_identities_user_id_idx on oauth_identities(user_id);
 
 create table if not exists user_sessions (
   id uuid primary key default gen_random_uuid(),
@@ -30,6 +40,8 @@ create table if not exists categories (
   icon text null,
   color text null,
   image_url text null,
+  icon_bg_color text null,
+  icon_border_color text null,
   created_at timestamptz not null default now()
 );
 

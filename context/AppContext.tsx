@@ -61,6 +61,12 @@ export interface Category {
   icon?: string;
   color?: string;
   count?: number;
+  image_url?: string;
+  imageUrl?: string;
+  /** App category list: circle background behind image / letter */
+  iconBgColor?: string;
+  /** App category list: circle border */
+  iconBorderColor?: string;
 }
 
 const FAVORITES_KEY = "giveblack_favorites";
@@ -186,13 +192,31 @@ function normalizeCampaign(raw: Record<string, unknown>): Campaign {
   };
 }
 
+/** Accept snake_case or camelCase from API; normalize hex for React Native. */
+function pickHexColor(raw: Record<string, unknown>, snake: string, camel: string): string | undefined {
+  const v = raw[snake] ?? raw[camel];
+  if (v == null) return undefined;
+  let s = String(v).trim();
+  if (!s) return undefined;
+  if (!s.startsWith("#")) {
+    if (/^[0-9a-fA-F]{6}$/.test(s)) s = `#${s}`;
+    else if (/^[0-9a-fA-F]{3}$/.test(s)) s = `#${s}`;
+  }
+  return s;
+}
+
 function normalizeCat(raw: Record<string, unknown>): Category {
+  const img = resolveImg(raw.image_url ?? raw.imageUrl);
   return {
     id: String(raw.id),
     name: String(raw.name ?? ""),
     icon: raw.icon != null ? String(raw.icon) : undefined,
-    color: raw.color != null ? String(raw.color) : undefined,
+    color: raw.color != null ? String(raw.color).trim() : undefined,
     count: raw.count != null ? Number(raw.count) : undefined,
+    image_url: raw.image_url != null ? String(raw.image_url) : undefined,
+    imageUrl: img,
+    iconBgColor: pickHexColor(raw, "icon_bg_color", "iconBgColor"),
+    iconBorderColor: pickHexColor(raw, "icon_border_color", "iconBorderColor"),
   };
 }
 

@@ -8,6 +8,7 @@ import {
   ScrollView,
   Platform,
   KeyboardAvoidingView,
+  ActivityIndicator,
 } from "react-native";
 import { useSafeInsets } from "@/lib/safe-area";
 import { router } from "expo-router";
@@ -16,17 +17,19 @@ import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";
 import { useAuth } from "@/context/AuthContext";
 import { navigateAfterAuth } from "@/lib/auth-navigation";
+import { alertDonorOAuthFailure } from "@/lib/donor-oauth-ui";
 import { useThemeColors } from "@/context/ThemeContext";
 
 export default function DonorLoginScreen() {
   const insets = useSafeInsets();
-  const { login } = useAuth();
+  const { login, loginWithGoogle, loginWithApple } = useAuth();
   const c = useThemeColors();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [oauthBusy, setOauthBusy] = useState<null | "google" | "apple">(null);
   const [errorMessage, setErrorMessage] = useState("");
   const [showSignUp, setShowSignUp] = useState(false);
   const [showCharityLink, setShowCharityLink] = useState(false);
@@ -64,7 +67,20 @@ export default function DonorLoginScreen() {
     }
   }
 
-  // Demo login removed.
+  async function runDonorOAuth(
+    provider: "google" | "apple",
+    fn: () => Promise<{ success: boolean; error?: string; errorType?: string }>
+  ) {
+    if (oauthBusy || loading) return;
+    setOauthBusy(provider);
+    try {
+      const r = await fn();
+      if (r.success) navigateAfterAuth("donor");
+      else alertDonorOAuthFailure(r, "donor-auth");
+    } finally {
+      setOauthBusy(null);
+    }
+  }
 
   return (
     <KeyboardAvoidingView
@@ -180,19 +196,34 @@ export default function DonorLoginScreen() {
         </View>
 
         <View style={styles.socialRow}>
-          <Pressable style={[styles.socialIcon, { borderColor: c.border, backgroundColor: c.cardBg }]}>
-            <Ionicons name="logo-facebook" size={22} color="#1877F2" />
-          </Pressable>
-          <Pressable style={[styles.socialIcon, { borderColor: c.border, backgroundColor: c.cardBg }]}>
+          <Pressable
+            style={[styles.socialIcon, { borderColor: c.border, backgroundColor: c.cardBg }, !!oauthBusy && { opacity: 0.55 }]}
+            disabled={!!oauthBusy || loading}
+            onPress={() => runDonorOAuth("google", loginWithGoogle)}
+            accessibilityLabel="Continue with Google"
+          >
             <Ionicons name="logo-google" size={22} color="#DB4437" />
           </Pressable>
-          <Pressable style={[styles.socialIcon, { borderColor: c.border, backgroundColor: c.cardBg }]}>
-            <Ionicons name="logo-apple" size={22} color={c.text} />
-          </Pressable>
+          {Platform.OS === "ios" && (
+            <Pressable
+              style={[styles.socialIcon, { borderColor: c.border, backgroundColor: c.cardBg }, !!oauthBusy && { opacity: 0.55 }]}
+              disabled={!!oauthBusy || loading}
+              onPress={() => runDonorOAuth("apple", loginWithApple)}
+              accessibilityLabel="Continue with Apple"
+            >
+              <Ionicons name="logo-apple" size={22} color={c.text} />
+            </Pressable>
+          )}
         </View>
+        {oauthBusy ? (
+          <View style={styles.oauthRow}>
+            <ActivityIndicator color={c.textMuted} />
+            <Text style={[styles.oauthHint, { color: c.textMuted }]}>Signing in…</Text>
+          </View>
+        ) : null}
 
         <View style={styles.bottomRow}>
-          <Text style={[styles.bottomLabel, { color: c.textMuted }]}>Don't have an account? </Text>
+          <Text style={[styles.bottomLabel, { color: c.textMuted }]}>{"Don't have an account? "}</Text>
           <Pressable onPress={() => router.push("/(auth)/donor-signup")}>
             <Text style={styles.bottomLink}>Sign up</Text>
           </Pressable>
@@ -202,7 +233,7 @@ export default function DonorLoginScreen() {
           style={styles.businessLink}
           onPress={() => router.push("/(auth)/charity-login")}
         >
-          <Text style={styles.businessLinkText}>I'm a Business / Charity</Text>
+          <Text style={styles.businessLinkText}>{"I'm a Business / Charity"}</Text>
           <Ionicons name="arrow-forward" size={14} color={Colors.green} />
         </Pressable>
 
@@ -388,6 +419,17 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: Colors.white,
+  },
+  oauthRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    marginBottom: 20,
+  },
+  oauthHint: {
+    fontFamily: "Poppins_400Regular",
+    fontSize: 13,
   },
   bottomRow: {
     flexDirection: "row",

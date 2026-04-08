@@ -36,9 +36,17 @@ export const publicRoutes: FastifyPluginAsync = async (app) => {
   app.get("/api/categories", async (_, reply) => {
     try {
       const result = await db.query(
-        `select id, name, icon, color
-         from categories
-         order by name asc`
+        `select c.id, c.name, c.icon, c.color, c.image_url,
+                c.icon_bg_color, c.icon_border_color,
+                coalesce(oc.cnt, 0)::int as count
+         from categories c
+         left join (
+           select category_id, count(*)::int as cnt
+           from organizations
+           where archived_at is null and category_id is not null
+           group by category_id
+         ) oc on oc.category_id = c.id
+         order by c.name asc`
       );
       return { categories: result.rows };
     } catch (e: unknown) {

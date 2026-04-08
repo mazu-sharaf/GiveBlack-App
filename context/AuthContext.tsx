@@ -3,6 +3,7 @@ import { Alert, Platform } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
 import { getApiUrl } from "@/lib/query-client";
+import { isGoogleSignInUserCancelled } from "@/lib/google-signin-errors";
 
 interface UserProfile {
   id: string;
@@ -31,6 +32,14 @@ interface DonationSummary {
   rank: number | null;
 }
 
+export type OAuthLoginErrorType =
+  | "cancelled"
+  | "conflict"
+  | "not_configured"
+  | "network"
+  | "invalid_credentials"
+  | "other";
+
 interface AuthContextValue {
   user: UserProfile | null;
   session: SessionData | null;
@@ -42,6 +51,10 @@ interface AuthContextValue {
   /** Refetch /api/me/donations/summary (call after donations and on home refresh). */
   refreshDonationSummary: () => Promise<void>;
   login: (email: string, password: string, type: "donor" | "charity") => Promise<{ success: boolean; error?: string; errorType?: "invalid_credentials" | "email_not_confirmed" | "network" | "other" }>;
+  /** Donor welcome screen — native Google → API → same session as password login. */
+  loginWithGoogle: () => Promise<{ success: boolean; error?: string; errorType?: OAuthLoginErrorType }>;
+  /** iOS only (no-op / error on Android). */
+  loginWithApple: () => Promise<{ success: boolean; error?: string; errorType?: OAuthLoginErrorType }>;
   guestLogin: () => Promise<void>;
   signUpDonor: (data: { name: string; email: string; password: string; zipCode: string; collegeAttended: boolean }) => Promise<boolean>;
   signUpCharity: (data: {
@@ -317,6 +330,151 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     }
     return { success: false, error: "Unable to connect. Please check your internet connection and try again.", errorType: "network" };
+  }
+
+  async function persistDonorAuthPayload(data: Record<string, unknown>): Promise<boolean> {
+    if (!data.accessToken || !data.user) return false;
+    const raw = data.user as Record<string, unknown>;
+    const serverType: "donor" | "charity" =
+      raw.type === "charity" || raw.role === "charity_owner" ? "charity" : "donor";
+    if (serverType !== "donor") {
+      Alert.alert(
+        "Sign-in",
+        "This email is registered as a charity or organization account. Use the charity login from the welcome screen."
+      );
+      return false;
+    }
+    const userProfile: UserProfile = {
+      id: String(raw.id),
+      name: String(raw.full_name || raw.name || "User"),
+      email: String(raw.email || ""),
+      type: "donor",
+      phone: raw.phone as string | undefined,
+      zipCode: (raw.zip_code || raw.zipCode) as string | undefined,
+      collegeAttended: (raw.college_attended ?? raw.collegeAttended) as boolean | undefined,
+      charityName: raw.charity_name as string | undefined,
+      charityCategory: raw.charity_category as string | undefined,
+      charityDescription: raw.charity_description as string | undefined,
+      charityUrl: raw.charity_url as string | undefined,
+    };
+    await Promise.all([
+      AsyncStorage.setItem(TOKEN_KEY, String(data.accessToken)),
+      AsyncStorage.setItem(REFRESH_TOKEN_KEY, (data.refreshToken as string) || ""),
+      AsyncStorage.setItem(USER_KEY, JSON.stringify(userProfile)),
+    ]);
+    setSession({ accessToken: String(data.accessToken), refreshToken: (data.refreshToken as string | null) ?? null });
+    setUser(userProfile);
+    setAvatarUrl((raw.avatar_url as string | null | undefined) ?? null);
+    return true;
+  }
+
+  function mapOAuthHttpError(status: number, payload: Record<string, unknown>): { error: string; errorType: OAuthLoginErrorType } {
+    const msg = typeof payload.error === "string" ? payload.error : "";
+    if (status === 503) {
+      return {
+        error: msg || "This sign-in method is not configured on the server.",
+        errorType: "not_configured",
+      };
+    }
+    if (status === 409) {
+      return { error: msg || "An account with this email already exists.", errorType: "conflict" };
+    }
+    if (status === 401 || status === 403) {
+      return { error: msg || "Sign-in failed.", errorType: "invalid_credentials" };
+    }
+    return { error: msg || "Sign-in failed.", errorType: "other" };
+  }
+
+  function mapOAuthCatch(e: unknown): { error: string; errorType: OAuthLoginErrorType } {
+    const message = e instanceof Error ? e.message : String(e);
+    if (message === "cancelled") {
+      return { error: "", errorType: "cancelled" };
+    }
+    if (isNetworkError(message)) {
+      return { error: "Unable to connect. Please check your internet connection and try again.", errorType: "network" };
+    }
+    return { error: message, errorType: "other" };
+  }
+
+  async function loginWithGoogle(): Promise<{ success: boolean; error?: string; errorType?: OAuthLoginErrorType }> {
+    setIsGuest(false);
+    try {
+      const oauthGoogle = await import("@/lib/oauth-google");
+      const getGoogleIdToken = oauthGoogle.getGoogleIdToken;
+      if (typeof getGoogleIdToken !== "function") {
+        throw new Error("Google OAuth failed to load (getGoogleIdToken missing). Rebuild the native app.");
+      }
+      const idToken = await getGoogleIdToken();
+      const baseUrl = getApiUrl().replace(/\/$/, "");
+      const response = await fetch(`${baseUrl}/api/auth/oauth/google`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ idToken }),
+      });
+      const payload = (await response.json().catch(() => ({}))) as Record<string, unknown>;
+      if (!response.ok) {
+        const m = mapOAuthHttpError(response.status, payload);
+        return { success: false, error: m.error, errorType: m.errorType };
+      }
+      const ok = await persistDonorAuthPayload(payload);
+      return ok ? { success: true } : { success: false, error: "Could not complete sign-in.", errorType: "other" };
+    } catch (e: unknown) {
+      const raw = e instanceof Error ? e.message : String(e);
+      if (
+        raw.includes("RNGoogleSignin") ||
+        raw.includes("TurboModuleRegistry") ||
+        raw.includes("could not be found")
+      ) {
+        return {
+          success: false,
+          error:
+            "Google Sign-In needs a dev or production build with native code (expo run:ios / run:android or EAS). It does not run in Expo Go.",
+          errorType: "other",
+        };
+      }
+      if (isGoogleSignInUserCancelled(e)) {
+        return { success: false, error: "", errorType: "cancelled" };
+      }
+      const m = mapOAuthCatch(e);
+      return { success: false, error: m.error, errorType: m.errorType };
+    }
+  }
+
+  async function loginWithApple(): Promise<{ success: boolean; error?: string; errorType?: OAuthLoginErrorType }> {
+    if (Platform.OS !== "ios") {
+      return { success: false, error: "Apple Sign-In is only available on iOS.", errorType: "other" };
+    }
+    setIsGuest(false);
+    try {
+      const oauthApple = await import("@/lib/oauth-apple");
+      const getAppleOAuthPayload = oauthApple.getAppleOAuthPayload;
+      if (typeof getAppleOAuthPayload !== "function") {
+        throw new Error("Apple OAuth failed to load. Rebuild the native app.");
+      }
+      const { identityToken, fullName } = await getAppleOAuthPayload();
+      const baseUrl = getApiUrl().replace(/\/$/, "");
+      const body: Record<string, string> = { identityToken };
+      if (fullName) body.fullName = fullName;
+      const response = await fetch(`${baseUrl}/api/auth/oauth/apple`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const payload = (await response.json().catch(() => ({}))) as Record<string, unknown>;
+      if (!response.ok) {
+        const m = mapOAuthHttpError(response.status, payload);
+        return { success: false, error: m.error, errorType: m.errorType };
+      }
+      const ok = await persistDonorAuthPayload(payload);
+      return ok ? { success: true } : { success: false, error: "Could not complete sign-in.", errorType: "other" };
+    } catch (e: unknown) {
+      const err = e as { code?: string };
+      if (err?.code === "ERR_REQUEST_CANCELED") {
+        return { success: false, error: "", errorType: "cancelled" };
+      }
+      const m = mapOAuthCatch(e);
+      return { success: false, error: m.error, errorType: m.errorType };
+    }
   }
 
   async function signUpDonor(data: { name: string; email: string; password: string; zipCode: string; collegeAttended: boolean }): Promise<boolean> {
@@ -685,6 +843,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         donationSummary,
         refreshDonationSummary,
         login,
+        loginWithGoogle,
+        loginWithApple,
         guestLogin,
         signUpDonor,
         signUpCharity,

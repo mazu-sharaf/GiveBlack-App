@@ -424,19 +424,45 @@ export async function createPortalSession(org_id: string, return_url?: string) {
 }
 
 export async function fetchCategories() {
-  return request<{ categories: Array<{ id: string; name: string; icon: string; color: string; count: number; image_url?: string | null }> }>(
-    "/api/admin/categories"
-  );
+  return request<{
+    categories: Array<{
+      id: string;
+      name: string;
+      icon: string;
+      color: string;
+      count: number;
+      image_url?: string | null;
+      icon_bg_color?: string | null;
+      icon_border_color?: string | null;
+    }>;
+  }>("/api/admin/categories");
 }
 
-export async function createCategory(body: { name: string; icon?: string; color?: string }) {
+export async function createCategory(body: {
+  name: string;
+  icon?: string;
+  color?: string;
+  image_url?: string | null;
+  icon_bg_color?: string | null;
+  icon_border_color?: string | null;
+}) {
   return request<{ success: boolean; id: string }>("/api/admin/categories", {
     method: "POST",
     body: JSON.stringify(body),
   });
 }
 
-export async function updateCategory(id: string, body: { name?: string; icon?: string; color?: string }) {
+export async function updateCategory(
+  id: string,
+  body: {
+    name?: string;
+    icon?: string;
+    color?: string;
+    image_url?: string | null;
+    icon_bg_color?: string | null;
+    icon_border_color?: string | null;
+  }
+) {
   return request<{ success: boolean }>(`/api/admin/categories/${encodeURIComponent(id)}`, {
     method: "PUT",
     body: JSON.stringify(body),

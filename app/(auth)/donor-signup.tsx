@@ -9,6 +9,7 @@ import {
   ScrollView,
   Platform,
   KeyboardAvoidingView,
+  ActivityIndicator,
 } from "react-native";
 import { Image } from "expo-image";
 import { useSafeInsets } from "@/lib/safe-area";
@@ -22,11 +23,12 @@ import { useAuth } from "@/context/AuthContext";
 import { useThemeColors } from "@/context/ThemeContext";
 import { getApiUrl } from "@/lib/query-client";
 import { navigateAfterAuth } from "@/lib/auth-navigation";
+import { alertDonorOAuthFailure } from "@/lib/donor-oauth-ui";
 
 export default function DonorSignupScreen() {
   const insets = useSafeInsets();
   const c = useThemeColors();
-  const { signUpDonor } = useAuth();
+  const { signUpDonor, loginWithGoogle, loginWithApple } = useAuth();
   const params = useLocalSearchParams<{ email?: string }>();
 
   const [firstName, setFirstName] = useState("");
@@ -39,6 +41,7 @@ export default function DonorSignupScreen() {
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [loading, setLoading] = useState(false);
   const [avatarUri, setAvatarUri] = useState<string | null>(null);
+  const [oauthBusy, setOauthBusy] = useState<null | "google" | "apple">(null);
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = insets.bottom;
@@ -145,6 +148,21 @@ export default function DonorSignupScreen() {
     setLoading(false);
     if (success) {
       navigateAfterAuth("donor");
+    }
+  }
+
+  async function runDonorOAuth(
+    provider: "google" | "apple",
+    fn: () => Promise<{ success: boolean; error?: string; errorType?: string }>
+  ) {
+    if (oauthBusy || loading) return;
+    setOauthBusy(provider);
+    try {
+      const r = await fn();
+      if (r.success) navigateAfterAuth("donor");
+      else alertDonorOAuthFailure(r, "donor-auth");
+    } finally {
+      setOauthBusy(null);
     }
   }
 
@@ -282,16 +300,31 @@ export default function DonorSignupScreen() {
         </View>
 
         <View style={styles.socialRow}>
-          <Pressable style={[styles.socialIcon, { borderColor: c.border, backgroundColor: c.cardBg }]}>
-            <Ionicons name="logo-facebook" size={22} color="#1877F2" />
-          </Pressable>
-          <Pressable style={[styles.socialIcon, { borderColor: c.border, backgroundColor: c.cardBg }]}>
+          <Pressable
+            style={[styles.socialIcon, { borderColor: c.border, backgroundColor: c.cardBg }, !!oauthBusy && { opacity: 0.55 }]}
+            disabled={!!oauthBusy || loading}
+            onPress={() => runDonorOAuth("google", loginWithGoogle)}
+            accessibilityLabel="Continue with Google"
+          >
             <Ionicons name="logo-google" size={22} color="#DB4437" />
           </Pressable>
-          <Pressable style={[styles.socialIcon, { borderColor: c.border, backgroundColor: c.cardBg }]}>
-            <Ionicons name="logo-apple" size={22} color={c.text} />
-          </Pressable>
+          {Platform.OS === "ios" && (
+            <Pressable
+              style={[styles.socialIcon, { borderColor: c.border, backgroundColor: c.cardBg }, !!oauthBusy && { opacity: 0.55 }]}
+              disabled={!!oauthBusy || loading}
+              onPress={() => runDonorOAuth("apple", loginWithApple)}
+              accessibilityLabel="Continue with Apple"
+            >
+              <Ionicons name="logo-apple" size={22} color={c.text} />
+            </Pressable>
+          )}
         </View>
+        {oauthBusy ? (
+          <View style={styles.oauthRow}>
+            <ActivityIndicator color={c.textMuted} />
+            <Text style={[styles.oauthHint, { color: c.textMuted }]}>Signing in…</Text>
+          </View>
+        ) : null}
 
         <View style={styles.bottomRow}>
           <Text style={[styles.bottomLabel, { color: c.textMuted }]}>Already have an account? </Text>
@@ -476,6 +509,17 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: Colors.white,
+  },
+  oauthRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    marginBottom: 20,
+  },
+  oauthHint: {
+    fontFamily: "Poppins_400Regular",
+    fontSize: 13,
   },
   bottomRow: {
     flexDirection: "row",
