@@ -478,11 +478,11 @@ export default function TopUpScreen() {
   }
 
   if (step === "payment") {
-    const paymentMethods = [
-      { id: "paypal", name: "PayPal", icon: "logo-paypal" as const },
-      { id: "google", name: "Google Pay", icon: "logo-google" as const },
-      { id: "apple", name: "Apple Pay", icon: "logo-apple" as const },
-    ];
+    const secureCheckoutOption = {
+      id: "secure_checkout",
+      name: "Card or wallet (secure checkout)",
+      icon: "shield-checkmark-outline" as const,
+    };
 
     return (
       <View style={[styles.container, { backgroundColor: c.background }]}>
@@ -517,25 +517,22 @@ export default function TopUpScreen() {
                 </Pressable>
               ))}
 
-              {paymentMethods.map((pm) => (
-                <Pressable
-                  key={pm.id}
-                  style={[
-                    styles.paymentRow,
-                    { backgroundColor: c.cardBg, borderColor: c.border },
-                    selectedPayment === pm.id && { borderColor: c.green },
-                  ]}
-                  onPress={() => setSelectedPayment(pm.id)}
-                >
-                  <View style={[styles.paymentIconWrap, { backgroundColor: isDark ? "#2A2A2A" : "#F5F5F5" }]}>
-                    <Ionicons name={pm.icon} size={24} color={c.text} />
-                  </View>
-                  <Text style={[styles.paymentName, { flex: 1, color: c.text }]}>{pm.name}</Text>
-                  {selectedPayment === pm.id && (
-                    <Ionicons name="checkmark-circle" size={22} color={c.green} />
-                  )}
-                </Pressable>
-              ))}
+              <Pressable
+                style={[
+                  styles.paymentRow,
+                  { backgroundColor: c.cardBg, borderColor: c.border },
+                  selectedPayment === secureCheckoutOption.id && { borderColor: c.green },
+                ]}
+                onPress={() => setSelectedPayment(secureCheckoutOption.id)}
+              >
+                <View style={[styles.paymentIconWrap, { backgroundColor: isDark ? "#2A2A2A" : "#F5F5F5" }]}>
+                  <Ionicons name={secureCheckoutOption.icon} size={24} color={c.text} />
+                </View>
+                <Text style={[styles.paymentName, { flex: 1, color: c.text }]}>{secureCheckoutOption.name}</Text>
+                {selectedPayment === secureCheckoutOption.id && (
+                  <Ionicons name="checkmark-circle" size={22} color={c.green} />
+                )}
+              </Pressable>
 
               <Pressable style={[styles.addCardRow, { borderColor: c.green }]} onPress={handleGoToAddCard}>
                 <Ionicons name="add-circle-outline" size={24} color={c.green} />

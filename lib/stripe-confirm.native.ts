@@ -1,3 +1,5 @@
+import { Platform } from "react-native";
+
 export interface PaymentSheetParams {
   clientSecret?: string;
   setupIntentClientSecret?: string;
@@ -6,6 +8,10 @@ export interface PaymentSheetParams {
   merchantName?: string;
   returnURL?: string;
   allowsDelayedPaymentMethods?: boolean;
+  /** ISO 3166 alpha-2; Apple Pay / Google Pay in Payment Sheet */
+  merchantCountryCode?: string;
+  /** ISO 4217; required for Google Pay on SetupIntent flows */
+  currencyCode?: string;
 }
 
 export type NativePaymentStatus = "success" | "canceled" | "failed" | "unavailable";
@@ -98,15 +104,41 @@ export async function presentNativePaymentSheet(
       };
     }
 
-    const initResult = await stripeModule.initPaymentSheet({
-      paymentIntentClientSecret: params.clientSecret,
-      setupIntentClientSecret: params.setupIntentClientSecret,
-      customerEphemeralKeySecret: params.ephemeralKey,
-      customerId: params.customerId,
-      merchantDisplayName: params.merchantName || "GiveBlack",
-      returnURL: params.returnURL,
-      allowsDelayedPaymentMethods: params.allowsDelayedPaymentMethods ?? false,
-    });
+    const merchantCountryCode = params.merchantCountryCode ?? "US";
+    const currencyCode = params.currencyCode ?? "USD";
+
+    const walletSheet =
+      Platform.OS === "ios"
+        ? { applePay: { merchantCountryCode } }
+        : Platform.OS === "android"
+          ? {
+              googlePay: {
+                merchantCountryCode,
+                currencyCode,
+                testEnv: publishableKey.startsWith("pk_test"),
+              },
+            }
+          : {};
+
+    const initResult = params.clientSecret
+      ? await stripeModule.initPaymentSheet({
+          paymentIntentClientSecret: params.clientSecret,
+          customerEphemeralKeySecret: params.ephemeralKey,
+          customerId: params.customerId,
+          merchantDisplayName: params.merchantName || "GiveBlack",
+          returnURL: params.returnURL,
+          allowsDelayedPaymentMethods: params.allowsDelayedPaymentMethods ?? false,
+          ...walletSheet,
+        })
+      : await stripeModule.initPaymentSheet({
+          setupIntentClientSecret: params.setupIntentClientSecret!,
+          customerEphemeralKeySecret: params.ephemeralKey,
+          customerId: params.customerId,
+          merchantDisplayName: params.merchantName || "GiveBlack",
+          returnURL: params.returnURL,
+          allowsDelayedPaymentMethods: params.allowsDelayedPaymentMethods ?? false,
+          ...walletSheet,
+        });
 
     if (initResult.error) {
       if (isNativeUnavailableMessage(initResult.error.message)) {

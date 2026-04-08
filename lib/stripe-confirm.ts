@@ -1,10 +1,13 @@
 export interface PaymentSheetParams {
-  clientSecret: string;
+  clientSecret?: string;
+  setupIntentClientSecret?: string;
   customerId: string;
   ephemeralKey: string;
   merchantName?: string;
   returnURL?: string;
   allowsDelayedPaymentMethods?: boolean;
+  merchantCountryCode?: string;
+  currencyCode?: string;
 }
 
 export type NativePaymentStatus = "success" | "canceled" | "failed" | "unavailable";
