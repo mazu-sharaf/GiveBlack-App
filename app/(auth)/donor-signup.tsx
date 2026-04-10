@@ -147,7 +147,7 @@ export default function DonorSignupScreen() {
 
     setLoading(false);
     if (success) {
-      router.replace({ pathname: "/(auth)/signup-success", params: { name: firstName } });
+      router.replace({ pathname: "/(auth)/signup-success", params: { name: firstName, email: email.trim().toLowerCase() } });
     }
   }
 

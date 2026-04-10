@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import {
   View,
   Text,
@@ -7,12 +7,15 @@ import {
   Platform,
   Share,
 } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useSafeInsets } from "@/lib/safe-area";
-import { useLocalSearchParams } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { navigateAfterAuth } from "@/lib/auth-navigation";
 import { Ionicons } from "@expo/vector-icons";
 import Colors from "@/constants/colors";
 import { useThemeColors } from "@/context/ThemeContext";
+
+const WELCOME_SEEN_KEY = "@gb_welcome_seen";
 
 const INVITE_MESSAGE =
   "I just joined GiveBlack — a platform that connects donors with Black-led causes and community programs. Come support with me! https://giveblackapp.com";
@@ -41,11 +44,24 @@ const ACTIONS = [
 export default function SignupSuccessScreen() {
   const insets = useSafeInsets();
   const c = useThemeColors();
-  const params = useLocalSearchParams<{ name?: string }>();
+  const params = useLocalSearchParams<{ name?: string; email?: string }>();
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = insets.bottom;
 
   const firstName = params.name ? params.name.split(" ")[0] : null;
+
+  useEffect(() => {
+    const email = params.email;
+    if (!email) return;
+    const key = `${WELCOME_SEEN_KEY}_${email}`;
+    AsyncStorage.getItem(key).then((seen) => {
+      if (seen) {
+        navigateAfterAuth("donor");
+      } else {
+        AsyncStorage.setItem(key, "1").catch(() => {});
+      }
+    }).catch(() => {});
+  }, [params.email]);
 
   async function handleAction(href: string | null) {
     if (href === null) {
@@ -56,7 +72,7 @@ export default function SignupSuccessScreen() {
       }
       return;
     }
-    navigateAfterAuth("donor");
+    router.replace(href as any);
   }
 
   return (
