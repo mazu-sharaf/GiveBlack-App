@@ -34,7 +34,7 @@ async function getGoogleSigninApi(): Promise<GoogleSigninApi> {
   }
 
   throw new Error(
-    "Google Sign-In could not load. Use a development or production build with native code (expo run:ios / run:android or EAS), not Expo Go."
+    "RNGoogleSignin could not be found. Google Sign-In requires a development or production build with native code (expo run:ios / run:android or EAS), not Expo Go."
   );
 }
 

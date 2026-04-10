@@ -12,6 +12,13 @@ export function getApiUrl(): string {
     const protocol = window.location.protocol;
     return `${protocol}//${host}:5000/`;
   }
+  const isLocalhost = (u: string) =>
+    u.includes("localhost") || u.includes("127.0.0.1");
+  if (envUrl && !isLocalhost(envUrl)) return envUrl.replace(/\/?$/, "/");
+  const domain = process.env.EXPO_PUBLIC_DOMAIN || "";
+  if (domain && !isLocalhost(domain)) {
+    return `https://${domain}/`;
+  }
   if (envUrl) return envUrl.replace(/\/?$/, "/");
   return "https://giveblackapp.com/";
 }
