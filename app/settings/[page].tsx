@@ -13,8 +13,10 @@ import {
   TextInput,
   Alert,
   KeyboardAvoidingView,
+  ActivityIndicator,
 } from "react-native";
 import { Image } from "expo-image";
+import * as ImagePicker from "expo-image-picker";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useSafeInsets } from "@/lib/safe-area";
 import { Ionicons } from "@expo/vector-icons";
@@ -974,12 +976,12 @@ function SharePage() {
 function EditProfilePage() {
   const c = useThemeColors();
   const { userProfile, updateProfile } = useApp();
-  const { avatarUrl, session } = useAuth();
+  const { avatarUrl, session, fetchWithAuth } = useAuth();
   const [fullName, setFullName] = useState(String(userProfile.fullName ?? ""));
   const [nickname, setNickname] = useState(String(userProfile.nickname ?? ""));
   const [phone, setPhone] = useState(String(userProfile.phone ?? ""));
-  const [avatarInput, setAvatarInput] = useState<string>(avatarUrl || "");
-  const [savingAvatar, setSavingAvatar] = useState(false);
+  const [localAvatarUrl, setLocalAvatarUrl] = useState<string | null>(avatarUrl || null);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [saved, setSaved] = useState(false);
 
   const handleSave = () => {
@@ -993,6 +995,61 @@ function EditProfilePage() {
     Alert.alert("Profile Updated", "Your profile has been updated successfully.");
   };
 
+  async function pickDonorAvatar() {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+    });
+
+    if (result.canceled || !result.assets?.length) return;
+    if (!session) {
+      Alert.alert("Sign in required", "Please sign in to upload a profile image.");
+      return;
+    }
+
+    const asset = result.assets[0];
+    setUploadingAvatar(true);
+
+    try {
+      const formData = new FormData();
+      if (Platform.OS === "web") {
+        const response = await fetch(asset.uri);
+        const blob = await response.blob();
+        formData.append("file", blob, `avatar.${asset.uri.split(".").pop() || "jpg"}`);
+      } else {
+        const uri = asset.uri;
+        const ext = uri.split(".").pop() || "jpg";
+        formData.append("file", { uri, name: `avatar.${ext}`, type: asset.mimeType || `image/${ext}` } as any);
+      }
+
+      const uploadRes = await fetchWithAuth("/api/upload/image", { method: "POST", body: formData });
+      if (!uploadRes.ok) {
+        const err = await uploadRes.json().catch(() => ({}));
+        Alert.alert("Upload Failed", (err as { error?: string }).error || "Could not upload image");
+        return;
+      }
+      const uploadJson = await uploadRes.json() as { url: string };
+
+      const saveRes = await fetchWithAuth("/api/profile/avatar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ avatar_url: uploadJson.url }),
+      });
+      if (saveRes.ok) {
+        setLocalAvatarUrl(uploadJson.url);
+      } else {
+        Alert.alert("Error", "Image uploaded but failed to update profile.");
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Something went wrong while uploading";
+      Alert.alert("Error", msg);
+    } finally {
+      setUploadingAvatar(false);
+    }
+  }
+
   const initials = fullName
     ? fullName
         .split(" ")
@@ -1002,19 +1059,28 @@ function EditProfilePage() {
         .slice(0, 2)
     : "U";
 
+  const displayAvatarUrl = localAvatarUrl || avatarUrl || null;
+
   return (
     <>
       <View style={s2.avatarSection}>
-        <View style={s2.avatarCircle}>
-          {avatarUrl ? (
-            <Image source={{ uri: avatarUrl }} style={s2.avatarImage} cachePolicy="memory-disk" transition={200} />
+        <Pressable onPress={pickDonorAvatar} disabled={uploadingAvatar} style={s2.avatarCircle}>
+          {displayAvatarUrl ? (
+            <Image source={{ uri: displayAvatarUrl }} style={s2.avatarImage} cachePolicy="memory-disk" transition={200} />
           ) : (
             <Text style={s2.avatarText}>{initials || "U"}</Text>
           )}
           <View style={s2.cameraOverlay}>
-            <Ionicons name="camera" size={14} color="#FFFFFF" />
+            {uploadingAvatar ? (
+              <ActivityIndicator size={12} color="#FFFFFF" />
+            ) : (
+              <Ionicons name="camera" size={14} color="#FFFFFF" />
+            )}
           </View>
-        </View>
+        </Pressable>
+        <Text style={[{ fontSize: 12, fontFamily: "Poppins_400Regular", color: c.textMuted, marginTop: 8 }]}>
+          Tap to change photo
+        </Text>
       </View>
       <InfoSection title="Personal Information">
         <View style={styles.fieldGroup}>
@@ -1061,73 +1127,6 @@ function EditProfilePage() {
             placeholderTextColor={c.textLight}
             keyboardType="phone-pad"
           />
-        </View>
-      </InfoSection>
-      <InfoSection title="Profile Photo (optional)">
-        <View style={styles.fieldGroup}>
-          <Text style={[styles.fieldLabel, { color: c.textMuted }]}>Avatar URL</Text>
-          <TextInput
-            style={[styles.fieldInput, { color: c.text, borderColor: c.border, backgroundColor: c.inputBg }]}
-            value={avatarInput}
-            onChangeText={setAvatarInput}
-            placeholder="https://example.com/avatar.jpg"
-            placeholderTextColor={c.textLight}
-            autoCapitalize="none"
-            autoCorrect={false}
-          />
-          <View style={{ flexDirection: "row", gap: 8, marginTop: 8 }}>
-            <Pressable
-              style={[s2.avatarBtn, { borderColor: c.green }]}
-              onPress={async () => {
-                if (!session?.accessToken || !avatarInput.trim()) return;
-                setSavingAvatar(true);
-                try {
-                  const base = getApiUrl().replace(/\/$/, "");
-                  await fetch(`${base}/api/profile/avatar`, {
-                    method: "POST",
-                    headers: {
-                      "Content-Type": "application/json",
-                      Authorization: `Bearer ${session.accessToken}`,
-                    },
-                    body: JSON.stringify({ avatar_url: avatarInput.trim() }),
-                  });
-                  Alert.alert("Updated", "Profile photo updated.");
-                } catch {
-                  Alert.alert("Error", "Could not update profile photo.");
-                } finally {
-                  setSavingAvatar(false);
-                }
-              }}
-            >
-              <Text style={[s2.avatarBtnText, { color: c.green }]}>
-                {savingAvatar ? "Saving..." : "Save avatar"}
-              </Text>
-            </Pressable>
-            <Pressable
-              style={[s2.avatarBtn, { borderColor: c.border }]}
-              onPress={async () => {
-                if (!session?.accessToken) return;
-                setSavingAvatar(true);
-                try {
-                  const base = getApiUrl().replace(/\/$/, "");
-                  await fetch(`${base}/api/profile/avatar`, {
-                    method: "DELETE",
-                    headers: {
-                      Authorization: `Bearer ${session.accessToken}`,
-                    },
-                  });
-                  setAvatarInput("");
-                  Alert.alert("Removed", "Profile photo removed.");
-                } catch {
-                  Alert.alert("Error", "Could not remove profile photo.");
-                } finally {
-                  setSavingAvatar(false);
-                }
-              }}
-            >
-              <Text style={[s2.avatarBtnText, { color: c.text }]}>Remove</Text>
-            </Pressable>
-          </View>
         </View>
       </InfoSection>
       <Pressable style={s2.greenBtn} onPress={handleSave} testID="save-profile-btn">
@@ -2068,6 +2067,12 @@ const s2 = StyleSheet.create({
     backgroundColor: Colors.green,
     alignItems: "center",
     justifyContent: "center",
+    overflow: "hidden",
+  },
+  avatarImage: {
+    width: 90,
+    height: 90,
+    borderRadius: 45,
   },
   avatarText: {
     fontFamily: "Poppins_700Bold",
