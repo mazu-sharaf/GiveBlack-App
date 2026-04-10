@@ -39,7 +39,7 @@ export function SplashLogoAnimation({ onComplete }: Props) {
         }).start(({ finished }) => {
           if (finished) finish();
         });
-      }, 500);
+      }, 3000);
     };
 
     run();
