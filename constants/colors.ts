@@ -25,6 +25,7 @@ export interface ThemeColors {
   walletBg: string;
   successBg: string;
   errorBg: string;
+  sliderInactive: string;
 }
 
 export const lightTheme: ThemeColors = {
@@ -48,6 +49,7 @@ export const lightTheme: ThemeColors = {
   walletBg: GREEN,
   successBg: "#E8F5E9",
   errorBg: "#FFEBEE",
+  sliderInactive: "#BBBBBB",
 };
 
 export const darkTheme: ThemeColors = {
@@ -71,6 +73,7 @@ export const darkTheme: ThemeColors = {
   walletBg: "#1B5E3B",
   successBg: "#1B3A26",
   errorBg: "#3A1B1B",
+  sliderInactive: "#2E2E2E",
 };
 
 const Colors = {

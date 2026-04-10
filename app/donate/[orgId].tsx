@@ -702,7 +702,7 @@ export default function DonateScreen() {
                         style={[
                           styles.sliderDot,
                           {
-                            backgroundColor: val / 100 <= educationRate ? c.green : c.border,
+                            backgroundColor: val / 100 <= educationRate ? c.green : c.sliderInactive,
                             width: val / 100 === educationRate ? 16 : 10,
                             height: val / 100 === educationRate ? 16 : 10,
                             borderRadius: val / 100 === educationRate ? 8 : 5,
@@ -746,7 +746,7 @@ export default function DonateScreen() {
                         style={[
                           styles.sliderDot,
                           {
-                            backgroundColor: val / 100 <= endowmentRate ? c.green : c.border,
+                            backgroundColor: val / 100 <= endowmentRate ? c.green : c.sliderInactive,
                             width: val / 100 === endowmentRate ? 16 : 10,
                             height: val / 100 === endowmentRate ? 16 : 10,
                             borderRadius: val / 100 === endowmentRate ? 8 : 5,
