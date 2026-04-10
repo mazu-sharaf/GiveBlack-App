@@ -1059,7 +1059,13 @@ function EditProfilePage() {
         .slice(0, 2)
     : "U";
 
-  const displayAvatarUrl = localAvatarUrl || avatarUrl || null;
+  function resolveAvatarUrl(url: string | null | undefined): string | null {
+    if (!url) return null;
+    if (url.startsWith("http://") || url.startsWith("https://")) return url;
+    const base = getApiUrl().replace(/\/$/, "");
+    return `${base}${url.startsWith("/") ? "" : "/"}${url}`;
+  }
+  const displayAvatarUrl = resolveAvatarUrl(localAvatarUrl) || resolveAvatarUrl(avatarUrl) || null;
 
   return (
     <>
