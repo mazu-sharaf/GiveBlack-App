@@ -147,7 +147,7 @@ export default function DonorSignupScreen() {
 
     setLoading(false);
     if (success) {
-      navigateAfterAuth("donor");
+      router.replace({ pathname: "/(auth)/signup-success", params: { name: firstName } });
     }
   }
 

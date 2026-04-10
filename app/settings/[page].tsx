@@ -1677,90 +1677,41 @@ function PrivacySettingsPage() {
   );
 }
 
+const INVITE_SHARE_MESSAGE =
+  "I just joined GiveBlack — a platform that connects donors with Black-led causes and community programs. Come support with me! https://giveblackapp.com";
+
 function InviteFriendsPage() {
   const c = useThemeColors();
-  const [search, setSearch] = useState("");
-  const [invited, setInvited] = useState<string[]>([]);
 
-  const contacts = [
-    { id: "c1", name: "Aisha Johnson", phone: "(555) 123-4567", color: "#E91E63" },
-    { id: "c2", name: "Brandon Williams", phone: "(555) 234-5678", color: "#9C27B0" },
-    { id: "c3", name: "Crystal Brown", phone: "(555) 345-6789", color: "#2196F3" },
-    { id: "c4", name: "David Thompson", phone: "(555) 456-7890", color: "#4CAF50" },
-    { id: "c5", name: "Ebony Davis", phone: "(555) 567-8901", color: "#FF9800" },
-    { id: "c6", name: "Franklin Moore", phone: "(555) 678-9012", color: "#00BCD4" },
-    { id: "c7", name: "Grace Taylor", phone: "(555) 789-0123", color: "#795548" },
-    { id: "c8", name: "Howard Jackson", phone: "(555) 890-1234", color: "#607D8B" },
-    { id: "c9", name: "Imani Harris", phone: "(555) 901-2345", color: "#F44336" },
-    { id: "c10", name: "Jamal Clark", phone: "(555) 012-3456", color: "#3F51B5" },
-  ];
-
-  const filtered = contacts.filter((ct) =>
-    ct.name.toLowerCase().includes(search.toLowerCase())
-  );
-
-  const toggleInvite = (id: string) => {
-    setInvited((prev) =>
-      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
-    );
-  };
+  async function handleShare() {
+    try {
+      await Share.share({ message: INVITE_SHARE_MESSAGE });
+    } catch {
+      // user cancelled or share unavailable
+    }
+  }
 
   return (
     <>
-      <View style={[s2.searchBar, { backgroundColor: c.cardBg, borderColor: c.border }]}>
-        <Ionicons name="search" size={18} color={c.textLight} />
-        <TextInput
-          style={[s2.searchInput, { color: c.text }]}
-          placeholder="Search contacts..."
-          placeholderTextColor={c.textLight}
-          value={search}
-          onChangeText={setSearch}
-        />
-        {search.length > 0 && (
-          <Pressable onPress={() => setSearch("")}>
-            <Ionicons name="close-circle" size={18} color={c.textLight} />
-          </Pressable>
-        )}
+      <View style={[s2.inviteHeroCard, { backgroundColor: c.cardBg }]}>
+        <View style={[s2.inviteIconCircle, { backgroundColor: c.background }]}>
+          <Ionicons name="people" size={32} color={Colors.green} />
+        </View>
+        <Text style={[s2.inviteHeroTitle, { color: c.text }]}>Spread the word</Text>
+        <Text style={[s2.inviteHeroSubtitle, { color: c.textMuted }]}>
+          Invite friends to join GiveBlack and support Black-led causes together. Share via Messages, WhatsApp, email, or any app you like.
+        </Text>
       </View>
-      <View style={[styles.sectionCard, { backgroundColor: c.cardBg, shadowColor: c.cardShadow }]}>
-        {filtered.map((contact, i) => {
-          const isInvited = invited.includes(contact.id);
-          const initials = contact.name
-            .split(" ")
-            .map((w) => w[0])
-            .join("");
-          return (
-            <React.Fragment key={contact.id}>
-              {i > 0 && <View style={[styles.sep, { backgroundColor: c.border }]} />}
-              <View style={s2.contactRow}>
-                <View style={[s2.contactAvatar, { backgroundColor: contact.color }]}>
-                  <Text style={s2.contactInitials}>{initials}</Text>
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={[s2.contactName, { color: c.text }]}>{contact.name}</Text>
-                  <Text style={[s2.contactPhone, { color: c.textLight }]}>{contact.phone}</Text>
-                </View>
-                <Pressable
-                  style={[
-                    s2.inviteBtn,
-                    isInvited && s2.invitedBtn,
-                  ]}
-                  onPress={() => toggleInvite(contact.id)}
-                >
-                  <Text
-                    style={[
-                      s2.inviteBtnText,
-                      isInvited && s2.invitedBtnText,
-                    ]}
-                  >
-                    {isInvited ? "Invited" : "Invite"}
-                  </Text>
-                </Pressable>
-              </View>
-            </React.Fragment>
-          );
-        })}
+
+      <View style={[s2.invitePreviewCard, { backgroundColor: c.cardBg, borderColor: c.border }]}>
+        <Text style={[s2.invitePreviewLabel, { color: c.textMuted }]}>Your invite message</Text>
+        <Text style={[s2.invitePreviewText, { color: c.text }]}>{INVITE_SHARE_MESSAGE}</Text>
       </View>
+
+      <Pressable style={s2.inviteShareBtn} onPress={handleShare}>
+        <Ionicons name="share-social-outline" size={20} color={Colors.white} />
+        <Text style={s2.inviteShareBtnText}>Share GiveBlack</Text>
+      </Pressable>
     </>
   );
 }
@@ -2226,23 +2177,67 @@ const s2 = StyleSheet.create({
     color: Colors.textLight,
     marginTop: 2,
   },
-  inviteBtn: {
-    borderWidth: 1.5,
-    borderColor: Colors.green,
-    borderRadius: 20,
-    paddingHorizontal: 18,
-    paddingVertical: 6,
+  inviteHeroCard: {
+    borderRadius: 16,
+    padding: 24,
+    alignItems: "center",
+    marginBottom: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 1,
   },
-  inviteBtnText: {
+  inviteIconCircle: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 16,
+  },
+  inviteHeroTitle: {
+    fontFamily: "Poppins_700Bold",
+    fontSize: 20,
+    marginBottom: 10,
+    textAlign: "center",
+  },
+  inviteHeroSubtitle: {
+    fontFamily: "Poppins_400Regular",
+    fontSize: 14,
+    lineHeight: 22,
+    textAlign: "center",
+  },
+  invitePreviewCard: {
+    borderRadius: 14,
+    padding: 16,
+    borderWidth: 1,
+    marginBottom: 20,
+  },
+  invitePreviewLabel: {
     fontFamily: "Poppins_500Medium",
-    fontSize: 13,
-    color: Colors.green,
+    fontSize: 12,
+    marginBottom: 8,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
   },
-  invitedBtn: {
+  invitePreviewText: {
+    fontFamily: "Poppins_400Regular",
+    fontSize: 14,
+    lineHeight: 22,
+  },
+  inviteShareBtn: {
     backgroundColor: Colors.green,
-    borderColor: Colors.green,
+    borderRadius: 30,
+    paddingVertical: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
   },
-  invitedBtnText: {
+  inviteShareBtnText: {
+    fontFamily: "Poppins_700Bold",
+    fontSize: 16,
     color: Colors.white,
   },
   txDetail: {

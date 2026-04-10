@@ -112,6 +112,35 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
       role: user.role,
     });
 
+    // Fire-and-forget: welcome email to new donor
+    void (async () => {
+      try {
+        const { sendBrevoEmail } = await import("../services/brevo.js");
+        const { emailLayout, ctaButton } = await import("../services/email-template.js");
+        const firstName = body.name.trim().split(" ")[0];
+        const appUrl = process.env.APP_URL || "https://giveblackapp.com";
+        const content = `
+          <h2 style="color:#ffffff;margin:0 0 8px 0;font-size:22px;">Welcome to GiveBlack, ${firstName}!</h2>
+          <p style="color:#cccccc;margin:0 0 16px 0;font-size:16px;line-height:1.6;">
+            Thank you for joining our community of givers. GiveBlack connects donors like you with Black-led
+            education and community programs that are making a real difference.
+          </p>
+          <p style="color:#cccccc;margin:0 0 24px 0;font-size:16px;line-height:1.6;">
+            Browse organizations, support campaigns, and invite your friends to join the movement.
+          </p>
+          ${ctaButton(appUrl, "Start Exploring")}
+        `;
+        await sendBrevoEmail({
+          to: email,
+          subject: `Welcome to GiveBlack, ${firstName}!`,
+          html: emailLayout(content),
+          tags: ["giveblack", "welcome"],
+        });
+      } catch (err) {
+        app.log.warn({ err, email }, "Failed to send donor welcome email");
+      }
+    })();
+
     return reply.code(201).send({
       success: true,
       accessToken: tokens.accessToken,
