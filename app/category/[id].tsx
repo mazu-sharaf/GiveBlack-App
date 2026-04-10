@@ -52,7 +52,9 @@ export default function CategoryScreen() {
 
   const { categories, organizations } = useApp();
   const category = categories.find((ct) => ct.id === id);
-  const orgs = organizations.filter((o) => o.categoryId === id);
+  const orgs = organizations
+    .filter((o) => o.categoryId === id)
+    .sort((a, b) => a.name.localeCompare(b.name));
   const filtered = search.trim()
     ? orgs.filter((o) => o.name.toLowerCase().includes(search.toLowerCase()))
     : orgs;

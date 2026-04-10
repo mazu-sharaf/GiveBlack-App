@@ -23,7 +23,7 @@ export const publicRoutes: FastifyPluginAsync = async (app) => {
         `select id, name, description, raised, goal, donor_count, image_url, category_id
          from organizations
          where archived_at is null
-         order by featured desc nulls last, created_at desc
+         order by name asc
          limit 200`
       );
       return result.rows;
@@ -215,7 +215,7 @@ export const publicRoutes: FastifyPluginAsync = async (app) => {
         `select id, name, description, raised, goal, donor_count, image_url, category_id
          from organizations
          where archived_at is null and category_id = $1
-         order by featured desc nulls last, created_at desc
+         order by name asc
          limit 100`,
         [categoryId]
       );
