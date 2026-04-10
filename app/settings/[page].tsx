@@ -1020,8 +1020,9 @@ function EditProfilePage() {
         formData.append("file", blob, `avatar.${asset.uri.split(".").pop() || "jpg"}`);
       } else {
         const uri = asset.uri;
-        const ext = uri.split(".").pop() || "jpg";
-        formData.append("file", { uri, name: `avatar.${ext}`, type: asset.mimeType || `image/${ext}` } as any);
+        const ext = (uri.split(".").pop() || "jpg").toLowerCase();
+        const mime = asset.mimeType || `image/${ext === "jpg" ? "jpeg" : ext}`;
+        formData.append("file", { uri, name: `avatar.${ext}`, type: mime } as any);
       }
 
       const uploadRes = await fetchWithAuth("/api/upload/image", { method: "POST", body: formData });
