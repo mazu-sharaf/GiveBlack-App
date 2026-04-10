@@ -29,13 +29,15 @@ export function SplashLogoAnimation({ onComplete }: Props) {
         /* ignore — web or double-call */
       }
 
-      Animated.timing(opacity, {
-        toValue: 0,
-        duration: Platform.OS === "web" ? 150 : 200,
-        useNativeDriver: true,
-      }).start(({ finished }) => {
-        if (finished) finish();
-      });
+      setTimeout(() => {
+        Animated.timing(opacity, {
+          toValue: 0,
+          duration: Platform.OS === "web" ? 150 : 200,
+          useNativeDriver: true,
+        }).start(({ finished }) => {
+          if (finished) finish();
+        });
+      }, 3000);
     };
 
     run();
