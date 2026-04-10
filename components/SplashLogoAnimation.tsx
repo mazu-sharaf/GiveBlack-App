@@ -16,8 +16,6 @@ export function SplashLogoAnimation({ onComplete }: Props) {
   const doneRef = useRef(false);
 
   useEffect(() => {
-    let timeoutId: ReturnType<typeof setTimeout> | undefined;
-
     const finish = () => {
       if (doneRef.current) return;
       doneRef.current = true;
@@ -31,22 +29,16 @@ export function SplashLogoAnimation({ onComplete }: Props) {
         /* ignore — web or double-call */
       }
 
-      timeoutId = setTimeout(() => {
-        Animated.timing(opacity, {
-          toValue: 0,
-          duration: Platform.OS === "web" ? 200 : 280,
-          useNativeDriver: true,
-        }).start(({ finished }) => {
-          if (finished) finish();
-        });
-      }, 3000);
+      Animated.timing(opacity, {
+        toValue: 0,
+        duration: Platform.OS === "web" ? 150 : 200,
+        useNativeDriver: true,
+      }).start(({ finished }) => {
+        if (finished) finish();
+      });
     };
 
     run();
-
-    return () => {
-      if (timeoutId) clearTimeout(timeoutId);
-    };
   }, [opacity, onComplete]);
 
   return (
