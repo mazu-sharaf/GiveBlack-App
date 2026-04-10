@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { View, ActivityIndicator, StyleSheet } from "react-native";
+import { View, StyleSheet } from "react-native";
 import { Redirect } from "expo-router";
 import { useAuth } from "@/context/AuthContext";
 import { useThemeColors } from "@/context/ThemeContext";
@@ -24,11 +24,7 @@ export default function Index() {
   }, [isLoading, isAuthenticated]);
 
   if (isLoading || !authGateReady) {
-    return (
-      <View style={[styles.centered, { backgroundColor: c.background }]}>
-        <ActivityIndicator size="large" color={c.green} />
-      </View>
-    );
+    return <View style={[styles.centered, { backgroundColor: c.background }]} />;
   }
 
   if (!isAuthenticated && !seenOnboarding) {
