@@ -97,6 +97,7 @@ const Colors = {
   walletBg: GREEN,
   successBg: "#E8F5E9",
   errorBg: "#FFEBEE",
+  sliderInactive: "#BBBBBB",
   light: {
     text: BLACK,
     background: CREAM,
