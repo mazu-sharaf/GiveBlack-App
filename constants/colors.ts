@@ -49,7 +49,7 @@ export const lightTheme: ThemeColors = {
   walletBg: GREEN,
   successBg: "#E8F5E9",
   errorBg: "#FFEBEE",
-  sliderInactive: "#BBBBBB",
+  sliderInactive: "#8C8C8C",
 };
 
 export const darkTheme: ThemeColors = {
@@ -97,7 +97,7 @@ const Colors = {
   walletBg: GREEN,
   successBg: "#E8F5E9",
   errorBg: "#FFEBEE",
-  sliderInactive: "#BBBBBB",
+  sliderInactive: "#8C8C8C",
   light: {
     text: BLACK,
     background: CREAM,

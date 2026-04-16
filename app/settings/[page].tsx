@@ -996,18 +996,27 @@ function EditProfilePage() {
   };
 
   async function pickDonorAvatar() {
+    if (Platform.OS !== "web") {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert("Permission needed", "Please allow access to your photo library in Settings.");
+        return;
+      }
+    }
+
+    if (!session) {
+      Alert.alert("Sign in required", "Please sign in to upload a profile image.");
+      return;
+    }
+
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ["images"],
       allowsEditing: true,
       aspect: [1, 1],
       quality: 0.8,
     });
 
     if (result.canceled || !result.assets?.length) return;
-    if (!session) {
-      Alert.alert("Sign in required", "Please sign in to upload a profile image.");
-      return;
-    }
 
     const asset = result.assets[0];
     setUploadingAvatar(true);
@@ -1017,10 +1026,12 @@ function EditProfilePage() {
       if (Platform.OS === "web") {
         const response = await fetch(asset.uri);
         const blob = await response.blob();
-        formData.append("file", blob, `avatar.${asset.uri.split(".").pop() || "jpg"}`);
+        const mimeType = asset.mimeType || blob.type || "image/jpeg";
+        const extFromMime = mimeType.split("/")[1]?.replace("jpeg", "jpg") || "jpg";
+        formData.append("file", new Blob([blob], { type: mimeType }), `avatar.${extFromMime}`);
       } else {
         const uri = asset.uri;
-        const ext = (uri.split(".").pop() || "jpg").toLowerCase();
+        const ext = (uri.split(".").pop()?.split("?")[0] || "jpg").toLowerCase();
         const mime = asset.mimeType || `image/${ext === "jpg" ? "jpeg" : ext}`;
         formData.append("file", { uri, name: `avatar.${ext}`, type: mime } as any);
       }
