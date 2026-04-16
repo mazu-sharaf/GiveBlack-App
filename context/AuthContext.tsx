@@ -370,6 +370,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   function mapOAuthHttpError(status: number, payload: Record<string, unknown>): { error: string; errorType: OAuthLoginErrorType } {
     const msg = typeof payload.error === "string" ? payload.error : "";
+    if (status === 404) {
+      return {
+        error:
+          !msg || msg === "Not Found"
+            ? "API not found. Check EXPO_PUBLIC_API_URL matches your server (e.g. https://giveblackapp.com/app if the API is under /app)."
+            : msg,
+        errorType: "other",
+      };
+    }
     if (status === 503) {
       return {
         error: msg || "This sign-in method is not configured on the server.",

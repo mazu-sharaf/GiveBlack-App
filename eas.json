@@ -12,6 +12,10 @@
       "distribution": "internal"
     },
     "production": {
+      "env": {
+        "EXPO_PUBLIC_DOMAIN": "giveblackapp.com",
+        "EXPO_PUBLIC_API_URL": "https://giveblackapp.com/app"
+      },
       "android": {
         "buildType": "app-bundle"
       },
@@ -22,6 +26,11 @@
     }
   },
   "submit": {
-    "production": {}
+    "production": {
+      "ios": {
+        "ascAppId": "1474463975",
+        "appleTeamId": "W5NB3UT9SS"
+      }
+    }
   }
 }

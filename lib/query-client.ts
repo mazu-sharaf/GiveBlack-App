@@ -3,24 +3,32 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const TOKEN_KEY = "@gb_access_token";
 const REFRESH_TOKEN_KEY = "@gb_refresh_token";
+const PROD_DOMAIN = "giveblackapp.com";
+const PROD_API_URL = "https://giveblackapp.com/app/";
+
+function normalizeUrl(url: string): string {
+  return url.replace(/\/?$/, "/");
+}
+
+function isLocalhost(url: string): boolean {
+  return url.includes("localhost") || url.includes("127.0.0.1");
+}
 
 export function getApiUrl(): string {
   const envUrl = process.env.EXPO_PUBLIC_API_URL || "";
   if (Platform.OS === "web" && typeof window !== "undefined") {
-    if (envUrl && !envUrl.includes("localhost")) return envUrl.replace(/\/?$/, "/");
+    if (envUrl && !isLocalhost(envUrl)) return normalizeUrl(envUrl);
     const host = window.location.hostname;
     const protocol = window.location.protocol;
     return `${protocol}//${host}:5000/`;
   }
-  const isLocalhost = (u: string) =>
-    u.includes("localhost") || u.includes("127.0.0.1");
-  if (envUrl && !isLocalhost(envUrl)) return envUrl.replace(/\/?$/, "/");
+  if (envUrl && !isLocalhost(envUrl)) return normalizeUrl(envUrl);
   const domain = process.env.EXPO_PUBLIC_DOMAIN || "";
   if (domain && !isLocalhost(domain)) {
-    return `https://${domain}/`;
+    return domain.replace(/\/+$/, "") === PROD_DOMAIN ? PROD_API_URL : `https://${domain}/`;
   }
-  if (envUrl) return envUrl.replace(/\/?$/, "/");
-  return "https://giveblackapp.com/";
+  if (envUrl) return normalizeUrl(envUrl);
+  return PROD_API_URL;
 }
 
 async function tryRefreshToken(): Promise<string | null> {
