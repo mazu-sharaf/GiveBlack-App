@@ -1,5 +1,4 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { useFocusEffect } from "@react-navigation/native";
 import {
   View,
   Text,
@@ -17,7 +16,7 @@ import {
 } from "react-native";
 import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
 import { useSafeInsets } from "@/lib/safe-area";
 import { Ionicons } from "@expo/vector-icons";
 import Colors from "@/constants/colors";

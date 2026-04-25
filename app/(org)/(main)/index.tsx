@@ -1,5 +1,4 @@
 import React, { useState, useCallback } from "react";
-import { useFocusEffect } from "@react-navigation/native";
 import {
   View,
   Text,
@@ -15,7 +14,7 @@ import { useThemeColors } from "@/context/ThemeContext";
 import { useAuth } from "@/context/AuthContext";
 import { donorDisplayName } from "@/lib/donor-display";
 import { Ionicons } from "@expo/vector-icons";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 
 interface SubData {
   org_id: string | null;

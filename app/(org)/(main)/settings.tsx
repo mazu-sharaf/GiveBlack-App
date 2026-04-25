@@ -14,7 +14,6 @@ import {
   FlatList,
 } from "react-native";
 import * as WebBrowser from "expo-web-browser";
-import { useFocusEffect } from "@react-navigation/native";
 import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
 import { useSafeInsets } from "@/lib/safe-area";
@@ -22,7 +21,7 @@ import { useTheme, useThemeColors } from "@/context/ThemeContext";
 import { useAuth } from "@/context/AuthContext";
 import { getApiUrl } from "@/lib/query-client";
 import { Ionicons } from "@expo/vector-icons";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import Colors from "@/constants/colors";
 
 type CategoryOption = { id: string; name: string };

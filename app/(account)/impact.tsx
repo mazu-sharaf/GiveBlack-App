@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { useFocusEffect } from "@react-navigation/native";
+import { useFocusEffect } from "expo-router";
 import { View, Text, StyleSheet, ScrollView, ActivityIndicator } from "react-native";
 import { Image } from "expo-image";
 import { useSafeInsets } from "@/lib/safe-area";

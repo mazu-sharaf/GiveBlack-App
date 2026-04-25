@@ -1,5 +1,4 @@
 import React, { useCallback, useState } from "react";
-import { useFocusEffect } from "@react-navigation/native";
 import {
   View,
   Text,
@@ -13,7 +12,7 @@ import {
 } from "react-native";
 import { Image } from "expo-image";
 import { useSafeInsets } from "@/lib/safe-area";
-import { router, useLocalSearchParams } from "expo-router";
+import { router, useLocalSearchParams, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useApp, type Campaign } from "@/context/AppContext";
 import { useThemeColors } from "@/context/ThemeContext";
