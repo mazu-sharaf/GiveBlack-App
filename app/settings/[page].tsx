@@ -1095,12 +1095,14 @@ function EditProfilePage() {
   return (
     <>
       <View style={s2.avatarSection}>
-        <Pressable onPress={pickDonorAvatar} disabled={uploadingAvatar} style={s2.avatarCircle}>
-          {displayAvatarUrl ? (
-            <Image source={{ uri: displayAvatarUrl }} style={s2.avatarImage} cachePolicy="memory-disk" transition={200} />
-          ) : (
-            <Text style={s2.avatarText}>{initials || "U"}</Text>
-          )}
+        <Pressable onPress={pickDonorAvatar} disabled={uploadingAvatar} style={s2.avatarWrapper}>
+          <View style={[s2.avatarCircle, { backgroundColor: c.green }]}>
+            {displayAvatarUrl ? (
+              <Image source={{ uri: displayAvatarUrl }} style={s2.avatarImage} cachePolicy="memory-disk" transition={200} />
+            ) : (
+              <Text style={s2.avatarText}>{initials || "U"}</Text>
+            )}
+          </View>
           <View style={s2.cameraOverlay}>
             {uploadingAvatar ? (
               <ActivityIndicator size={12} color="#FFFFFF" />
@@ -2123,11 +2125,14 @@ const s2 = StyleSheet.create({
     alignItems: "center",
     paddingVertical: 24,
   },
+  avatarWrapper: {
+    width: 90,
+    height: 90,
+  },
   avatarCircle: {
     width: 90,
     height: 90,
     borderRadius: 45,
-    backgroundColor: Colors.green,
     alignItems: "center",
     justifyContent: "center",
     overflow: "hidden",
