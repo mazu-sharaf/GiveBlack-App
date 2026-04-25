@@ -48,6 +48,8 @@ function ImpactContent() {
           const json = await res.json();
           setTopDonors(json.donors || []);
         }
+      } catch {
+        // Network error — show empty state
       } finally {
         setLoading(false);
       }

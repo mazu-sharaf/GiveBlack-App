@@ -5,8 +5,6 @@ import * as SplashScreen from "expo-splash-screen";
 
 const splashImage = require("@/assets/images/splash-image.png");
 
-Image.prefetch(splashImage);
-
 const SPLASH_BG = "#E9EFD6";
 
 type Props = {
