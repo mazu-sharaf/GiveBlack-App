@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from "react";
-import { View, Text, Pressable, StyleSheet, useWindowDimensions } from "react-native";
+import React, { useEffect, useRef, useState } from "react";
+import { Animated, Keyboard, Platform, View, Text, Pressable, StyleSheet, useWindowDimensions } from "react-native";
 import { Tabs } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useThemeColors } from "@/context/ThemeContext";
@@ -35,6 +35,33 @@ function SimpleTabBar({ state, navigation }: any) {
   const { isGuest, pendingDonationCount, refreshPendingDonationCount } = useAuth();
 
   const [guestPending, setGuestPending] = useState(false);
+  const translateY = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const hideDistance = BAR_H + FAB_RISE + FAB_SIZE / 2 + Math.max(insets.bottom, 8) + 20;
+
+    const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const hideEvent = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+
+    const show = Keyboard.addListener(showEvent, () => {
+      Animated.timing(translateY, {
+        toValue: hideDistance,
+        duration: 250,
+        useNativeDriver: true,
+      }).start();
+    });
+    const hide = Keyboard.addListener(hideEvent, () => {
+      Animated.timing(translateY, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }).start();
+    });
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, [translateY, insets.bottom]);
 
   useEffect(() => {
     if (!isGuest) {
@@ -64,7 +91,7 @@ function SimpleTabBar({ state, navigation }: any) {
   };
 
   return (
-    <View style={[styles.outer, { paddingBottom: Math.max(insets.bottom, 8) + 6 }]}>
+    <Animated.View style={[styles.outer, { paddingBottom: Math.max(insets.bottom, 8) + 6 }, { transform: [{ translateY }] }]}>
       <View style={[styles.barContainer, { width: barWidth }]}>
         <View style={[styles.bar, { backgroundColor: BAR_COLOR }]}>
           {TABS.map((tab) => {
@@ -120,7 +147,7 @@ function SimpleTabBar({ state, navigation }: any) {
           )}
         </Pressable>
       </View>
-    </View>
+    </Animated.View>
   );
 }
 
