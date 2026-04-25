@@ -16,9 +16,9 @@ export const logoWhite = require("@/assets/images/logo-white.webp");
 export const splashLogo = require("@/assets/images/splash-logo-main.webp");
 
 export const onboardingSlides = [
-  require("@/assets/images/onboarding-slide-1.png"),
-  require("@/assets/images/onboarding-slide-2.png"),
-  require("@/assets/images/onboarding-slide-3.png"),
+  require("@/assets/images/onboarding-slide-1.webp"),
+  require("@/assets/images/onboarding-slide-2.webp"),
+  require("@/assets/images/onboarding-slide-3.webp"),
 ];
 
 export const onboardingPeople = [
