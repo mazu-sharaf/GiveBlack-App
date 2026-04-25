@@ -348,8 +348,8 @@ function campaignShareLandingPage(opts: {
   const web = escHtml(opts.webCampaignUrl);
   const cTitle = escHtml(opts.campaignTitle);
   const iconHref = escHtml(opts.brandIconUrl);
-  const apple = escHtml(opts.appleUrl);
-  const play = escHtml(opts.playUrl);
+  const appleJs = JSON.stringify(opts.appleUrl);
+  const playJs = JSON.stringify(opts.playUrl);
   return `<!DOCTYPE html>
 <html lang="en"><head>
 <meta charset="utf-8"/>
@@ -384,8 +384,8 @@ a.btn:hover{background:#047857;}
   var ua=navigator.userAgent;
   var isIOS=/iPhone|iPad|iPod/i.test(ua)||(navigator.platform==="MacIntel"&&navigator.maxTouchPoints>1);
   var isAndroid=/Android/i.test(ua);
-  if(isIOS){window.location.replace("${apple}");}
-  else if(isAndroid){window.location.replace("${play}");}
+  if(isIOS){window.location.replace(${appleJs});}
+  else if(isAndroid){window.location.replace(${playJs});}
 })();
 </script>
 </head><body>
