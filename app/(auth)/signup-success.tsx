@@ -25,7 +25,7 @@ const ACTIONS = [
     icon: "business-outline",
     title: "Browse Organizations",
     subtitle: "Discover Black-led nonprofits and causes",
-    href: "/(tabs)/categories" as const,
+    href: "/categories" as const,
   },
   {
     icon: "heart-outline",

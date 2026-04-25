@@ -177,7 +177,7 @@ export default function GiveScreen() {
                         params: { id: featuredCampaignId, quick_amount: String(amt) },
                       });
                     } else {
-                      router.push("/(tabs)/categories");
+                      router.push("/categories");
                     }
                   }}
                   style={({ pressed }) => [
@@ -227,7 +227,7 @@ export default function GiveScreen() {
 
         <Animated.View entering={FadeInDown.delay(200).duration(400)} style={styles.browseSection}>
           <Pressable
-            onPress={() => router.push("/(tabs)/categories")}
+            onPress={() => router.push("/categories")}
             style={[
               styles.browseBtn,
               { backgroundColor: c.green },

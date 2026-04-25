@@ -255,7 +255,7 @@ export default function HomeScreen() {
 
         <View style={styles.sectionHeader}>
           <Text style={[styles.sectionTitle, { color: c.text }]}>Categories</Text>
-          <Pressable onPress={() => router.push("/(tabs)/categories")}>
+          <Pressable onPress={() => router.push("/categories")}>
             <Text style={[styles.seeAll, { color: c.green }]}>See all</Text>
           </Pressable>
         </View>
