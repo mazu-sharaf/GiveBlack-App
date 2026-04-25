@@ -19,13 +19,33 @@ import { useAuth } from "@/context/AuthContext";
 import { navigateAfterAuth } from "@/lib/auth-navigation";
 import { alertDonorOAuthFailure } from "@/lib/donor-oauth-ui";
 import { useThemeColors } from "@/context/ThemeContext";
+import { useApp } from "@/context/AppContext";
+
+function parseDonationContext(returnTo?: string): { orgId: string; amount: number } | null {
+  if (!returnTo) return null;
+  const match = returnTo.match(/^\/donate\/([^?/]+)/);
+  if (!match) return null;
+  const orgId = match[1];
+  const search = returnTo.includes("?") ? returnTo.split("?")[1] : "";
+  const urlParams = new URLSearchParams(search);
+  const amountStr = urlParams.get("amount");
+  if (!amountStr) return null;
+  const amount = parseFloat(amountStr);
+  if (!Number.isFinite(amount) || amount <= 0) return null;
+  return { orgId, amount };
+}
 
 export default function DonorLoginScreen() {
   const insets = useSafeInsets();
   const { login, loginWithGoogle, loginWithApple } = useAuth();
   const c = useThemeColors();
+  const { organizations } = useApp();
   const params = useLocalSearchParams<{ returnTo?: string }>();
   const returnTo = params.returnTo ? String(params.returnTo) : undefined;
+
+  const donationCtx = parseDonationContext(returnTo);
+  const donationOrg = donationCtx ? organizations.find((o) => o.id === donationCtx.orgId) : null;
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -104,6 +124,18 @@ export default function DonorLoginScreen() {
         keyboardDismissMode="interactive"
       >
         <Text style={[styles.title, { color: c.text }]}>Login to your{"\n"}Account</Text>
+
+        {donationCtx && donationOrg && (
+          <View style={[styles.donateBanner, { backgroundColor: c.green + "14", borderColor: c.green + "40" }]}>
+            <Ionicons name="heart" size={16} color={c.green} style={{ marginRight: 10, flexShrink: 0 }} />
+            <Text style={[styles.donateBannerText, { color: c.text }]}>
+              {"You're donating "}
+              <Text style={{ fontFamily: "SpaceGrotesk_700Bold", color: c.green }}>${donationCtx.amount % 1 === 0 ? donationCtx.amount.toFixed(0) : donationCtx.amount.toFixed(2)}</Text>
+              {" to "}
+              <Text style={{ fontFamily: "SpaceGrotesk_600SemiBold" }}>{donationOrg.name}</Text>
+            </Text>
+          </View>
+        )}
 
         {!!errorMessage && (
           <View style={styles.errorBar}>
@@ -476,5 +508,20 @@ const styles = StyleSheet.create({
     fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 13,
     color: Colors.textMuted,
+  },
+  donateBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginBottom: 16,
+  },
+  donateBannerText: {
+    fontFamily: "SpaceGrotesk_500Medium",
+    fontSize: 14,
+    flex: 1,
+    lineHeight: 20,
   },
 });
