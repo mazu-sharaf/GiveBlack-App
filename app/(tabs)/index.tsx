@@ -10,7 +10,7 @@ import {
   RefreshControl,
   useWindowDimensions,
 } from "react-native";
-import { useFocusEffect, useNavigation } from "@react-navigation/native";
+import { useFocusEffect } from "@react-navigation/native";
 import { Image } from "expo-image";
 import { router } from "expo-router";
 import { useSafeInsets } from "@/lib/safe-area";
@@ -30,7 +30,6 @@ import CampaignCard from "@/components/ui/CampaignCard";
 const PADDING_H = 20;
 
 export default function HomeScreen() {
-  const navigation = useNavigation<any>();
   const {
     totalDonated,
     organizations,
