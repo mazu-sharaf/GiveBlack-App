@@ -205,11 +205,46 @@ export default function DonateScreen() {
     return (
       <View style={[styles.container, { backgroundColor: c.background }]}>
         <AppHeader showBack title="Donate" showSearch={false} />
-        <View style={styles.centerContent}>
-          <Ionicons name="lock-closed-outline" size={48} color={c.textMuted} />
-          <Text style={[styles.centerText, { color: c.text }]}>Please sign in to donate</Text>
-          <Pressable style={[styles.btn, { backgroundColor: c.green }]} onPress={() => router.push("/(auth)/donor-login")}>
-            <Text style={styles.btnText}>Sign In</Text>
+        <View style={styles.authGateWrap}>
+          <View style={[styles.authGateCard, { backgroundColor: c.cardBg }]}>
+            <View style={[styles.authGateIconRing, { backgroundColor: c.green + "15", borderColor: c.green + "30" }]}>
+              <Ionicons name="heart" size={34} color={c.green} />
+            </View>
+            <Text style={[styles.authGateHeading, { color: c.text }]}>
+              Create a free account to donate
+            </Text>
+            <Text style={[styles.authGateBody, { color: c.textMuted }]}>
+              {"You're one step away from supporting "}
+              <Text style={{ color: c.text, fontFamily: "Poppins_600SemiBold" }}>{org.name}</Text>
+              {". It's free and takes 30 seconds."}
+            </Text>
+
+            <Pressable
+              style={[styles.authGatePrimaryBtn, { backgroundColor: c.green }]}
+              onPress={() => router.push("/(auth)/donor-signup")}
+            >
+              <Text style={styles.authGatePrimaryBtnText}>Create Free Account</Text>
+            </Pressable>
+
+            <Pressable
+              style={[styles.authGateSecondaryBtn, { borderColor: c.border }]}
+              onPress={() => router.push("/(auth)/donor-login")}
+            >
+              <Text style={[styles.authGateSecondaryBtnText, { color: c.text }]}>Sign In</Text>
+            </Pressable>
+
+            <Pressable style={styles.authGateBackLink} onPress={() => router.back()}>
+              <Ionicons name="arrow-back-outline" size={14} color={c.textMuted} />
+              <Text style={[styles.authGateBackText, { color: c.textMuted }]}>Browse campaigns</Text>
+            </Pressable>
+          </View>
+
+          <Pressable
+            style={styles.authGateCharityRow}
+            onPress={() => router.push("/(auth)/charity-login")}
+          >
+            <Text style={[styles.authGateCharityText, { color: c.textMuted }]}>Are you a charity? </Text>
+            <Text style={[styles.authGateCharityLink, { color: c.green }]}>Sign in here</Text>
           </Pressable>
         </View>
       </View>
@@ -1175,4 +1210,94 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
   },
   doneBtnText: { fontFamily: "Poppins_600SemiBold", fontSize: 18, color: "#fff" },
+
+  authGateWrap: {
+    flex: 1,
+    paddingHorizontal: 24,
+    paddingTop: 32,
+    paddingBottom: 40,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  authGateCard: {
+    width: "100%",
+    borderRadius: 20,
+    padding: 28,
+    alignItems: "center",
+    gap: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 4,
+  },
+  authGateIconRing: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    borderWidth: 1.5,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 4,
+  },
+  authGateHeading: {
+    fontFamily: "Poppins_700Bold",
+    fontSize: 20,
+    textAlign: "center",
+    lineHeight: 28,
+  },
+  authGateBody: {
+    fontFamily: "Poppins_400Regular",
+    fontSize: 14,
+    textAlign: "center",
+    lineHeight: 22,
+    marginBottom: 4,
+  },
+  authGatePrimaryBtn: {
+    width: "100%",
+    borderRadius: 30,
+    paddingVertical: 16,
+    alignItems: "center",
+  },
+  authGatePrimaryBtnText: {
+    fontFamily: "Poppins_700Bold",
+    fontSize: 16,
+    color: "#FFFFFF",
+  },
+  authGateSecondaryBtn: {
+    width: "100%",
+    borderRadius: 30,
+    paddingVertical: 15,
+    alignItems: "center",
+    borderWidth: 1.5,
+  },
+  authGateSecondaryBtnText: {
+    fontFamily: "Poppins_600SemiBold",
+    fontSize: 16,
+  },
+  authGateBackLink: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingVertical: 4,
+    marginTop: 4,
+  },
+  authGateBackText: {
+    fontFamily: "Poppins_400Regular",
+    fontSize: 13,
+  },
+  authGateCharityRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 20,
+  },
+  authGateCharityText: {
+    fontFamily: "Poppins_400Regular",
+    fontSize: 13,
+  },
+  authGateCharityLink: {
+    fontFamily: "Poppins_600SemiBold",
+    fontSize: 13,
+  },
 });

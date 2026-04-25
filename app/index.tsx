@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { View, StyleSheet } from "react-native";
 import { Redirect } from "expo-router";
 import { useAuth } from "@/context/AuthContext";
@@ -6,10 +6,11 @@ import { useThemeColors } from "@/context/ThemeContext";
 import { hasCompletedOnboarding } from "@/lib/onboarding-storage";
 
 export default function Index() {
-  const { isAuthenticated, isLoading, user } = useAuth();
+  const { isAuthenticated, isLoading, user, guestLogin } = useAuth();
   const c = useThemeColors();
   const [authGateReady, setAuthGateReady] = useState(false);
   const [seenOnboarding, setSeenOnboarding] = useState(false);
+  const guestStartedRef = useRef(false);
 
   useEffect(() => {
     if (isLoading) return;
@@ -17,9 +18,15 @@ export default function Index() {
       setAuthGateReady(true);
       return;
     }
-    hasCompletedOnboarding().then((seen) => {
+    if (guestStartedRef.current) return;
+    hasCompletedOnboarding().then(async (seen) => {
       setSeenOnboarding(seen);
-      setAuthGateReady(true);
+      if (seen) {
+        guestStartedRef.current = true;
+        await guestLogin();
+      } else {
+        setAuthGateReady(true);
+      }
     });
   }, [isLoading, isAuthenticated]);
 
@@ -29,10 +36,6 @@ export default function Index() {
 
   if (!isAuthenticated && !seenOnboarding) {
     return <Redirect href="/(auth)/onboarding" />;
-  }
-
-  if (!isAuthenticated) {
-    return <Redirect href="/(auth)/welcome" />;
   }
 
   if (user?.type === "charity") {
