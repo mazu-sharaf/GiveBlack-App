@@ -202,6 +202,16 @@ export default function AccountScreen() {
           />
           <View style={[styles.menuSep, { backgroundColor: c.border }]} />
           <MenuItem
+            icon="notifications-outline"
+            label="Notifications"
+            iconBg={iconBgs.blue}
+            textColor={c.text}
+            chevronColor={c.textLight}
+            greenColor={c.green}
+            onPress={() => router.push("/settings/notifications")}
+          />
+          <View style={[styles.menuSep, { backgroundColor: c.border }]} />
+          <MenuItem
             icon="settings-outline"
             label="Settings"
             iconBg={iconBgs.grey}

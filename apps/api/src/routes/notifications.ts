@@ -29,6 +29,7 @@ const notificationSettingsSchema = z.object({
   org_volunteers: z.boolean().optional(),
   org_campaign_status: z.boolean().optional(),
   donor_new_campaigns_from_orgs_i_supported: z.boolean().optional(),
+  new_campaigns: z.boolean().optional(),
 });
 
 const MAX_DONOR_NOTIFICATION_RECIPIENTS = 5000;

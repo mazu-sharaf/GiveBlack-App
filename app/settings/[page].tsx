@@ -73,6 +73,7 @@ type NotifPrefs = {
   org_volunteers: boolean;
   org_campaign_status: boolean;
   donor_new_campaigns_from_orgs_i_supported: boolean;
+  new_campaigns: boolean;
 };
 
 function NotificationsPage() {
@@ -157,6 +158,19 @@ function NotificationsPage() {
                     <Switch
                       value={prefs.donor_new_campaigns_from_orgs_i_supported}
                       onValueChange={(v) => void patchPref("donor_new_campaigns_from_orgs_i_supported", v)}
+                      trackColor={{ true: Colors.green }}
+                    />
+                  }
+                />
+                <View style={[styles.sep, { backgroundColor: c.border }]} />
+                <SettingRow
+                  icon="notifications-outline"
+                  label="All new campaigns on GiveBlack"
+                  description="Be the first to know whenever any new campaign launches"
+                  right={
+                    <Switch
+                      value={prefs.new_campaigns ?? true}
+                      onValueChange={(v) => void patchPref("new_campaigns", v)}
                       trackColor={{ true: Colors.green }}
                     />
                   }
