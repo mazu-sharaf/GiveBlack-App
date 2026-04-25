@@ -71,6 +71,7 @@ export interface Category {
 }
 
 const FAVORITES_KEY = "giveblack_favorites";
+const LAST_ROUTE_KEY = "giveblack_last_route";
 
 interface AppContextValue {
   organizations: Organization[];
@@ -254,8 +255,26 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   >([]);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [savedCards, setSavedCards] = useState<Array<{ id: string; last4?: string; [key: string]: unknown }>>([]);
-  const [lastMeaningfulRoute, setLastMeaningfulRoute] = useState<string | null>(null);
+  const [lastMeaningfulRoute, setLastMeaningfulRouteState] = useState<string | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const stored = await AsyncStorage.getItem(LAST_ROUTE_KEY);
+        if (stored) setLastMeaningfulRouteState(stored);
+      } catch {}
+    })();
+  }, []);
+
+  const setLastMeaningfulRoute = useCallback((route: string | null) => {
+    setLastMeaningfulRouteState(route);
+    if (route == null) {
+      AsyncStorage.removeItem(LAST_ROUTE_KEY).catch(() => {});
+    } else {
+      AsyncStorage.setItem(LAST_ROUTE_KEY, route).catch(() => {});
+    }
+  }, []);
 
   const profileKey = `giveblack_profile_${userId}`;
 
@@ -296,13 +315,27 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     loadFavorites();
   }, [userId, loadFavorites]);
 
-  // Clear last browsed route once the guest successfully authenticates so
-  // stale return destinations don't persist across future guest sessions.
+  const prevUserIdRef = useRef<string | null | undefined>(undefined);
+
+  // Clear last browsed route on explicit login (guest → authenticated) and on
+  // explicit logout (authenticated → guest/unauthenticated). Skip the very first
+  // render (prevId === undefined) so a cold-start with an existing session does
+  // not erase a persisted route unnecessarily.
   useEffect(() => {
-    if (user?.id && user.id !== "guest") {
+    const prevId = prevUserIdRef.current;
+    const currId = user?.id ?? null;
+    prevUserIdRef.current = currId;
+
+    if (prevId === undefined) return;
+
+    const wasAuthenticated = prevId != null && prevId !== "guest";
+    const isNowGuestOrOut = currId == null || currId === "guest";
+    const justLoggedIn = currId != null && currId !== "guest" && (prevId == null || prevId === "guest");
+
+    if (justLoggedIn || (wasAuthenticated && isNowGuestOrOut)) {
       setLastMeaningfulRoute(null);
     }
-  }, [user?.id]);
+  }, [user?.id, setLastMeaningfulRoute]);
 
   const accessToken = session?.accessToken;
 
