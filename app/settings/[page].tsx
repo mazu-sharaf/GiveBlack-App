@@ -85,23 +85,27 @@ function NotificationsPage() {
   const [weeklyDigest, setWeeklyDigest] = useState(true);
   const [permissionStatus, setPermissionStatus] = useState<"granted" | "denied" | "undetermined" | null>(null);
 
-  useEffect(() => {
+  const checkPermission = useCallback(async () => {
     if (Platform.OS === "web") return;
-    void (async () => {
-      try {
-        const Notif = require("expo-notifications") as typeof import("expo-notifications");
-        const { status } = await Notif.getPermissionsAsync();
-        if (status === "undetermined") {
-          const { status: asked } = await Notif.requestPermissionsAsync();
-          setPermissionStatus(asked);
-        } else {
-          setPermissionStatus(status);
-        }
-      } catch {
-        // expo-notifications unavailable in this environment
+    try {
+      const Notif = require("expo-notifications") as typeof import("expo-notifications");
+      const { status } = await Notif.getPermissionsAsync();
+      if (status === "undetermined") {
+        const { status: asked } = await Notif.requestPermissionsAsync();
+        setPermissionStatus(asked);
+      } else {
+        setPermissionStatus(status);
       }
-    })();
+    } catch {
+      // expo-notifications unavailable in this environment
+    }
   }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      void checkPermission();
+    }, [checkPermission])
+  );
 
   useEffect(() => {
     if (!session?.accessToken) {

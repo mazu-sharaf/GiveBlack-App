@@ -1,0 +1,45 @@
+NODE_ENV=production
+PORT=5001
+ API_HOST=0.0.0.0
+DATABASE_URL=postgresql://giveblack_user:mazu8168@localhost:5432/giveblack_db
+JWT_ACCESS_SECRET=46b2e0f4d6623f1db7dc6620b6386ab25abd15b91d4c412dd447b79f15d59a58b6878662b77ec8f7d88bf4cd859d501e
+ JWT_REFRESH_SECRET=3faeedc7cc13a3bafea1aa1abd5a91c53d6dbceac2968910a60b8f6e103b8ac736e25ec3c7d34a217187a9d8076d8a88
+ JWT_ACCESS_TTL=15m
+ JWT_REFRESH_TTL_DAYS=30
+CORS_ORIGINS=https://giveblackapp.com,https://www.giveblackapp.com
+ ADMIN_BOOTSTRAP_PASSWORD=Admin@123
+# BCC for admin emails (charity approve/reject notifications)
+ADMIN_EMAIL=mazu@mawamedia.com
+# Admin panel (Vite) - API base URL; must be set at build time
+VITE_API_URL=https://giveblackapp.com/app
+EXPO_PUBLIC_DOMAIN=giveblackapp.com
+EXPO_PUBLIC_API_URL=https://giveblackapp.com/app
+
+# OAuth — API (apps/api): comma-separated Google client IDs (Web + iOS + Android) for id_token audience checks
+# Google Cloud iOS OAuth client (console form): Team ID W5NB3UT9SS | App Store ID 1474463975 — confirm in App Store Connect
+GOOGLE_OAUTH_CLIENT_IDS=686496134866-k5a914jeu1b3si5gl4ratimoaphll6f3.apps.googleusercontent.com,686496134866-ffpjjko0fr870aomrnvmqp881if51i2h.apps.googleusercontent.com
+# Sign in with Apple (JWT audience): usually iOS bundle id
+APPLE_CLIENT_ID=com.giveblack.app
+
+# OAuth — Expo (donor social login; also set in EAS for production builds)
+# Web client ID (OAuth type "Web application") — used in GoogleSignin.configure (Android + webClientId)
+EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID=686496134866-ffpjjko0fr870aomrnvmqp881if51i2h.apps.googleusercontent.com
+EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID=686496134866-k5a914jeu1b3si5gl4ratimoaphll6f3.apps.googleusercontent.com
+EXPO_PUBLIC_GOOGLE_IOS_URL_SCHEME=com.googleusercontent.apps.686496134866-k5a914jeu1b3si5gl4ratimoaphll6f3
+
+# Email branding - landing site & contact (used in all transactional emails)
+APP_URL=https://giveblackapp.com
+SUPPORT_EMAIL=info@giveblackapp.com
+STRIPE_PRICE_GROWTH=price_1T6cAbBk2z7Pp8h00PSdBmSa
+STRIPE_PRICE_INSTITUTIONAL=price_1T6cAnBk2z7Pp8h0kGi5r7Kx
+STRIPE_PRODUCT_GROWTH=prod_U4li7X8ZEp7BfZ
+STRIPE_PRODUCT_INSTITUTIONAL=prod_U4lim2fNQCIhK1
+STRIPE_SECRET_KEY=sk_test_P1OxcjJO3wysUs9AZGE6bGtz00PWILWduN
+STRIPE_PUBLISHABLE_KEY=pk_test_8mIgwWbS6W8joKgFApfLnpS100PMeznjsQ
+EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_8mIgwWbS6W8joKgFApfLnpS100PMeznjsQ
+STRIPE_WEBHOOK_SECRET=whsec_EWo91lrdULI3uSxw9Rrgfr2gt8feislT
+BREVO_API_KEY=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
+BREVO_SENDER_EMAIL=mazu@mawamedia.com
+# EAS CLI auth (eas build / eas submit). Load before running eas: `set -a && source .env && set +a` or `export EXPO_TOKEN=...`
+# Push delivery from API uses EXPO_ACCESS_TOKEN (see apps/api) — not the same as EXPO_TOKEN.
+EXPO_TOKEN=wRzcBh8HnjTfdIxgRqso-J5e05FyAQF4lydjFpob
