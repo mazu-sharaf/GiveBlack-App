@@ -14,9 +14,9 @@ interface ThemeContextValue {
 }
 
 const ThemeContext = createContext<ThemeContextValue>({
-  theme: "dark",
-  isDark: true,
-  colors: darkTheme,
+  theme: "system",
+  isDark: false,
+  colors: lightTheme,
   setTheme: () => {},
   toggleTheme: () => {},
 });
@@ -38,7 +38,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const systemResolved: "light" | "dark" =
     (hookScheme ?? appearanceScheme ?? "light") === "dark" ? "dark" : "light";
 
-  const [theme, setThemeState] = useState<ThemeMode>("dark");
+  const [theme, setThemeState] = useState<ThemeMode>("system");
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
