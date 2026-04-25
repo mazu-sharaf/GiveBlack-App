@@ -23,7 +23,7 @@ const schema = z.object({
   APP_URL: z.string().url().optional(),
   SUPPORT_EMAIL: z.string().email().optional(),
   EMAIL_LOGO_URL: z.string().url().optional(),
-  EXPO_ACCESS_TOKEN: z.string().min(1).optional(),
+  EXPO_TOKEN: z.string().min(1).optional(),
   EXPO_PUBLIC_API_URL: z.string().optional(),
   /** Public App Store / Play Store links for thank-you and marketing pages */
   APP_STORE_URL: z.string().optional(),

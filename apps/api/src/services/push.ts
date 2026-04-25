@@ -13,9 +13,9 @@ let missingTokenLogged = false;
 
 export async function sendExpoPush(message: PushMessage): Promise<void> {
   if (!message.to.length) return;
-  if (!env.EXPO_ACCESS_TOKEN) {
+  if (!env.EXPO_TOKEN) {
     if (!missingTokenLogged) {
-      console.warn("[push] EXPO_ACCESS_TOKEN not set; push delivery skipped");
+      console.warn("[push] EXPO_TOKEN not set; push delivery skipped");
       missingTokenLogged = true;
     }
     return;
@@ -37,7 +37,7 @@ export async function sendExpoPush(message: PushMessage): Promise<void> {
       headers: {
         "Content-Type": "application/json",
         Accept: "application/json",
-        Authorization: `Bearer ${env.EXPO_ACCESS_TOKEN}`
+        Authorization: `Bearer ${env.EXPO_TOKEN}`
       },
       body: JSON.stringify(payload)
     });

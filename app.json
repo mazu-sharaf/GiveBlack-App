@@ -21,7 +21,14 @@
       "buildNumber": "10",
       "bundleIdentifier": "com.giveblack.app",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "CFBundleURLTypes": [
+          {
+            "CFBundleURLSchemes": [
+              "com.googleusercontent.apps.686496134866-k5a914jeu1b3si5gl4ratimoaphll6f3"
+            ]
+          }
+        ]
       }
     },
     "android": {

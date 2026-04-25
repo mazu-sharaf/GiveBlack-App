@@ -126,28 +126,6 @@ waitForPort = 8080
 [userenv]
 
 [userenv.shared]
-EXPO_PUBLIC_DOMAIN = "giveblackapp.com"
-EXPO_PUBLIC_API_URL = "http://localhost:5000"
-BREVO_SENDER_EMAIL = "mazu@mawamedia.com"
-NODE_ENV = "development"
-ADMIN_EMAIL = "mazu@mawamedia.com"
-APP_URL = "https://giveblackapp.com"
-SUPPORT_EMAIL = "info@giveblackapp.com"
-STRIPE_PRICE_GROWTH = "price_1TA2CPBk2z7Pp8h03aNgWKxt"
-STRIPE_PRICE_INSTITUTIONAL = "price_1TA2DnBk2z7Pp8h0GFcDMfQ3"
-VITE_API_URL = "https://giveblackapp.com/app"
-CORS_ORIGINS = "*"
-JWT_ACCESS_TTL = "15m"
-JWT_REFRESH_TTL_DAYS = "30"
-API_HOST = "0.0.0.0"
-PORT = "5000"
-JWT_ACCESS_SECRET = "11923879ca83e452acd1471c6da029411940bc81a8d58cab606652db1be565dd2f0910fd0b974a46ce1d807f7e507781"
-JWT_REFRESH_SECRET = "36d329afcba95525e45d46f32e3a5aace3f3ad076d4b69f8b015ac90c6f391653757685081c2315728b1fccb91a720ed"
-EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID = "686496134866-ffpjjko0fr870aomrnvmqp881if51i2h.apps.googleusercontent.com"
-EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID = "686496134866-k5a914jeu1b3si5gl4ratimoaphll6f3.apps.googleusercontent.com"
-EXPO_PUBLIC_GOOGLE_IOS_URL_SCHEME = "com.googleusercontent.apps.686496134866-k5a914jeu1b3si5gl4ratimoaphll6f3"
-APPLE_CLIENT_ID = "com.giveblack.app"
-GOOGLE_OAUTH_CLIENT_IDS = "686496134866-k5a914jeu1b3si5gl4ratimoaphll6f3.apps.googleusercontent.com,686496134866-ffpjjko0fr870aomrnvmqp881if51i2h.apps.googleusercontent.com"
 
 [postMerge]
 path = "scripts/post-merge.sh"
