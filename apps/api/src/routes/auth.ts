@@ -75,6 +75,44 @@ export async function issueSessionForUser(
   };
 }
 
+/**
+ * Claim any succeeded guest donations (user_id IS NULL) whose donor_email matches
+ * the newly created account's email, and roll their totals into donor_stats.
+ */
+async function claimGuestDonations(userId: string, email: string): Promise<void> {
+  // Step 1: assign unclaimed succeeded guest donations to the new user
+  await db.query(
+    `update donations
+     set user_id = $1
+     where user_id is null
+       and lower(trim(donor_email)) = lower(trim($2))
+       and status = 'succeeded'`,
+    [userId, email]
+  );
+
+  // Step 2: recompute donor_stats from the source-of-truth donations rows.
+  // Using a full recompute (rather than accumulating from RETURNING) prevents
+  // double-counting in the rare case where the Stripe webhook already resolved
+  // the same donation via its email-lookup path and incremented donor_stats.
+  await db.query(
+    `insert into donor_stats (user_id, total_amount_cents, donation_count, first_donation_at, last_donation_at)
+     select $1,
+            coalesce(sum((amount * 100)::bigint), 0),
+            count(*),
+            min(created_at),
+            max(created_at)
+     from donations
+     where user_id = $1
+       and status = 'succeeded'
+     on conflict (user_id) do update set
+       total_amount_cents = excluded.total_amount_cents,
+       donation_count     = excluded.donation_count,
+       first_donation_at  = excluded.first_donation_at,
+       last_donation_at   = excluded.last_donation_at`,
+    [userId]
+  );
+}
+
 export const authRoutes: FastifyPluginAsync = async (app) => {
   // Donor signup endpoint
   app.post("/api/auth/signup/donor", async (request, reply) => {
@@ -105,6 +143,11 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
         [user.id, body.name, email, "donor", body.zipCode || null, body.collegeAttended || false]
       ).catch(() => {}); // Ignore profile errors
     }
+
+    // Claim any guest donations made with this email before account creation
+    await claimGuestDonations(user.id, email).catch((err) => {
+      app.log.warn({ err, userId: user.id, email }, "Failed to claim guest donations on signup");
+    });
 
     const tokens = await issueSessionForUser(app, request, {
       id: user.id,
@@ -265,6 +308,11 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
         [user.id, body.name, email, "donor", body.zipCode || null, body.collegeAttended || false]
       ).catch(() => {});
     }
+
+    // Claim any guest donations made with this email before account creation
+    await claimGuestDonations(user.id, email).catch((err) => {
+      app.log.warn({ err, userId: user.id, email }, "Failed to claim guest donations on signup");
+    });
 
     const tokens = await issueSessionForUser(app, request, {
       id: user.id,
