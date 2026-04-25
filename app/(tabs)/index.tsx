@@ -43,7 +43,7 @@ export default function HomeScreen() {
     refresh,
     userProfile,
   } = useApp();
-  const { user, isGuest, logout, guestLogin, avatarUrl, donationSummary } = useAuth();
+  const { user, logout, guestLogin, avatarUrl, donationSummary } = useAuth();
   const insets = useSafeInsets();
   const c = useThemeColors();
   const { width: screenWidth } = useWindowDimensions();
@@ -731,26 +731,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#7B6100",
   },
-  guestBanner: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    marginHorizontal: 20,
-    marginBottom: 12,
-    padding: 16,
-    borderRadius: 14,
-    borderWidth: 1,
-  },
-  guestBannerTitle: {
-    fontFamily: "Poppins_600SemiBold",
-    fontSize: 14,
-  },
-  guestBannerDesc: {
-    fontFamily: "Poppins_400Regular",
-    fontSize: 12,
-    lineHeight: 17,
-    marginTop: 2,
-  },
+
   emptyState: {
     alignItems: "center",
     margin: 20,
