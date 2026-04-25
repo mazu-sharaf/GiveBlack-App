@@ -69,7 +69,111 @@ function darken(hex: string): string {
   return colors[hex] || Colors.primary;
 }
 
+type IoniconsName = React.ComponentProps<typeof Ionicons>["name"];
+
+const GUEST_BENEFITS: { icon: IoniconsName; label: string }[] = [
+  { icon: "bar-chart-outline", label: "Track your impact over time" },
+  { icon: "heart-outline", label: "Save your favourite campaigns" },
+  { icon: "receipt-outline", label: "Get tax receipts for every donation" },
+];
+
+function GuestAccountScreen() {
+  const router = useRouter();
+  const c = useThemeColors();
+  const { logout } = useAuth();
+  const insets = useSafeInsets();
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
+
+  return (
+    <View style={[styles.container, { backgroundColor: c.background }]}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 100, alignItems: "center" }]}
+      >
+        <Animated.View entering={FadeInDown.delay(0).duration(400)} style={styles.guestHeroWrap}>
+          <View style={[styles.guestIconCircle, { backgroundColor: c.green + "22" }]}>
+            <Ionicons name="person-circle-outline" size={72} color={c.green} />
+          </View>
+          <Text style={[styles.guestTitle, { color: c.text }]}>You're browsing as a guest</Text>
+          <Text style={[styles.guestSubtitle, { color: c.textMuted }]}>
+            Create a free account to unlock the full GiveBlack experience.
+          </Text>
+        </Animated.View>
+
+        <Animated.View entering={FadeInDown.delay(80).duration(400)} style={[styles.guestBenefitsCard, { backgroundColor: c.cardBg }]}>
+          {GUEST_BENEFITS.map((b, i) => (
+            <React.Fragment key={b.icon}>
+              <View style={styles.guestBenefitRow}>
+                <View style={[styles.guestBenefitIcon, { backgroundColor: c.green + "18" }]}>
+                  <Ionicons name={b.icon} size={20} color={c.green} />
+                </View>
+                <Text style={[styles.guestBenefitText, { color: c.text }]}>{b.label}</Text>
+              </View>
+              {i < GUEST_BENEFITS.length - 1 && <View style={[styles.menuSep, { backgroundColor: c.border, marginLeft: 58 }]} />}
+            </React.Fragment>
+          ))}
+        </Animated.View>
+
+        <Animated.View entering={FadeInDown.delay(160).duration(400)} style={styles.guestCtaWrap}>
+          <Pressable
+            style={[styles.guestCtaPrimary, { backgroundColor: c.green }]}
+            onPress={() => router.push("/(auth)/donor-signup")}
+          >
+            <Text style={styles.guestCtaPrimaryText}>Create Free Account</Text>
+          </Pressable>
+          <Pressable
+            style={[styles.guestCtaSecondary, { borderColor: c.green }]}
+            onPress={() => router.push("/(auth)/donor-login")}
+          >
+            <Text style={[styles.guestCtaSecondaryText, { color: c.green }]}>Sign In</Text>
+          </Pressable>
+        </Animated.View>
+
+        <Animated.View entering={FadeInDown.delay(220).duration(400)}>
+          <Pressable style={styles.guestLogoutBtn} onPress={() => setShowLogoutModal(true)}>
+            <Ionicons name="log-out-outline" size={18} color="#E53935" />
+            <Text style={styles.guestLogoutText}>Leave guest mode</Text>
+          </Pressable>
+        </Animated.View>
+      </ScrollView>
+
+      <Modal visible={showLogoutModal} transparent animationType="fade">
+        <Pressable style={[styles.modalOverlay, { backgroundColor: c.modalOverlay }]} onPress={() => setShowLogoutModal(false)}>
+          <View style={[styles.modalCard, { backgroundColor: c.cardBg }]}>
+            <Text style={[styles.modalText, { color: c.text }]}>Leave guest mode?</Text>
+            <View style={styles.modalBtns}>
+              <Pressable style={[styles.cancelBtn, { borderColor: c.green }]} onPress={() => setShowLogoutModal(false)}>
+                <Text style={[styles.cancelBtnText, { color: c.green }]}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.okBtn, { backgroundColor: c.green }]}
+                onPress={async () => {
+                  setShowLogoutModal(false);
+                  await logout();
+                  router.replace("/(auth)/welcome");
+                }}
+              >
+                <Text style={styles.okBtnText}>OK</Text>
+              </Pressable>
+            </View>
+          </View>
+        </Pressable>
+      </Modal>
+    </View>
+  );
+}
+
 export default function AccountScreen() {
+  const { isGuest } = useAuth();
+
+  if (isGuest) {
+    return <GuestAccountScreen />;
+  }
+
+  return <AuthenticatedAccountScreen />;
+}
+
+function AuthenticatedAccountScreen() {
   const router = useRouter();
   const c = useThemeColors();
   const { isDark } = useTheme();
@@ -450,5 +554,98 @@ const styles = StyleSheet.create({
     fontFamily: "Poppins_600SemiBold",
     fontSize: 15,
     color: "#FFFFFF",
+  },
+  guestHeroWrap: {
+    alignItems: "center",
+    paddingTop: 40,
+    paddingBottom: 32,
+    width: "100%",
+  },
+  guestIconCircle: {
+    width: 112,
+    height: 112,
+    borderRadius: 56,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 20,
+  },
+  guestTitle: {
+    fontFamily: "Poppins_700Bold",
+    fontSize: 22,
+    textAlign: "center",
+    marginBottom: 10,
+  },
+  guestSubtitle: {
+    fontFamily: "Poppins_400Regular",
+    fontSize: 14,
+    textAlign: "center",
+    lineHeight: 22,
+    paddingHorizontal: 8,
+  },
+  guestBenefitsCard: {
+    borderRadius: 20,
+    paddingVertical: 6,
+    width: "100%",
+    marginBottom: 24,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    elevation: 3,
+  },
+  guestBenefitRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 16,
+    paddingHorizontal: 18,
+    gap: 14,
+  },
+  guestBenefitIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  guestBenefitText: {
+    fontFamily: "Poppins_500Medium",
+    fontSize: 15,
+    flex: 1,
+  },
+  guestCtaWrap: {
+    width: "100%",
+    gap: 12,
+    marginBottom: 24,
+  },
+  guestCtaPrimary: {
+    borderRadius: 16,
+    paddingVertical: 16,
+    alignItems: "center",
+  },
+  guestCtaPrimaryText: {
+    fontFamily: "Poppins_600SemiBold",
+    fontSize: 16,
+    color: "#FFFFFF",
+  },
+  guestCtaSecondary: {
+    borderRadius: 16,
+    paddingVertical: 16,
+    alignItems: "center",
+    borderWidth: 1.5,
+  },
+  guestCtaSecondaryText: {
+    fontFamily: "Poppins_600SemiBold",
+    fontSize: 16,
+  },
+  guestLogoutBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingVertical: 12,
+  },
+  guestLogoutText: {
+    fontFamily: "Poppins_500Medium",
+    fontSize: 14,
+    color: "#E53935",
   },
 });
