@@ -1468,7 +1468,7 @@ function SubscriptionSettingsPage() {
 
 function SettingsMainPage() {
   const c = useThemeColors();
-  const { isDark } = useTheme();
+  const { isDark, theme, setTheme } = useTheme();
   const router = useRouter();
   const { user } = useAuth();
   const menuItems = [
@@ -1481,9 +1481,43 @@ function SettingsMainPage() {
     { icon: "settings-outline", label: "Advanced Settings", color: isDark ? "#2A2A2A" : "#F5F5F5", route: "/settings/notifications" },
   ];
 
+  const themeOptions: { mode: "light" | "dark" | "system"; icon: string; label: string }[] = [
+    { mode: "light", icon: "sunny-outline", label: "Light" },
+    { mode: "dark", icon: "moon-outline", label: "Dark" },
+    { mode: "system", icon: "phone-portrait-outline", label: "System" },
+  ];
+
   return (
     <>
       <View style={[styles.sectionCard, { backgroundColor: c.cardBg, shadowColor: c.cardShadow }]}>
+        <View style={sMain.appearanceSection}>
+          <Text style={[sMain.appearanceLabel, { color: c.textMuted }]}>Appearance</Text>
+          <View style={[sMain.themeSelector, { backgroundColor: isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.05)" }]}>
+            {themeOptions.map((opt) => {
+              const active = theme === opt.mode;
+              return (
+                <Pressable
+                  key={opt.mode}
+                  style={[
+                    sMain.themePill,
+                    active && { backgroundColor: Colors.green },
+                  ]}
+                  onPress={() => setTheme(opt.mode)}
+                >
+                  <Ionicons
+                    name={opt.icon as any}
+                    size={15}
+                    color={active ? "#FFFFFF" : c.textMuted}
+                  />
+                  <Text style={[sMain.themePillText, { color: active ? "#FFFFFF" : c.textMuted }]}>
+                    {opt.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
+        <View style={[styles.sep, { backgroundColor: c.border }]} />
         {menuItems.map((item, i) => (
           <React.Fragment key={item.label}>
             {i > 0 && <View style={[styles.sep, { backgroundColor: c.border }]} />}
@@ -1503,6 +1537,40 @@ function SettingsMainPage() {
     </>
   );
 }
+
+const sMain = StyleSheet.create({
+  appearanceSection: {
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 14,
+    gap: 10,
+  },
+  appearanceLabel: {
+    fontFamily: "Poppins_500Medium",
+    fontSize: 12,
+    textTransform: "uppercase",
+    letterSpacing: 0.8,
+  },
+  themeSelector: {
+    flexDirection: "row",
+    borderRadius: 12,
+    padding: 4,
+    gap: 4,
+  },
+  themePill: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 5,
+    paddingVertical: 9,
+    borderRadius: 9,
+  },
+  themePillText: {
+    fontFamily: "Poppins_500Medium",
+    fontSize: 13,
+  },
+});
 
 function HowToDonatePage() {
   const c = useThemeColors();
