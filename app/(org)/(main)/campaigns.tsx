@@ -1,5 +1,5 @@
-import React, { useState, useCallback } from "react";
-import { useFocusEffect } from "expo-router";
+import React, { useState, useCallback, useEffect } from "react";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import {
   View,
   Text,
@@ -66,6 +66,8 @@ export default function CampaignsTab() {
   const chipPadH = windowWidth < 360 ? 10 : windowWidth < 400 ? 12 : 14;
   const chipGap = windowWidth < 360 ? 6 : 8;
   const { session, user, fetchWithAuth } = useAuth();
+  const params = useLocalSearchParams<{ openCreate?: string }>();
+  const router = useRouter();
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [subData, setSubData] = useState<SubData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -136,6 +138,13 @@ export default function CampaignsTab() {
     setGalleryImages([]);
     setShowForm(true);
   }
+
+  useEffect(() => {
+    if (params.openCreate === "1" && !loading) {
+      openCreate();
+      router.setParams({ openCreate: undefined });
+    }
+  }, [params.openCreate, loading]);
 
   async function openEdit(camp: Campaign) {
     setForm({
