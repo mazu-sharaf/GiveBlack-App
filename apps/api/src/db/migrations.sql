@@ -41,3 +41,9 @@ ALTER TABLE donations ADD COLUMN IF NOT EXISTS reinvest_opt_in boolean NOT NULL 
 ALTER TABLE donations ADD COLUMN IF NOT EXISTS reinvest_amount numeric(12,2) NOT NULL DEFAULT 0;
 ALTER TABLE donations ADD COLUMN IF NOT EXISTS partner_reinvest_amount numeric(12,2) NOT NULL DEFAULT 0;
 ALTER TABLE donations ADD COLUMN IF NOT EXISTS general_reinvest_amount numeric(12,2) NOT NULL DEFAULT 0;
+
+CREATE TABLE IF NOT EXISTS guest_stripe_customers (
+  email text primary key,
+  stripe_customer_id text not null unique,
+  created_at timestamptz not null default now()
+);

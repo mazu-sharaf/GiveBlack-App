@@ -77,6 +77,11 @@ export default function DonateScreen() {
   const [isAnonymous, setIsAnonymous] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<"native" | null>(null);
 
+  const [guestMode, setGuestMode] = useState(false);
+  const [guestEmail, setGuestEmail] = useState("");
+  const [guestEmailInput, setGuestEmailInput] = useState("");
+  const [showGuestEmailForm, setShowGuestEmailForm] = useState(false);
+
   // Looped guide animation shown while Stripe is processing the donation.
   const [processingGuideStep, setProcessingGuideStep] = useState<0 | 1 | 2>(0);
   const processingPulse = useRef(new Animated.Value(0)).current;
@@ -223,15 +228,12 @@ export default function DonateScreen() {
     );
   }
 
-  if (!isAuthenticated || isGuest || !session?.accessToken) {
+  if ((!isAuthenticated || isGuest || !session?.accessToken) && !guestMode) {
     return (
       <View style={[styles.container, { backgroundColor: c.background }]}>
         <AppHeader showBack title="Donate" showSearch={false} />
         <View style={styles.authGateWrap}>
           <View style={[styles.authGateCard, { backgroundColor: c.cardBg }]}>
-            <View style={[styles.authGateIconRing, { backgroundColor: c.green + "15", borderColor: c.green + "30" }]}>
-              <Ionicons name="heart" size={34} color={c.green} />
-            </View>
             <Text style={[styles.authGateHeading, { color: c.text }]}>
               Create a free account to donate
             </Text>
@@ -245,38 +247,114 @@ export default function DonateScreen() {
                 : ". It's free and takes 30 seconds."}
             </Text>
 
-            <Pressable
-              style={[styles.authGatePrimaryBtn, { backgroundColor: c.green }]}
-              onPress={() => {
-                const qp = new URLSearchParams();
-                if (campaignId) qp.set("campaignId", campaignId);
-                if (suggestedAmount) qp.set("amount", String(suggestedAmount));
-                const qs = qp.toString();
-                const returnTo = `/donate/${orgId}${qs ? `?${qs}` : ""}`;
-                router.push({ pathname: "/(auth)/donor-signup", params: { returnTo } });
-              }}
-            >
-              <Text style={styles.authGatePrimaryBtnText}>Create Free Account</Text>
-            </Pressable>
+            {!showGuestEmailForm ? (
+              <>
+                <Text style={[styles.authGateHeading, { color: c.text }]}>
+                  Create a free account to donate
+                </Text>
+                <Text style={[styles.authGateBody, { color: c.textMuted }]}>
+                  {suggestedAmount
+                    ? `Give $${suggestedAmount.toFixed(2)} to `
+                    : "You're one step away from supporting "}
+                  <Text style={{ color: c.text, fontFamily: "SpaceGrotesk_600SemiBold" }}>{org.name}</Text>
+                  {suggestedAmount
+                    ? " — create a free account to complete your donation."
+                    : ". It's free and takes 30 seconds."}
+                </Text>
 
-            <Pressable
-              style={[styles.authGateSecondaryBtn, { borderColor: c.border }]}
-              onPress={() => {
-                const qp = new URLSearchParams();
-                if (campaignId) qp.set("campaignId", campaignId);
-                if (suggestedAmount) qp.set("amount", String(suggestedAmount));
-                const qs = qp.toString();
-                const returnTo = `/donate/${orgId}${qs ? `?${qs}` : ""}`;
-                router.push({ pathname: "/(auth)/donor-login", params: { returnTo } });
-              }}
-            >
-              <Text style={[styles.authGateSecondaryBtnText, { color: c.text }]}>Sign In</Text>
-            </Pressable>
+                <Pressable
+                  style={[styles.authGatePrimaryBtn, { backgroundColor: c.green }]}
+                  onPress={() => {
+                    const qp = new URLSearchParams();
+                    if (campaignId) qp.set("campaignId", campaignId);
+                    if (suggestedAmount) qp.set("amount", String(suggestedAmount));
+                    const qs = qp.toString();
+                    const returnTo = `/donate/${orgId}${qs ? `?${qs}` : ""}`;
+                    router.push({ pathname: "/(auth)/donor-signup", params: { returnTo } });
+                  }}
+                >
+                  <Text style={styles.authGatePrimaryBtnText}>Create Free Account</Text>
+                </Pressable>
 
-            <Pressable style={styles.authGateBackLink} onPress={() => router.back()}>
-              <Ionicons name="arrow-back-outline" size={14} color={c.textMuted} />
-              <Text style={[styles.authGateBackText, { color: c.textMuted }]}>Browse campaigns</Text>
-            </Pressable>
+                <Pressable
+                  style={[styles.authGateSecondaryBtn, { borderColor: c.border }]}
+                  onPress={() => {
+                    const qp = new URLSearchParams();
+                    if (campaignId) qp.set("campaignId", campaignId);
+                    if (suggestedAmount) qp.set("amount", String(suggestedAmount));
+                    const qs = qp.toString();
+                    const returnTo = `/donate/${orgId}${qs ? `?${qs}` : ""}`;
+                    router.push({ pathname: "/(auth)/donor-login", params: { returnTo } });
+                  }}
+                >
+                  <Text style={[styles.authGateSecondaryBtnText, { color: c.text }]}>Sign In</Text>
+                </Pressable>
+
+                <Pressable
+                  style={styles.authGateGuestBtn}
+                  onPress={() => setShowGuestEmailForm(true)}
+                >
+                  <Text style={[styles.authGateGuestBtnText, { color: c.textMuted }]}>Continue as guest</Text>
+                </Pressable>
+
+                <Pressable style={styles.authGateBackLink} onPress={() => router.back()}>
+                  <Ionicons name="arrow-back-outline" size={14} color={c.textMuted} />
+                  <Text style={[styles.authGateBackText, { color: c.textMuted }]}>Browse campaigns</Text>
+                </Pressable>
+              </>
+            ) : (
+              <>
+                <Text style={[styles.authGateHeading, { color: c.text }]}>
+                  Continue as guest
+                </Text>
+                <Text style={[styles.authGateBody, { color: c.textMuted }]}>
+                  Enter your email to receive a donation receipt after payment.
+                </Text>
+                <TextInput
+                  value={guestEmailInput}
+                  onChangeText={setGuestEmailInput}
+                  placeholder="your@email.com"
+                  placeholderTextColor={c.textMuted}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  autoComplete="email"
+                  style={{
+                    borderWidth: 1.5,
+                    borderColor: c.border,
+                    borderRadius: 12,
+                    paddingHorizontal: 16,
+                    paddingVertical: 12,
+                    fontFamily: "SpaceGrotesk_400Regular",
+                    fontSize: 15,
+                    color: c.text,
+                    backgroundColor: c.background,
+                    width: "100%",
+                  }}
+                />
+                <Pressable
+                  style={[styles.authGatePrimaryBtn, { backgroundColor: c.green }]}
+                  onPress={() => {
+                    const email = guestEmailInput.trim().toLowerCase();
+                    if (!email || !email.includes("@") || !email.includes(".")) {
+                      Alert.alert("Invalid email", "Please enter a valid email address.");
+                      return;
+                    }
+                    setGuestEmail(email);
+                    setGuestMode(true);
+                  }}
+                >
+                  <Text style={styles.authGatePrimaryBtnText}>Proceed to Donate</Text>
+                </Pressable>
+                <Pressable
+                  style={{ paddingVertical: 8 }}
+                  onPress={() => setShowGuestEmailForm(false)}
+                >
+                  <Text style={[{ color: c.textMuted, fontFamily: "SpaceGrotesk_400Regular", fontSize: 13 }]}>
+                    ← Back to sign-in options
+                  </Text>
+                </Pressable>
+              </>
+            )}
           </View>
 
           <Pressable
@@ -357,6 +435,59 @@ export default function DonateScreen() {
     }
   }
 
+  async function attemptGuestNativePayment(value: number): Promise<"success" | "canceled" | "error"> {
+    try {
+      const intentRes = await apiPost<{
+        clientSecret: string;
+        paymentIntentId: string;
+        customerId: string;
+        ephemeralKey: string;
+      }>(
+        "/api/payments/guest-create-intent",
+        {
+          orgId: org!.id,
+          amount: value,
+          email: guestEmail,
+          reinvestOptIn: educationEnabled,
+          reinvestPct: Math.round(educationRate * 1000) / 10,
+          ...(resolvedPartner ? { educationPartnerCode: resolvedPartner.code } : {}),
+          ...(campaignId ? { campaignId } : {}),
+        }
+      );
+
+      const result = await presentNativePaymentSheet({
+        clientSecret: intentRes.clientSecret,
+        customerId: intentRes.customerId,
+        ephemeralKey: intentRes.ephemeralKey,
+        merchantName: "GiveBlack",
+        allowsDelayedPaymentMethods: false,
+      });
+
+      if (result.status === "success") {
+        try {
+          await apiPost<{ ok: boolean }>(
+            "/api/payments/guest-sync-native-donation",
+            { paymentIntentId: intentRes.paymentIntentId, email: guestEmail }
+          );
+        } catch {
+          // non-fatal: webhook may still apply the update
+        }
+        return "success";
+      }
+      if (result.status === "canceled") return "canceled";
+      if (result.status === "unavailable") {
+        setErrorMsg("Native Stripe payment is unavailable on this build. Please use an EAS development build or production build with Stripe enabled.");
+      } else {
+        setErrorMsg(result.message || "Payment failed. Please try again.");
+      }
+      return "error";
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      setErrorMsg(msg);
+      return "error";
+    }
+  }
+
   async function handleDonate() {
     const value = Number(amount);
     if (!value || value <= 0) {
@@ -372,8 +503,6 @@ export default function DonateScreen() {
     setStep("processing");
     setErrorMsg("");
 
-    const token = session!.accessToken;
-
     const nativeAvailable = await isNativeStripeAvailable();
     if (!nativeAvailable || Platform.OS === "web") {
       setErrorMsg("Native Stripe checkout is only available in iOS/Android builds with Stripe native module enabled.");
@@ -382,6 +511,22 @@ export default function DonateScreen() {
       return;
     }
     setPaymentMethod("native");
+
+    if (guestMode) {
+      const guestResult = await attemptGuestNativePayment(value);
+      if (guestResult === "success") {
+        setStep("success");
+        void refresh();
+      } else if (guestResult === "canceled") {
+        setStep("amount");
+      } else {
+        setStep("error");
+      }
+      setLoading(false);
+      return;
+    }
+
+    const token = session!.accessToken;
     const nativeResult = await attemptNativePayment(token, value);
     if (nativeResult === "success") {
       setStep("success");
@@ -397,7 +542,7 @@ export default function DonateScreen() {
 
   const today = new Date();
   const dateStr = today.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
-  const donorName = isAnonymous ? "Anonymous" : (user?.fullName || user?.email || "Donor");
+  const donorName = isAnonymous ? "Anonymous" : (guestMode ? (guestEmail || "Guest") : (user?.fullName || user?.email || "Donor"));
   const receiptDonorName = isAnonymous ? "Anonymous Donor" : donorName;
   const receiptFileName = `GiveBlack-Receipt-${donationRef}.pdf`;
 
@@ -552,7 +697,11 @@ export default function DonateScreen() {
             }}
           >
             <Text style={[styles.receiptTitle, { color: c.text }]}>Donation Complete</Text>
-            <Text style={[styles.receiptSubtitle, { color: c.textMuted }]}>Thank you for your generosity</Text>
+            <Text style={[styles.receiptSubtitle, { color: c.textMuted }]}>
+              {guestMode
+                ? `Thank you! A receipt is being sent to ${guestEmail}`
+                : "Thank you for your generosity"}
+            </Text>
 
             <View style={[styles.receiptCard, { backgroundColor: c.cardBg }]}>
               <View style={styles.receiptHeader}>
@@ -625,6 +774,26 @@ export default function DonateScreen() {
                 <Text style={[styles.actionBtnOutlineText, { color: c.green }]}>Share</Text>
               </Pressable>
             </View>
+
+            {guestMode && (
+              <View style={{ width: "100%", alignItems: "center", gap: 10, marginBottom: 4 }}>
+                <Text style={[styles.receiptSubtitle, { color: c.textMuted, fontSize: 13, marginBottom: 0 }]}>
+                  Create a free account to track your donations and access donor features.
+                </Text>
+                <Pressable
+                  style={[styles.authGateSecondaryBtn, { borderColor: c.green, width: "100%" }]}
+                  onPress={() => {
+                    const qp = new URLSearchParams();
+                    if (campaignId) qp.set("campaignId", campaignId);
+                    const qs = qp.toString();
+                    const returnTo = `/donate/${orgId}${qs ? `?${qs}` : ""}`;
+                    router.push({ pathname: "/(auth)/donor-signup", params: { returnTo } });
+                  }}
+                >
+                  <Text style={[styles.authGateSecondaryBtnText, { color: c.green }]}>Create Free Account</Text>
+                </Pressable>
+              </View>
+            )}
 
             <Pressable
               style={[styles.doneBtn, { backgroundColor: c.green }]}
@@ -1339,5 +1508,15 @@ const styles = StyleSheet.create({
   authGateCharityLink: {
     fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 13,
+  },
+  authGateGuestBtn: {
+    paddingVertical: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  authGateGuestBtnText: {
+    fontFamily: "SpaceGrotesk_500Medium",
+    fontSize: 14,
+    textDecorationLine: "underline",
   },
 });

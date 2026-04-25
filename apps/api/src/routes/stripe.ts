@@ -239,6 +239,23 @@ const syncNativeDonationSchema = z.object({
   paymentIntentId: z.string().min(1),
 });
 
+const guestCreateIntentSchema = z.object({
+  orgId: z.string().min(1),
+  campaignId: z.string().optional(),
+  amount: z.coerce.number().positive(),
+  currency: z.string().default("usd"),
+  email: z.string().email(),
+  name: z.string().optional(),
+  educationPartnerCode: z.string().optional(),
+  reinvestOptIn: z.boolean().optional().default(false),
+  reinvestPct: z.coerce.number().min(0).max(100).optional().default(5),
+});
+
+const guestSyncDonationSchema = z.object({
+  paymentIntentId: z.string().min(1),
+  email: z.string().email(),
+});
+
 const portalSchema = z.object({
   org_id: z.string().min(1),
   return_url: z.string().url().optional(),
@@ -1596,6 +1613,204 @@ export const stripeRoutes: FastifyPluginAsync = async (app) => {
       return { ok: true };
     }
   );
+
+  app.post("/api/payments/guest-create-intent", async (request, reply) => {
+    let body: z.infer<typeof guestCreateIntentSchema>;
+    try {
+      body = guestCreateIntentSchema.parse(request.body);
+    } catch (e: unknown) {
+      return reply.code(400).send({ error: e instanceof Error ? e.message : "Invalid request" });
+    }
+
+    const stripe = requireStripe(reply);
+    if (!stripe) return;
+
+    if (body.campaignId) {
+      const campRes = await db.query(
+        `select status, organization_id from campaigns where id = $1`,
+        [body.campaignId]
+      );
+      const camp = campRes.rows[0] as { status: string; organization_id: string } | undefined;
+      if (!camp) return reply.code(404).send({ error: "Campaign not found" });
+      if (camp.organization_id !== body.orgId) return reply.code(400).send({ error: "Campaign does not belong to this organization" });
+      if (camp.status !== "active") return reply.code(400).send({ error: "This campaign is not accepting donations" });
+    }
+
+    const orgRes = await db.query("select id from organizations where id = $1", [body.orgId]);
+    if (!orgRes.rowCount) return reply.code(404).send({ error: "Organization not found" });
+
+    const guestEmail = normalizeEmail(body.email);
+    const guestName = body.name ? String(body.name).trim() : null;
+
+    const existingCustomerRes = await db.query(
+      "select stripe_customer_id from guest_stripe_customers where email = $1 limit 1",
+      [guestEmail]
+    );
+    let customerId: string | null = (existingCustomerRes.rows[0] as { stripe_customer_id?: string } | undefined)?.stripe_customer_id ?? null;
+
+    if (customerId) {
+      try {
+        const existingCustomer = await stripe.customers.retrieve(customerId);
+        if ("deleted" in existingCustomer && existingCustomer.deleted) customerId = null;
+      } catch {
+        customerId = null;
+      }
+    }
+
+    if (!customerId) {
+      const customer = await stripe.customers.create({
+        email: guestEmail,
+        name: guestName || undefined,
+        metadata: { guest: "1" },
+      });
+      customerId = customer.id;
+      await db.query(
+        `insert into guest_stripe_customers (email, stripe_customer_id) values ($1, $2)
+         on conflict (email) do update set stripe_customer_id = excluded.stripe_customer_id`,
+        [guestEmail, customerId]
+      );
+    }
+
+    const partnerId = await resolveEducationPartnerId(body.educationPartnerCode);
+    const reinvestOptIn = body.reinvestOptIn ?? false;
+    const reinvestPct = body.reinvestPct ?? 5;
+    const alloc = computeReinvestAllocation(body.amount, reinvestOptIn, reinvestPct, partnerId);
+
+    const intent = await stripe.paymentIntents.create({
+      amount: Math.round(body.amount * 100),
+      currency: body.currency,
+      customer: customerId,
+      payment_method_types: ["card"],
+      metadata: {
+        orgId: body.orgId,
+        campaignId: body.campaignId || "",
+        donorEmail: guestEmail,
+        guest: "1",
+        type: "donation",
+        epId: partnerId || "",
+        reinvest: reinvestOptIn ? "1" : "0",
+        rAmt: String(alloc.reinvest_amount),
+        pAmt: String(alloc.partner_reinvest_amount),
+        gAmt: String(alloc.general_reinvest_amount),
+      },
+    } as any);
+
+    const ephemeralKey = await stripe.ephemeralKeys.create(
+      { customer: customerId },
+      { apiVersion: "2024-04-10" }
+    );
+
+    await db.query(
+      `insert into donations (
+         org_id, campaign_id, user_id, donor_email, donor_name, amount, currency, status, stripe_payment_intent_id,
+         education_partner_id, reinvest_opt_in, reinvest_amount, partner_reinvest_amount, general_reinvest_amount
+       ) values ($1, $2, NULL, $3, $4, $5, $6, 'pending', $7, $8, $9, $10, $11, $12)`,
+      [
+        body.orgId,
+        body.campaignId || null,
+        guestEmail,
+        guestName,
+        body.amount,
+        body.currency,
+        intent.id,
+        partnerId || null,
+        reinvestOptIn,
+        alloc.reinvest_amount,
+        alloc.partner_reinvest_amount,
+        alloc.general_reinvest_amount,
+      ]
+    );
+
+    return {
+      clientSecret: intent.client_secret,
+      paymentIntentId: intent.id,
+      customerId,
+      ephemeralKey: ephemeralKey.secret,
+    };
+  });
+
+  app.post("/api/payments/guest-sync-native-donation", async (request, reply) => {
+    let body: z.infer<typeof guestSyncDonationSchema>;
+    try {
+      body = guestSyncDonationSchema.parse(request.body);
+    } catch (e: unknown) {
+      return reply.code(400).send({ error: e instanceof Error ? e.message : "Invalid request" });
+    }
+
+    const stripe = requireStripe(reply);
+    if (!stripe) return;
+
+    let pi: Awaited<ReturnType<ReturnType<typeof getStripe>["paymentIntents"]["retrieve"]>>;
+    try {
+      pi = await stripe.paymentIntents.retrieve(body.paymentIntentId);
+    } catch {
+      return reply.code(404).send({ error: "Payment not found" });
+    }
+
+    if (pi.status !== "succeeded") {
+      return reply.code(400).send({ error: "Payment not completed yet" });
+    }
+
+    const guestEmail = normalizeEmail(body.email);
+
+    const donationCheck = await db.query(
+      `select 1 from donations where stripe_payment_intent_id = $1 and lower(trim(coalesce(donor_email, ''))) = $2`,
+      [pi.id, guestEmail]
+    );
+    if (!donationCheck.rowCount) {
+      return reply.code(403).send({ error: "No matching donation for this email" });
+    }
+
+    const client = await db.connect();
+    try {
+      await client.query("BEGIN");
+      await applyDonationFromSucceededPaymentIntent(client, pi as unknown as Record<string, unknown>);
+      await client.query("COMMIT");
+    } catch (err) {
+      await client.query("ROLLBACK");
+      app.log.error({ err }, "guest-sync-native-donation failed");
+      return reply.code(500).send({ error: "Failed to sync donation" });
+    } finally {
+      client.release();
+    }
+
+    try {
+      const donationInfoRes = await db.query(
+        `select d.amount, o.name as org_name from donations d
+         left join organizations o on o.id = d.org_id
+         where d.stripe_payment_intent_id = $1 limit 1`,
+        [pi.id]
+      );
+      const donInfo = donationInfoRes.rows[0] as { amount: string; org_name: string } | undefined;
+      if (donInfo) {
+        const { sendBrevoEmail } = await import("../services/brevo.js");
+        const { emailLayout, ctaButton } = await import("../services/email-template.js");
+        const amountStr = `$${Number(donInfo.amount).toFixed(2)}`;
+        const content = `
+          <h2 style="color:#ffffff;margin:0 0 8px 0;font-size:22px;">Thank You for Your Donation!</h2>
+          <p style="color:#cccccc;margin:0 0 24px 0;font-size:16px;">Your donation of <strong style="color:#059669;">${amountStr}</strong> to <strong>${donInfo.org_name}</strong> has been received.</p>
+          <div style="background:#1a1a1a;border:1px solid #222222;border-radius:12px;padding:24px;margin-bottom:24px;">
+            <p style="color:#999999;margin:0 0 8px 0;font-size:13px;text-transform:uppercase;letter-spacing:0.5px;">Donation Summary</p>
+            <p style="color:#ffffff;margin:0 0 4px 0;font-size:16px;"><strong>Organization:</strong> ${donInfo.org_name}</p>
+            <p style="color:#ffffff;margin:0;font-size:16px;"><strong>Amount:</strong> ${amountStr}</p>
+          </div>
+          <p style="color:#cccccc;margin:0 0 24px 0;font-size:15px;">Want to track your donations and access exclusive donor features? Create a free GiveBlack account.</p>
+          ${ctaButton("https://giveblackapp.com", "Create Free Account")}
+          <p style="color:#999999;margin:24px 0 0 0;font-size:13px;">Thank you for making a difference in your community.</p>
+        `;
+        await sendBrevoEmail({
+          to: guestEmail,
+          subject: `Your donation to ${donInfo.org_name} — Receipt`,
+          html: emailLayout(content),
+          tags: ["giveblack", "donation-receipt", "guest"],
+        });
+      }
+    } catch (emailErr) {
+      app.log.error({ err: emailErr }, "Failed to send guest donation receipt email");
+    }
+
+    return { ok: true };
+  });
 
   app.post("/api/webhooks/stripe", async (request, reply) => {
     const rawBody = request.rawBody as string | undefined;

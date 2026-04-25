@@ -341,6 +341,12 @@ create table if not exists user_stripe_customers (
   created_at timestamptz not null default now()
 );
 
+create table if not exists guest_stripe_customers (
+  email text primary key,
+  stripe_customer_id text not null unique,
+  created_at timestamptz not null default now()
+);
+
 create table if not exists user_notifications (
   id uuid primary key default gen_random_uuid(),
   user_id uuid references users(id) on delete cascade,
