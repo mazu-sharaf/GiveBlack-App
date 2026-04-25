@@ -9,7 +9,7 @@ import {
 import { Tabs } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import Svg, { Path } from "react-native-svg";
-import { useTheme, useThemeColors } from "@/context/ThemeContext";
+import { useThemeColors } from "@/context/ThemeContext";
 import { useAuth } from "@/context/AuthContext";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, {
@@ -95,8 +95,6 @@ function TabItem({
   onPress: () => void;
   onLongPress: () => void;
 }) {
-  const scale = useSharedValue(1);
-  const animStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
   const color = focused ? green : "rgba(255,255,255,0.45)";
 
   return (
@@ -104,16 +102,14 @@ function TabItem({
       style={styles.tabBtn}
       onPress={onPress}
       onLongPress={onLongPress}
-      onPressIn={() => { scale.value = withSpring(0.82, FAB_SPRING); }}
-      onPressOut={() => { scale.value = withSpring(1, FAB_SPRING); }}
       accessibilityRole="tab"
       accessibilityState={{ selected: focused }}
       accessibilityLabel={tab.title}
     >
-      <Animated.View style={[styles.tabContent, animStyle]}>
+      <View style={styles.tabContent}>
         <Ionicons name={focused ? tab.iconFilled : tab.icon} size={ICON_SIZE} color={color} />
         <Text style={[styles.tabLabel, { color }]}>{tab.title}</Text>
-      </Animated.View>
+      </View>
     </Pressable>
   );
 }
@@ -124,22 +120,22 @@ function NotchTabBar({ state, descriptors, navigation }: any) {
   const { width: screenWidth } = useWindowDimensions();
   const { user } = useAuth();
 
-  const isCharity   = user?.type === "charity";
-  const barWidth    = Math.min(screenWidth - 32, 420);
-  const cx          = barWidth / 2;
-  const sideWidth   = cx - NOTCH_HW - 4;
-  const barPath     = isCharity ? buildFlatPath(barWidth) : buildNotchPath(barWidth);
-  const activeName  = state.routes[state.index]?.name ?? "";
+  const isCharity  = user?.type === "charity";
+  const barWidth   = Math.min(screenWidth - 32, 420);
+  const cx         = barWidth / 2;
+  const sideWidth  = cx - NOTCH_HW - 4;
+  const barPath    = isCharity ? buildFlatPath(barWidth) : buildNotchPath(barWidth);
+  const activeName = state.routes[state.index]?.name ?? "";
   const isGiveActive = activeName === "give";
 
-  const fabScale    = useSharedValue(1);
+  const fabScale     = useSharedValue(1);
   const fabAnimStyle = useAnimatedStyle(() => ({ transform: [{ scale: fabScale.value }] }));
 
   const handleFabPressIn  = useCallback(() => { fabScale.value = withSpring(0.88, FAB_SPRING); }, [fabScale]);
   const handleFabPressOut = useCallback(() => { fabScale.value = withSpring(1, FAB_SPRING);    }, [fabScale]);
-  const handleFabPress    = useCallback(() => { navigation.navigate("give"); },                   [navigation]);
+  const handleFabPress    = useCallback(() => { navigation.navigate("give"); },                    [navigation]);
 
-  const getRoute    = (name: string) => state.routes.find((r: any) => r.name === name) ?? null;
+  const getRoute     = (name: string) => state.routes.find((r: any) => r.name === name) ?? null;
   const makeHandlers = (route: any, focused: boolean) => ({
     onPress: () => {
       const ev = navigation.emit({ type: "tabPress", target: route.key, canPreventDefault: true });
@@ -147,6 +143,34 @@ function NotchTabBar({ state, descriptors, navigation }: any) {
     },
     onLongPress: () => navigation.emit({ type: "tabLongPress", target: route.key }),
   });
+
+  if (isCharity) {
+    return (
+      <View style={[styles.barOuter, { paddingBottom: Math.max(insets.bottom, 8) + 8 }]}>
+        <View style={{ width: barWidth, height: BAR_H }}>
+          <Svg width={barWidth} height={BAR_H} style={StyleSheet.absoluteFill}>
+            <Path d={barPath} fill={BAR_COLOR} />
+          </Svg>
+          <View style={styles.flatTabRow}>
+            {ALL_TABS.map((tab) => {
+              const route = getRoute(tab.name);
+              if (!route) return null;
+              const focused = activeName === tab.name;
+              return (
+                <TabItem
+                  key={tab.name}
+                  tab={tab}
+                  focused={focused}
+                  green={c.green}
+                  {...makeHandlers(route, focused)}
+                />
+              );
+            })}
+          </View>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={[styles.barOuter, { paddingBottom: Math.max(insets.bottom, 8) + 8 }]}>
@@ -174,26 +198,24 @@ function NotchTabBar({ state, descriptors, navigation }: any) {
           })}
         </View>
 
-        {!isCharity && (
-          <Pressable
-            onPress={handleFabPress}
-            onPressIn={handleFabPressIn}
-            onPressOut={handleFabPressOut}
-            accessibilityRole="button"
-            accessibilityLabel="Donate"
-            style={[styles.fabPressable, { left: cx - FAB_R, top: 0 }]}
+        <Pressable
+          onPress={handleFabPress}
+          onPressIn={handleFabPressIn}
+          onPressOut={handleFabPressOut}
+          accessibilityRole="button"
+          accessibilityLabel="Donate"
+          style={[styles.fabPressable, { left: cx - FAB_R, top: 0 }]}
+        >
+          <Animated.View
+            style={[
+              styles.fabCircle,
+              isGiveActive && styles.fabActive,
+              fabAnimStyle,
+            ]}
           >
-            <Animated.View
-              style={[
-                styles.fabCircle,
-                isGiveActive && styles.fabActive,
-                fabAnimStyle,
-              ]}
-            >
-              <Ionicons name="heart" size={26} color={c.green} />
-            </Animated.View>
-          </Pressable>
-        )}
+            <Ionicons name="heart" size={26} color={c.green} />
+          </Animated.View>
+        </Pressable>
       </View>
     </View>
   );
@@ -211,8 +233,7 @@ export default function TabsLayout() {
         {ALL_TABS.map((tab) => (
           <Tabs.Screen key={tab.name} name={tab.name} options={{ title: tab.title }} />
         ))}
-        <Tabs.Screen name="give"       options={{ title: "Donate",     href: null }} />
-        <Tabs.Screen name="categories" options={{ title: "Categories", href: null }} />
+        <Tabs.Screen name="give" options={{ title: "Donate", href: null }} />
       </Tabs>
     </View>
   );
@@ -230,6 +251,15 @@ const styles = StyleSheet.create({
     position: "absolute",
     bottom: 0,
     left: 0,
+  },
+  flatTabRow: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: BAR_H,
+    flexDirection: "row",
+    alignItems: "center",
   },
   tabSide: {
     position: "absolute",
