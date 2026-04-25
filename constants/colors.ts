@@ -26,6 +26,12 @@ export interface ThemeColors {
   successBg: string;
   errorBg: string;
   sliderInactive: string;
+  iconBgGreen: string;
+  iconBgBlue: string;
+  iconBgPurple: string;
+  iconBgOrange: string;
+  iconBgRed: string;
+  iconBgGrey: string;
 }
 
 export const lightTheme: ThemeColors = {
@@ -50,6 +56,12 @@ export const lightTheme: ThemeColors = {
   successBg: "#E8F5E9",
   errorBg: "#FFEBEE",
   sliderInactive: "#8C8C8C",
+  iconBgGreen: "#E8F5E9",
+  iconBgBlue: "#E3F2FD",
+  iconBgPurple: "#F3E5F5",
+  iconBgOrange: "#FFF3E0",
+  iconBgRed: "#FFEBEE",
+  iconBgGrey: "#F5F5F5",
 };
 
 export const darkTheme: ThemeColors = {
@@ -74,6 +86,12 @@ export const darkTheme: ThemeColors = {
   successBg: "#1B3A26",
   errorBg: "#3A1B1B",
   sliderInactive: "#2E2E2E",
+  iconBgGreen: "#1B2E1B",
+  iconBgBlue: "#1B2A3D",
+  iconBgPurple: "#2D1B3D",
+  iconBgOrange: "#3D2A1B",
+  iconBgRed: "#3D1515",
+  iconBgGrey: "#2A2A2A",
 };
 
 const Colors = {

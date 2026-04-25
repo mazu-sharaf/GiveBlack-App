@@ -14,7 +14,7 @@ import { useSafeInsets } from "@/lib/safe-area";
 import { Ionicons } from "@expo/vector-icons";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import Colors from "@/constants/colors";
-import { useTheme, useThemeColors } from "@/context/ThemeContext";
+import { useThemeColors } from "@/context/ThemeContext";
 import { useApp } from "@/context/AppContext";
 import { useAuth } from "@/context/AuthContext";
 
@@ -189,17 +189,12 @@ export default function AccountScreen() {
 function AuthenticatedAccountScreen() {
   const router = useRouter();
   const c = useThemeColors();
-  const { isDark } = useTheme();
   const { walletBalance, userProfile, updateProfile } = useApp();
   const { user, avatarUrl, donationSummary, logout } = useAuth();
   const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   const insets = useSafeInsets();
   const bottomPad = insets.bottom;
-
-  const iconBgs = isDark
-    ? { green: "#1B2E1B", blue: "#1B2A3D", purple: "#2D1B3D", orange: "#3D2A1B", red: "#3D1515", grey: "#2A2A2A" }
-    : { green: "#E8F5E9", blue: "#E3F2FD", purple: "#F3E5F5", orange: "#FFF3E0", red: "#FFEBEE", grey: "#F5F5F5" };
 
   return (
     <View style={[styles.container, { backgroundColor: c.background }]}>
@@ -267,7 +262,7 @@ function AuthenticatedAccountScreen() {
           <MenuItem
             icon="receipt-outline"
             label="Transactions"
-            iconBg={iconBgs.green}
+            iconBg={c.iconBgGreen}
             textColor={c.text}
             chevronColor={c.textLight}
             greenColor={c.green}
@@ -277,7 +272,7 @@ function AuthenticatedAccountScreen() {
           <MenuItem
             icon="person-outline"
             label="Edit profile"
-            iconBg={iconBgs.blue}
+            iconBg={c.iconBgBlue}
             textColor={c.text}
             chevronColor={c.textLight}
             greenColor={c.green}
@@ -287,7 +282,7 @@ function AuthenticatedAccountScreen() {
           <MenuItem
             icon="eye-off-outline"
             label="Donate as anonymous"
-            iconBg={iconBgs.purple}
+            iconBg={c.iconBgPurple}
             textColor={c.text}
             chevronColor={c.textLight}
             greenColor={c.green}
@@ -299,7 +294,7 @@ function AuthenticatedAccountScreen() {
           <MenuItem
             icon="people-outline"
             label="Invite friends"
-            iconBg={iconBgs.orange}
+            iconBg={c.iconBgOrange}
             textColor={c.text}
             chevronColor={c.textLight}
             greenColor={c.green}
@@ -309,7 +304,7 @@ function AuthenticatedAccountScreen() {
           <MenuItem
             icon="notifications-outline"
             label="Notifications"
-            iconBg={iconBgs.blue}
+            iconBg={c.iconBgBlue}
             textColor={c.text}
             chevronColor={c.textLight}
             greenColor={c.green}
@@ -319,7 +314,7 @@ function AuthenticatedAccountScreen() {
           <MenuItem
             icon="settings-outline"
             label="Settings & Appearance"
-            iconBg={iconBgs.grey}
+            iconBg={c.iconBgGrey}
             textColor={c.text}
             chevronColor={c.textLight}
             greenColor={c.green}
@@ -329,7 +324,7 @@ function AuthenticatedAccountScreen() {
           <MenuItem
             icon="log-out-outline"
             label="Logout"
-            iconBg={iconBgs.red}
+            iconBg={c.iconBgRed}
             textColor={c.text}
             chevronColor={c.textLight}
             greenColor={c.green}
