@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { useFocusEffect } from "expo-router";
+import { useFocusEffect, Redirect } from "expo-router";
 import { View, Text, StyleSheet, ScrollView, ActivityIndicator } from "react-native";
 import { Image } from "expo-image";
 import { useSafeInsets } from "@/lib/safe-area";
@@ -26,7 +26,7 @@ interface TopDonor {
   donation_count: number;
 }
 
-export default function ImpactScreen() {
+function ImpactContent() {
   const { user, avatarUrl, donationSummary, refreshDonationSummary } = useAuth();
 
   useFocusEffect(
@@ -145,6 +145,23 @@ export default function ImpactScreen() {
   );
 }
 
+export default function ImpactScreen() {
+  const { isGuest } = useAuth();
+
+  if (isGuest) {
+    return (
+      <Redirect
+        href={{
+          pathname: "/(auth)/donor-signup",
+          params: { returnTo: "/(account)/impact", feature: "impact" },
+        }}
+      />
+    );
+  }
+
+  return <ImpactContent />;
+}
+
 const styles = StyleSheet.create({
   container: { flex: 1 },
   content: { paddingHorizontal: 20 },
@@ -242,4 +259,3 @@ const styles = StyleSheet.create({
     fontSize: 11,
   },
 });
-

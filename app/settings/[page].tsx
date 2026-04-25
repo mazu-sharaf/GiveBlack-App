@@ -16,7 +16,7 @@ import {
 } from "react-native";
 import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
-import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
+import { useLocalSearchParams, useRouter, useFocusEffect, Redirect } from "expo-router";
 import { useSafeInsets } from "@/lib/safe-area";
 import { Ionicons } from "@expo/vector-icons";
 import Colors from "@/constants/colors";
@@ -1808,11 +1808,26 @@ function InviteFriendsPage() {
   );
 }
 
+const GUEST_LOCKED_PAGES = ["transactions", "edit-profile"];
+
 export default function SettingsDetailScreen() {
   const { page } = useLocalSearchParams<{ page: string }>();
   const router = useRouter();
   const insets = useSafeInsets();
   const bottomPad = insets.bottom;
+  const { isGuest } = useAuth();
+  const c = useThemeColors();
+
+  if (isGuest && GUEST_LOCKED_PAGES.includes(page || "")) {
+    return (
+      <Redirect
+        href={{
+          pathname: "/(auth)/donor-signup",
+          params: { returnTo: `/settings/${page}`, feature: page },
+        }}
+      />
+    );
+  }
 
   const titles: Record<string, string> = {
     notifications: "Notifications",
@@ -1868,8 +1883,6 @@ export default function SettingsDetailScreen() {
         return <Text style={[styles.legalText, { color: c.textMuted }]}>Page not found</Text>;
     }
   };
-
-  const c = useThemeColors();
 
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>

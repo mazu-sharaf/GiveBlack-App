@@ -29,8 +29,15 @@ export default function DonorSignupScreen() {
   const insets = useSafeInsets();
   const c = useThemeColors();
   const { signUpDonor, loginWithGoogle, loginWithApple } = useAuth();
-  const params = useLocalSearchParams<{ email?: string; returnTo?: string }>();
+  const params = useLocalSearchParams<{ email?: string; returnTo?: string; feature?: string }>();
   const returnTo = params.returnTo ? String(params.returnTo) : undefined;
+  const feature = params.feature ? String(params.feature) : undefined;
+
+  const featureLabels: Record<string, string> = {
+    impact: "Create an account to view your giving impact and global rank.",
+    transactions: "Create an account to access your full donation history.",
+    "edit-profile": "Create an account to set up and manage your profile.",
+  };
 
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -190,6 +197,13 @@ export default function DonorSignupScreen() {
         keyboardDismissMode="interactive"
       >
         <Text style={[styles.title, { color: c.text }]}>Create your{"\n"}Account</Text>
+
+        {feature && featureLabels[feature] && (
+          <View style={[styles.featureBanner, { backgroundColor: c.green + "18", borderColor: c.green + "44" }]}>
+            <Ionicons name="lock-open-outline" size={18} color={c.green} style={{ marginRight: 10, flexShrink: 0 }} />
+            <Text style={[styles.featureBannerText, { color: c.text }]}>{featureLabels[feature]}</Text>
+          </View>
+        )}
 
         {/* Avatar picker */}
         <Pressable style={styles.avatarWrap} onPress={pickAvatar}>
@@ -551,5 +565,20 @@ const styles = StyleSheet.create({
     fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 13,
     color: Colors.textMuted,
+  },
+  featureBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginBottom: 20,
+  },
+  featureBannerText: {
+    fontFamily: "SpaceGrotesk_500Medium",
+    fontSize: 14,
+    flex: 1,
+    lineHeight: 20,
   },
 });
