@@ -1,12 +1,14 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { useFocusEffect, Redirect } from "expo-router";
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator } from "react-native";
+import { useFocusEffect, useRouter } from "expo-router";
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Pressable } from "react-native";
 import { Image } from "expo-image";
+import { Ionicons } from "@expo/vector-icons";
 import { useSafeInsets } from "@/lib/safe-area";
 import { useThemeColors } from "@/context/ThemeContext";
 import { useAuth } from "@/context/AuthContext";
 import { getApiUrl } from "@/lib/query-client";
 import AppHeader from "@/components/AppHeader";
+import GuestLockSheet from "@/components/GuestLockSheet";
 
 interface DonationSummary {
   total_amount_cents: number;
@@ -149,15 +151,38 @@ function ImpactContent() {
 
 export default function ImpactScreen() {
   const { isGuest } = useAuth();
+  const router = useRouter();
+  const c = useThemeColors();
+  const [showGuestSheet, setShowGuestSheet] = useState(true);
 
   if (isGuest) {
     return (
-      <Redirect
-        href={{
-          pathname: "/(auth)/donor-signup",
-          params: { returnTo: "/(account)/impact", feature: "impact" },
-        }}
-      />
+      <View style={[styles.container, { backgroundColor: c.background }]}>
+        <AppHeader showBack title="My Impact" showSearch={false} />
+        <View style={styles.lockedEmptyState}>
+          <Ionicons name="bar-chart-outline" size={52} color={c.textLight} />
+          <Text style={[styles.lockedEmptyTitle, { color: c.text }]}>Track your impact</Text>
+          <Text style={[styles.lockedEmptyMsg, { color: c.textMuted }]}>
+            Sign in or create a free account to view your giving history and global rank.
+          </Text>
+          <Pressable style={[styles.lockedEmptyBtn, { backgroundColor: c.green }]} onPress={() => setShowGuestSheet(true)}>
+            <Text style={styles.lockedEmptyBtnText}>Create Account</Text>
+          </Pressable>
+        </View>
+        <GuestLockSheet
+          visible={showGuestSheet}
+          icon="bar-chart-outline"
+          title="Track your impact"
+          message="Create a free account to see your total donated, your global giving rank, and celebrate your donation journey."
+          onCreateAccount={() =>
+            router.push({
+              pathname: "/(auth)/donor-signup",
+              params: { returnTo: "/(account)/impact", feature: "impact" },
+            })
+          }
+          onDismiss={() => setShowGuestSheet(false)}
+        />
+      </View>
     );
   }
 
@@ -167,6 +192,36 @@ export default function ImpactScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   content: { paddingHorizontal: 20 },
+  lockedEmptyState: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 36,
+    gap: 12,
+  },
+  lockedEmptyTitle: {
+    fontFamily: "SpaceGrotesk_600SemiBold",
+    fontSize: 18,
+    textAlign: "center",
+    marginTop: 8,
+  },
+  lockedEmptyMsg: {
+    fontFamily: "SpaceGrotesk_400Regular",
+    fontSize: 14,
+    textAlign: "center",
+    lineHeight: 22,
+  },
+  lockedEmptyBtn: {
+    marginTop: 8,
+    borderRadius: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 32,
+  },
+  lockedEmptyBtnText: {
+    fontFamily: "SpaceGrotesk_600SemiBold",
+    fontSize: 15,
+    color: "#FFFFFF",
+  },
   headerCard: {
     flexDirection: "row",
     alignItems: "center",

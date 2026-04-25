@@ -16,7 +16,7 @@ import {
 } from "react-native";
 import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
-import { useLocalSearchParams, useRouter, useFocusEffect, Redirect } from "expo-router";
+import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
 import { useSafeInsets } from "@/lib/safe-area";
 import { Ionicons } from "@expo/vector-icons";
 import Colors from "@/constants/colors";
@@ -26,6 +26,7 @@ import { useTheme, useThemeColors } from "@/context/ThemeContext";
 import { useAuth } from "@/context/AuthContext";
 import { useApp } from "@/context/AppContext";
 import AppHeader from "@/components/AppHeader";
+import GuestLockSheet from "@/components/GuestLockSheet";
 
 
 function SettingRow({
@@ -1812,6 +1813,19 @@ function InviteFriendsPage() {
 
 const GUEST_LOCKED_PAGES = ["transactions", "edit-profile"];
 
+const GUEST_LOCK_CONFIG: Record<string, { icon: React.ComponentProps<typeof Ionicons>["name"]; title: string; message: string }> = {
+  transactions: {
+    icon: "receipt-outline",
+    title: "View your transactions",
+    message: "Create a free account to see your full donation and transaction history all in one place.",
+  },
+  "edit-profile": {
+    icon: "person-outline",
+    title: "Edit your profile",
+    message: "Create a free account to set up your profile, upload a photo, and personalize your GiveBlack experience.",
+  },
+};
+
 export default function SettingsDetailScreen() {
   const { page } = useLocalSearchParams<{ page: string }>();
   const router = useRouter();
@@ -1820,16 +1834,13 @@ export default function SettingsDetailScreen() {
   const { isGuest } = useAuth();
   const c = useThemeColors();
 
-  if (isGuest && GUEST_LOCKED_PAGES.includes(page || "")) {
-    return (
-      <Redirect
-        href={{
-          pathname: "/(auth)/donor-signup",
-          params: { returnTo: `/settings/${page}`, feature: page },
-        }}
-      />
-    );
-  }
+  const isLockedForGuest = isGuest && GUEST_LOCKED_PAGES.includes(page || "");
+  const lockConfig = isLockedForGuest ? GUEST_LOCK_CONFIG[page || ""] : null;
+  const [showGuestSheet, setShowGuestSheet] = useState(true);
+
+  useEffect(() => {
+    if (isLockedForGuest) setShowGuestSheet(true);
+  }, [page, isLockedForGuest]);
 
   const titles: Record<string, string> = {
     notifications: "Notifications",
@@ -1886,6 +1897,37 @@ export default function SettingsDetailScreen() {
     }
   };
 
+  if (isLockedForGuest && lockConfig) {
+    return (
+      <View style={[styles.container, { backgroundColor: c.background }]}>
+        <AppHeader showBack title={titles[page || ""] || "Settings"} showSearch={false} />
+        <View style={styles.lockedEmptyState}>
+          <Ionicons name={lockConfig.icon} size={52} color={c.textLight} />
+          <Text style={[styles.lockedEmptyTitle, { color: c.text }]}>{lockConfig.title}</Text>
+          <Text style={[styles.lockedEmptyMsg, { color: c.textMuted }]}>
+            Sign in or create a free account to access this feature.
+          </Text>
+          <Pressable style={[styles.lockedEmptyBtn, { backgroundColor: c.green }]} onPress={() => setShowGuestSheet(true)}>
+            <Text style={styles.lockedEmptyBtnText}>Create Account</Text>
+          </Pressable>
+        </View>
+        <GuestLockSheet
+          visible={showGuestSheet}
+          icon={lockConfig.icon}
+          title={lockConfig.title}
+          message={lockConfig.message}
+          onCreateAccount={() =>
+            router.push({
+              pathname: "/(auth)/donor-signup",
+              params: { returnTo: `/settings/${page}`, feature: page || "" },
+            })
+          }
+          onDismiss={() => setShowGuestSheet(false)}
+        />
+      </View>
+    );
+  }
+
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
     <View style={[styles.container, { backgroundColor: c.background }]}>
@@ -1906,6 +1948,36 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.cream,
+  },
+  lockedEmptyState: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 36,
+    gap: 12,
+  },
+  lockedEmptyTitle: {
+    fontFamily: "SpaceGrotesk_600SemiBold",
+    fontSize: 18,
+    textAlign: "center",
+    marginTop: 8,
+  },
+  lockedEmptyMsg: {
+    fontFamily: "SpaceGrotesk_400Regular",
+    fontSize: 14,
+    textAlign: "center",
+    lineHeight: 22,
+  },
+  lockedEmptyBtn: {
+    marginTop: 8,
+    borderRadius: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 32,
+  },
+  lockedEmptyBtnText: {
+    fontFamily: "SpaceGrotesk_600SemiBold",
+    fontSize: 15,
+    color: "#FFFFFF",
   },
   backBtn: {
     width: 40,
