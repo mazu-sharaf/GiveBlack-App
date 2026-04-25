@@ -264,11 +264,12 @@ const styles = StyleSheet.create({
   },
   heroTitle: {
     fontSize: 28,
-    fontWeight: "700",
+    fontFamily: "SpaceGrotesk_700Bold",
     marginBottom: 8,
   },
   heroSub: {
     fontSize: 15,
+    fontFamily: "SpaceGrotesk_400Regular",
     textAlign: "center",
     lineHeight: 22,
     maxWidth: 280,
@@ -278,7 +279,7 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 18,
-    fontWeight: "700",
+    fontFamily: "SpaceGrotesk_700Bold",
     marginBottom: 12,
   },
   quickRow: {
@@ -294,7 +295,7 @@ const styles = StyleSheet.create({
   },
   quickChipText: {
     fontSize: 15,
-    fontWeight: "600",
+    fontFamily: "SpaceGrotesk_600SemiBold",
   },
   campaignsSection: {
     marginBottom: 24,
@@ -326,12 +327,12 @@ const styles = StyleSheet.create({
   },
   campaignOrg: {
     fontSize: 12,
-    fontWeight: "500",
+    fontFamily: "SpaceGrotesk_500Medium",
     flex: 1,
   },
   campaignTitle: {
     fontSize: 16,
-    fontWeight: "700",
+    fontFamily: "SpaceGrotesk_700Bold",
     lineHeight: 22,
   },
   progressTrack: {
@@ -352,10 +353,11 @@ const styles = StyleSheet.create({
   },
   statRaised: {
     fontSize: 14,
-    fontWeight: "700",
+    fontFamily: "SpaceGrotesk_700Bold",
   },
   statGoal: {
     fontSize: 12,
+    fontFamily: "SpaceGrotesk_400Regular",
   },
   browseSection: {
     alignItems: "center",
@@ -372,7 +374,7 @@ const styles = StyleSheet.create({
   browseBtnText: {
     color: "#fff",
     fontSize: 16,
-    fontWeight: "600",
+    fontFamily: "SpaceGrotesk_600SemiBold",
   },
   emptyState: {
     alignItems: "center",
@@ -381,5 +383,6 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 15,
+    fontFamily: "SpaceGrotesk_400Regular",
   },
 });
