@@ -12,6 +12,61 @@ import { TIER_LIMITS } from "../lib/tier-limits.js";
 
 export { TIER_LIMITS };
 
+const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000;
+const EMAIL_LIMIT = 5;
+const IP_LIMIT = 20;
+
+interface RateLimitBucket {
+  count: number;
+  windowStart: number;
+}
+
+const emailRateLimitMap = new Map<string, RateLimitBucket>();
+const ipRateLimitMap = new Map<string, RateLimitBucket>();
+
+function pruneRateLimitMap(map: Map<string, RateLimitBucket>, now: number): void {
+  for (const [key, bucket] of map.entries()) {
+    if (now - bucket.windowStart >= RATE_LIMIT_WINDOW_MS) {
+      map.delete(key);
+    }
+  }
+}
+
+function checkRateLimit(
+  map: Map<string, RateLimitBucket>,
+  key: string,
+  limit: number,
+  now: number
+): boolean {
+  const bucket = map.get(key);
+  if (!bucket || now - bucket.windowStart >= RATE_LIMIT_WINDOW_MS) {
+    map.set(key, { count: 1, windowStart: now });
+    return true;
+  }
+  if (bucket.count >= limit) {
+    return false;
+  }
+  bucket.count += 1;
+  return true;
+}
+
+function applyGuestRateLimit(
+  email: string,
+  ip: string,
+): { allowed: boolean; reason?: string } {
+  const now = Date.now();
+  pruneRateLimitMap(emailRateLimitMap, now);
+  pruneRateLimitMap(ipRateLimitMap, now);
+
+  if (!checkRateLimit(ipRateLimitMap, ip, IP_LIMIT, now)) {
+    return { allowed: false, reason: "Too many requests from this IP address. Please try again later." };
+  }
+  if (!checkRateLimit(emailRateLimitMap, email, EMAIL_LIMIT, now)) {
+    return { allowed: false, reason: "Too many requests for this email address. Please try again later." };
+  }
+  return { allowed: true };
+}
+
 function tierFromProductId(productId: string | null | undefined): string {
   if (!productId) return "free";
   if (productId === env.STRIPE_PRODUCT_GROWTH) return "growth";
@@ -1622,6 +1677,11 @@ export const stripeRoutes: FastifyPluginAsync = async (app) => {
       return reply.code(400).send({ error: e instanceof Error ? e.message : "Invalid request" });
     }
 
+    const rateCheck = applyGuestRateLimit(normalizeEmail(body.email), request.ip);
+    if (!rateCheck.allowed) {
+      return reply.code(429).send({ error: rateCheck.reason ?? "Too many requests. Please try again later." });
+    }
+
     const stripe = requireStripe(reply);
     if (!stripe) return;
 
@@ -1735,6 +1795,11 @@ export const stripeRoutes: FastifyPluginAsync = async (app) => {
       body = guestSyncDonationSchema.parse(request.body);
     } catch (e: unknown) {
       return reply.code(400).send({ error: e instanceof Error ? e.message : "Invalid request" });
+    }
+
+    const rateCheck = applyGuestRateLimit(normalizeEmail(body.email), request.ip);
+    if (!rateCheck.allowed) {
+      return reply.code(429).send({ error: rateCheck.reason ?? "Too many requests. Please try again later." });
     }
 
     const stripe = requireStripe(reply);

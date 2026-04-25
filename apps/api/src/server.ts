@@ -40,6 +40,12 @@ export function buildServer() {
     logger: true,
     /** Campaign forms can send long descriptions; default 1MB is easy to exceed. */
     bodyLimit: 10 * 1024 * 1024,
+    /**
+     * In production the app sits behind a trusted reverse proxy (Replit gateway / CDN),
+     * so trust X-Forwarded-For to get the real client IP for rate limiting.
+     * Disabled in development to avoid IP-spoof bypass when running without a proxy.
+     */
+    trustProxy: env.NODE_ENV === "production",
   });
 
   app.register(cors, {
