@@ -83,6 +83,25 @@ function NotificationsPage() {
   const [loading, setLoading] = useState(true);
   const [emailEnabled, setEmailEnabled] = useState(true);
   const [weeklyDigest, setWeeklyDigest] = useState(true);
+  const [permissionStatus, setPermissionStatus] = useState<"granted" | "denied" | "undetermined" | null>(null);
+
+  useEffect(() => {
+    if (Platform.OS === "web") return;
+    void (async () => {
+      try {
+        const Notif = require("expo-notifications") as typeof import("expo-notifications");
+        const { status } = await Notif.getPermissionsAsync();
+        if (status === "undetermined") {
+          const { status: asked } = await Notif.requestPermissionsAsync();
+          setPermissionStatus(asked);
+        } else {
+          setPermissionStatus(status);
+        }
+      } catch {
+        // expo-notifications unavailable in this environment
+      }
+    })();
+  }, []);
 
   useEffect(() => {
     if (!session?.accessToken) {
@@ -119,6 +138,10 @@ function NotificationsPage() {
         session.accessToken
       );
       if (res.preferences) setPrefs(res.preferences);
+      if (value && permissionStatus === "granted") {
+        const { registerPushTokenWithAuth } = await import("@/lib/notifications");
+        void registerPushTokenWithAuth(session.accessToken);
+      }
     } catch {
       setPrefs(prefs);
     }
@@ -129,6 +152,21 @@ function NotificationsPage() {
   return (
     <>
       <InfoSection title="Push notifications">
+        {permissionStatus === "denied" && (
+          <Pressable
+            onPress={() => Linking.openSettings()}
+            style={{ flexDirection: "row", alignItems: "center", padding: 14, gap: 12, borderBottomWidth: 1, borderBottomColor: c.border }}
+          >
+            <Ionicons name="warning-outline" size={20} color="#F59E0B" />
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.rowLabel, { color: c.text }]}>Notifications are blocked</Text>
+              <Text style={[styles.rowDesc, { color: c.textMuted }]}>
+                Tap to open System Settings and allow notifications for GiveBlack
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={16} color={c.textLight} />
+          </Pressable>
+        )}
         {loading || !prefs ? (
           <Text style={[styles.legalText, { color: c.textMuted, padding: 16 }]}>
             {session?.accessToken ? "Loading…" : "Sign in to manage notification preferences."}

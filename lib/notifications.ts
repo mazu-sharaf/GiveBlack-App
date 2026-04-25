@@ -80,7 +80,11 @@ export async function registerPushTokenWithAuth(accessToken: string): Promise<st
 
     await ensureAndroidNotificationChannels();
 
-    const tokenData = await Notifications.getExpoPushTokenAsync();
+    const projectId =
+      Constants.expoConfig?.extra?.eas?.projectId as string | undefined;
+    const tokenData = await Notifications.getExpoPushTokenAsync(
+      projectId ? { projectId } : undefined
+    );
     const token = tokenData.data;
     if (!token) return null;
 
