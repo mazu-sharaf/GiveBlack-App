@@ -270,6 +270,16 @@ function AuthenticatedAccountScreen() {
           />
           <View style={[styles.menuSep, { backgroundColor: c.border }]} />
           <MenuItem
+            icon="heart-outline"
+            label="Favorites"
+            iconBg={c.iconBgRed}
+            textColor={c.text}
+            chevronColor={c.textLight}
+            greenColor={c.green}
+            onPress={() => router.push("/(tabs)/favourite")}
+          />
+          <View style={[styles.menuSep, { backgroundColor: c.border }]} />
+          <MenuItem
             icon="person-outline"
             label="Edit profile"
             iconBg={c.iconBgBlue}
