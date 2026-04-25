@@ -146,6 +146,9 @@ export const campaignPageRoutes: FastifyPluginAsync = async (app) => {
       const webCampaignUrl = `${baseUrl}/admin/c/${encodeURIComponent(campaignId)}`;
       const brandIconUrl = `${baseUrl.replace(/\/$/, "")}/admin/giveblack-icon.png`;
 
+      const appleUrl = env.APP_STORE_URL || "https://apps.apple.com/app/giveblack";
+      const playUrl = env.PLAY_STORE_URL || "https://play.google.com/store/apps/details?id=com.giveblack";
+
       const html = campaignShareLandingPage({
         pageTitle,
         metaDescription: plainDesc,
@@ -156,6 +159,8 @@ export const campaignPageRoutes: FastifyPluginAsync = async (app) => {
         webCampaignUrl,
         campaignTitle: row.title,
         brandIconUrl,
+        appleUrl,
+        playUrl,
       });
       return reply.type("text/html").send(html);
     } catch (e) {
@@ -331,6 +336,8 @@ function campaignShareLandingPage(opts: {
   webCampaignUrl: string;
   campaignTitle: string;
   brandIconUrl: string;
+  appleUrl: string;
+  playUrl: string;
 }): string {
   const t = escHtml(opts.pageTitle);
   const d = escHtml(opts.metaDescription);
@@ -341,6 +348,8 @@ function campaignShareLandingPage(opts: {
   const web = escHtml(opts.webCampaignUrl);
   const cTitle = escHtml(opts.campaignTitle);
   const iconHref = escHtml(opts.brandIconUrl);
+  const apple = escHtml(opts.appleUrl);
+  const play = escHtml(opts.playUrl);
   return `<!DOCTYPE html>
 <html lang="en"><head>
 <meta charset="utf-8"/>
@@ -370,6 +379,15 @@ p{color:#6b7280;font-size:15px;margin-bottom:24px;max-width:400px;line-height:1.
 a.btn{display:inline-block;padding:14px 28px;background:#059669;color:#fff;border-radius:12px;font-weight:700;text-decoration:none;font-size:16px;}
 a.btn:hover{background:#047857;}
 </style>
+<script>
+(function(){
+  var ua=navigator.userAgent;
+  var isIOS=/iPhone|iPad|iPod/i.test(ua)||(navigator.platform==="MacIntel"&&navigator.maxTouchPoints>1);
+  var isAndroid=/Android/i.test(ua);
+  if(isIOS){window.location.replace("${apple}");}
+  else if(isAndroid){window.location.replace("${play}");}
+})();
+</script>
 </head><body>
 <div class="brand">Give Black</div>
 <h1>${cTitle}</h1>
