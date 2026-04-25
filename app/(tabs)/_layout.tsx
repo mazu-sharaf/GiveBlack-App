@@ -1,4 +1,4 @@
-import React, { useCallback } from "react";
+import React, { useEffect } from "react";
 import {
   View,
   Text,
@@ -8,9 +8,7 @@ import {
 } from "react-native";
 import { Tabs } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import Svg, { Path } from "react-native-svg";
 import { useThemeColors } from "@/context/ThemeContext";
-import { useAuth } from "@/context/AuthContext";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, {
   useSharedValue,
@@ -26,63 +24,32 @@ interface TabDef {
   iconFilled: keyof typeof Ionicons.glyphMap;
 }
 
-const LEFT_TABS: TabDef[] = [
-  { name: "index",     title: "Home",      icon: "home-outline",   iconFilled: "home"   },
-  { name: "community", title: "Community", icon: "people-outline", iconFilled: "people" },
+const TABS: TabDef[] = [
+  { name: "index",      title: "Home",       icon: "home-outline",      iconFilled: "home"      },
+  { name: "community",  title: "Campaigns",  icon: "megaphone-outline", iconFilled: "megaphone" },
+  { name: "categories", title: "Categories", icon: "grid-outline",      iconFilled: "grid"      },
+  { name: "account",    title: "Account",    icon: "person-outline",    iconFilled: "person"    },
 ];
 
-const RIGHT_TABS: TabDef[] = [
-  { name: "favourite", title: "Favorites", icon: "heart-outline",  iconFilled: "heart"  },
-  { name: "account",   title: "Account",   icon: "person-outline", iconFilled: "person" },
-];
+const FLOAT_ABOVE  = 14;
+const BUBBLE_SIZE  = 52;
+const BUBBLE_R     = BUBBLE_SIZE / 2;
+const SPACE_ABOVE  = FLOAT_ABOVE + BUBBLE_R;
+const BAR_H        = 62;
+const BAR_R        = BAR_H / 2;
+const TOTAL_H      = SPACE_ABOVE + BAR_H;
+const ICON_SIZE    = 22;
+const LABEL_H      = 12;
+const GROUP_H      = ICON_SIZE + 4 + LABEL_H;
+const ICON_TOP     = SPACE_ABOVE + Math.round((BAR_H - GROUP_H) / 2);
+const LABEL_TOP    = ICON_TOP + ICON_SIZE + 4;
+const ICON_CENTER  = ICON_TOP + ICON_SIZE / 2;
+const LIFT_DELTA   = ICON_CENTER - BUBBLE_R;
 
-const ALL_TABS: TabDef[] = [...LEFT_TABS, ...RIGHT_TABS];
+const SPRING    = { damping: 15, stiffness: 220 };
+const BAR_COLOR = "#1C1C1E";
 
-const BAR_H      = 66;
-const BAR_R      = BAR_H / 2;
-const FAB_SIZE   = 64;
-const FAB_R      = FAB_SIZE / 2;
-const NOTCH_R    = 40;
-const FAB_ABOVE  = 14;
-const SPACE_ABOVE = FAB_R + FAB_ABOVE;
-const NOTCH_HW   = Math.round(Math.sqrt(NOTCH_R ** 2 - FAB_ABOVE ** 2));
-const ICON_SIZE  = 22;
-const BAR_COLOR  = "#1C1C1E";
-const FAB_SPRING = { damping: 15, stiffness: 300 };
-
-function buildNotchPath(W: number): string {
-  const H = BAR_H, R = BAR_R, cx = W / 2, nhw = NOTCH_HW, nr = NOTCH_R;
-  return (
-    `M ${R} 0 ` +
-    `L ${cx - nhw} 0 ` +
-    `A ${nr} ${nr} 0 0 1 ${cx + nhw} 0 ` +
-    `L ${W - R} 0 ` +
-    `A ${R} ${R} 0 0 1 ${W} ${R} ` +
-    `L ${W} ${H - R} ` +
-    `A ${R} ${R} 0 0 1 ${W - R} ${H} ` +
-    `L ${R} ${H} ` +
-    `A ${R} ${R} 0 0 1 0 ${H - R} ` +
-    `L 0 ${R} ` +
-    `A ${R} ${R} 0 0 1 ${R} 0 Z`
-  );
-}
-
-function buildFlatPath(W: number): string {
-  const H = BAR_H, R = BAR_R;
-  return (
-    `M ${R} 0 ` +
-    `L ${W - R} 0 ` +
-    `A ${R} ${R} 0 0 1 ${W} ${R} ` +
-    `L ${W} ${H - R} ` +
-    `A ${R} ${R} 0 0 1 ${W - R} ${H} ` +
-    `L ${R} ${H} ` +
-    `A ${R} ${R} 0 0 1 0 ${H - R} ` +
-    `L 0 ${R} ` +
-    `A ${R} ${R} 0 0 1 ${R} 0 Z`
-  );
-}
-
-function TabItem({
+function FloatingTabItem({
   tab,
   focused,
   green,
@@ -95,7 +62,23 @@ function TabItem({
   onPress: () => void;
   onLongPress: () => void;
 }) {
-  const color = focused ? green : "rgba(255,255,255,0.45)";
+  const lift = useSharedValue(focused ? 1 : 0);
+
+  useEffect(() => {
+    lift.value = withSpring(focused ? 1 : 0, SPRING);
+  }, [focused, lift]);
+
+  const bubbleStyle = useAnimatedStyle(() => ({
+    opacity: lift.value,
+    transform: [{ scale: 0.72 + 0.28 * lift.value }],
+  }));
+
+  const iconStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: -lift.value * LIFT_DELTA }],
+  }));
+
+  const activeColor  = focused ? green : "rgba(255,255,255,0.42)";
+  const iconColor    = focused ? green : "rgba(255,255,255,0.42)";
 
   return (
     <Pressable
@@ -106,34 +89,30 @@ function TabItem({
       accessibilityState={{ selected: focused }}
       accessibilityLabel={tab.title}
     >
-      <View style={styles.tabContent}>
-        <Ionicons name={focused ? tab.iconFilled : tab.icon} size={ICON_SIZE} color={color} />
-        <Text style={[styles.tabLabel, { color }]}>{tab.title}</Text>
-      </View>
+      <Animated.View style={[styles.bubble, bubbleStyle]} />
+
+      <Animated.View style={[styles.iconPos, iconStyle]}>
+        <Ionicons
+          name={focused ? tab.iconFilled : tab.icon}
+          size={ICON_SIZE}
+          color={iconColor}
+        />
+      </Animated.View>
+
+      <Text style={[styles.tabLabel, { color: activeColor }]}>
+        {tab.title}
+      </Text>
     </Pressable>
   );
 }
 
-function NotchTabBar({ state, descriptors, navigation }: any) {
-  const c = useThemeColors();
+function FloatingTabBar({ state, navigation }: any) {
+  const c      = useThemeColors();
   const insets = useSafeAreaInsets();
   const { width: screenWidth } = useWindowDimensions();
-  const { user } = useAuth();
 
-  const isCharity  = user?.type === "charity";
   const barWidth   = Math.min(screenWidth - 32, 420);
-  const cx         = barWidth / 2;
-  const sideWidth  = cx - NOTCH_HW - 4;
-  const barPath    = isCharity ? buildFlatPath(barWidth) : buildNotchPath(barWidth);
   const activeName = state.routes[state.index]?.name ?? "";
-  const isGiveActive = activeName === "give";
-
-  const fabScale     = useSharedValue(1);
-  const fabAnimStyle = useAnimatedStyle(() => ({ transform: [{ scale: fabScale.value }] }));
-
-  const handleFabPressIn  = useCallback(() => { fabScale.value = withSpring(0.88, FAB_SPRING); }, [fabScale]);
-  const handleFabPressOut = useCallback(() => { fabScale.value = withSpring(1, FAB_SPRING);    }, [fabScale]);
-  const handleFabPress    = useCallback(() => { navigation.navigate("give"); },                    [navigation]);
 
   const getRoute     = (name: string) => state.routes.find((r: any) => r.name === name) ?? null;
   const makeHandlers = (route: any, focused: boolean) => ({
@@ -144,78 +123,27 @@ function NotchTabBar({ state, descriptors, navigation }: any) {
     onLongPress: () => navigation.emit({ type: "tabLongPress", target: route.key }),
   });
 
-  if (isCharity) {
-    return (
-      <View style={[styles.barOuter, { paddingBottom: Math.max(insets.bottom, 8) + 8 }]}>
-        <View style={{ width: barWidth, height: BAR_H }}>
-          <Svg width={barWidth} height={BAR_H} style={StyleSheet.absoluteFill}>
-            <Path d={barPath} fill={BAR_COLOR} />
-          </Svg>
-          <View style={styles.flatTabRow}>
-            {ALL_TABS.map((tab) => {
-              const route = getRoute(tab.name);
-              if (!route) return null;
-              const focused = activeName === tab.name;
-              return (
-                <TabItem
-                  key={tab.name}
-                  tab={tab}
-                  focused={focused}
-                  green={c.green}
-                  {...makeHandlers(route, focused)}
-                />
-              );
-            })}
-          </View>
-        </View>
-      </View>
-    );
-  }
-
   return (
     <View style={[styles.barOuter, { paddingBottom: Math.max(insets.bottom, 8) + 8 }]}>
-      <View style={{ width: barWidth, height: SPACE_ABOVE + BAR_H }}>
+      <View style={{ width: barWidth, height: TOTAL_H }}>
+        <View style={[styles.bar, { backgroundColor: BAR_COLOR }]} />
 
-        <Svg width={barWidth} height={BAR_H} style={styles.barSvg}>
-          <Path d={barPath} fill={BAR_COLOR} />
-        </Svg>
-
-        <View style={[styles.tabSide, { left: 0, width: sideWidth }]}>
-          {LEFT_TABS.map((tab) => {
+        <View style={styles.tabsRow}>
+          {TABS.map((tab) => {
             const route = getRoute(tab.name);
             if (!route) return null;
             const focused = activeName === tab.name;
-            return <TabItem key={tab.name} tab={tab} focused={focused} green={c.green} {...makeHandlers(route, focused)} />;
+            return (
+              <FloatingTabItem
+                key={tab.name}
+                tab={tab}
+                focused={focused}
+                green={c.green}
+                {...makeHandlers(route, focused)}
+              />
+            );
           })}
         </View>
-
-        <View style={[styles.tabSide, { right: 0, width: sideWidth }]}>
-          {RIGHT_TABS.map((tab) => {
-            const route = getRoute(tab.name);
-            if (!route) return null;
-            const focused = activeName === tab.name;
-            return <TabItem key={tab.name} tab={tab} focused={focused} green={c.green} {...makeHandlers(route, focused)} />;
-          })}
-        </View>
-
-        <Pressable
-          onPress={handleFabPress}
-          onPressIn={handleFabPressIn}
-          onPressOut={handleFabPressOut}
-          accessibilityRole="button"
-          accessibilityLabel="Donate"
-          style={[styles.fabPressable, { left: cx - FAB_R, top: 0 }]}
-        >
-          <Animated.View
-            style={[
-              styles.fabCircle,
-              isGiveActive && styles.fabActive,
-              fabAnimStyle,
-            ]}
-          >
-            <Ionicons name="heart" size={26} color={c.green} />
-          </Animated.View>
-        </Pressable>
       </View>
     </View>
   );
@@ -227,13 +155,14 @@ export default function TabsLayout() {
     <View style={{ flex: 1, backgroundColor: c.background }}>
       <AppHeader variant="donor" />
       <Tabs
-        tabBar={(props) => <NotchTabBar {...props} />}
+        tabBar={(props) => <FloatingTabBar {...props} />}
         screenOptions={{ headerShown: false }}
       >
-        {ALL_TABS.map((tab) => (
+        {TABS.map((tab) => (
           <Tabs.Screen key={tab.name} name={tab.name} options={{ title: tab.title }} />
         ))}
-        <Tabs.Screen name="give" options={{ title: "Donate", href: null }} />
+        <Tabs.Screen name="favourite" options={{ title: "Favorites", href: null }} />
+        <Tabs.Screen name="give"      options={{ title: "Donate",    href: null }} />
       </Tabs>
     </View>
   );
@@ -247,65 +176,54 @@ const styles = StyleSheet.create({
     right: 0,
     alignItems: "center",
   },
-  barSvg: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-  },
-  flatTabRow: {
+  bar: {
     position: "absolute",
     bottom: 0,
     left: 0,
     right: 0,
     height: BAR_H,
-    flexDirection: "row",
-    alignItems: "center",
+    borderRadius: BAR_R,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 8,
   },
-  tabSide: {
+  tabsRow: {
     position: "absolute",
+    top: 0,
     bottom: 0,
-    height: BAR_H,
+    left: 0,
+    right: 0,
     flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-around",
-    paddingHorizontal: 2,
   },
   tabBtn: {
     flex: 1,
+    height: TOTAL_H,
     alignItems: "center",
-    justifyContent: "center",
-    height: BAR_H,
   },
-  tabContent: {
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 3,
-  },
-  tabLabel: {
-    fontSize: 10,
-    fontFamily: "SpaceGrotesk_600SemiBold",
-    letterSpacing: 0.1,
-  },
-  fabPressable: {
+  bubble: {
     position: "absolute",
-    width: FAB_SIZE,
-    height: FAB_SIZE,
-    zIndex: 10,
-  },
-  fabCircle: {
-    width: FAB_SIZE,
-    height: FAB_SIZE,
-    borderRadius: FAB_R,
+    top: 0,
+    width: BUBBLE_SIZE,
+    height: BUBBLE_SIZE,
+    borderRadius: BUBBLE_R,
     backgroundColor: BAR_COLOR,
-    alignItems: "center",
-    justifyContent: "center",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.45,
+    shadowOpacity: 0.5,
     shadowRadius: 8,
     elevation: 12,
   },
-  fabActive: {
-    opacity: 0.75,
+  iconPos: {
+    position: "absolute",
+    top: ICON_TOP,
+  },
+  tabLabel: {
+    position: "absolute",
+    top: LABEL_TOP,
+    fontSize: 10,
+    fontFamily: "SpaceGrotesk_600SemiBold",
+    letterSpacing: 0.1,
   },
 });
