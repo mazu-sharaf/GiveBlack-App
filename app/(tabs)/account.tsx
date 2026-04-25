@@ -185,8 +185,8 @@ function AuthenticatedAccountScreen() {
   const bottomPad = insets.bottom;
 
   const iconBgs = isDark
-    ? { green: "#1B2E1B", blue: "#1B2A3D", purple: "#2D1B3D", orange: "#3D2A1B", red: "#3D1515", grey: "#2A2A2A", moon: "#2D2A1B" }
-    : { green: "#E8F5E9", blue: "#E3F2FD", purple: "#F3E5F5", orange: "#FFF3E0", red: "#FFEBEE", grey: "#F5F5F5", moon: "#FFF3E0" };
+    ? { green: "#1B2E1B", blue: "#1B2A3D", purple: "#2D1B3D", orange: "#3D2A1B", red: "#3D1515", grey: "#2A2A2A" }
+    : { green: "#E8F5E9", blue: "#E3F2FD", purple: "#F3E5F5", orange: "#FFF3E0", red: "#FFEBEE", grey: "#F5F5F5" };
 
   return (
     <View style={[styles.container, { backgroundColor: c.background }]}>
