@@ -444,6 +444,35 @@ export default function DonateScreen() {
     }
   }
 
+  async function attemptGuestWebCheckout(value: number): Promise<"redirecting" | "error"> {
+    try {
+      const res = await apiPost<{ url: string; sessionId: string }>(
+        "/api/payments/guest-donate-checkout",
+        {
+          orgId: org!.id,
+          amount: value,
+          email: guestEmail,
+          reinvestOptIn: educationEnabled,
+          reinvestPct: Math.round(educationRate * 1000) / 10,
+          ...(resolvedPartner ? { educationPartnerCode: resolvedPartner.code } : {}),
+          ...(campaignId ? { campaignId } : {}),
+        }
+      );
+      if (res.url) {
+        if (typeof window !== "undefined") {
+          window.location.href = res.url;
+        }
+        return "redirecting";
+      }
+      setErrorMsg("Failed to create checkout session. Please try again.");
+      return "error";
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      setErrorMsg(msg);
+      return "error";
+    }
+  }
+
   async function attemptGuestNativePayment(value: number): Promise<"success" | "canceled" | "error"> {
     try {
       const intentRes = await apiPost<{
@@ -512,8 +541,23 @@ export default function DonateScreen() {
     setStep("processing");
     setErrorMsg("");
 
+    if (Platform.OS === "web") {
+      if (guestMode) {
+        const webResult = await attemptGuestWebCheckout(value);
+        if (webResult === "error") {
+          setStep("error");
+          setLoading(false);
+        }
+        return;
+      }
+      setErrorMsg("Native Stripe checkout is only available in iOS/Android builds with Stripe native module enabled.");
+      setStep("error");
+      setLoading(false);
+      return;
+    }
+
     const nativeAvailable = await isNativeStripeAvailable();
-    if (!nativeAvailable || Platform.OS === "web") {
+    if (!nativeAvailable) {
       setErrorMsg("Native Stripe checkout is only available in iOS/Android builds with Stripe native module enabled.");
       setStep("error");
       setLoading(false);
@@ -847,7 +891,7 @@ export default function DonateScreen() {
             <ActivityIndicator size="large" color={c.green} />
             <Text style={[styles.receiptTitle, { color: c.text, marginTop: 16 }]}>Processing Payment...</Text>
             <Text style={[styles.receiptSubtitle, { color: c.textMuted }]}>
-              {paymentMethod === "native" ? "Opening secure Stripe payment sheet..." : "Please wait while we process your donation."}
+              {Platform.OS === "web" && guestMode ? "Redirecting to Stripe Checkout..." : paymentMethod === "native" ? "Opening secure Stripe payment sheet..." : "Please wait while we process your donation."}
             </Text>
           </View>
 
