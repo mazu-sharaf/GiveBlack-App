@@ -1,6 +1,7 @@
 import React, { useEffect, useCallback } from "react";
 import {
   View,
+  Text,
   Pressable,
   StyleSheet,
   Platform,
@@ -10,6 +11,7 @@ import { Tabs } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
 import { useTheme, useThemeColors } from "@/context/ThemeContext";
+import { useAuth } from "@/context/AuthContext";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, {
   useSharedValue,
@@ -49,25 +51,38 @@ const PILL_H = 48;
 const PILL_RADIUS = 24;
 const BAR_H_PADDING = 6;
 const ICON_SIZE = 22;
+const FAB_SIZE = 62;
 
 function LiquidGlassTabBar({ state, descriptors, navigation }: any) {
   const { isDark } = useTheme();
   const c = useThemeColors();
   const insets = useSafeAreaInsets();
   const { width: screenWidth } = useWindowDimensions();
+  const { user } = useAuth();
+
+  const isCharity = user?.type === "charity";
 
   const barWidth = Math.min(screenWidth - 32, 400);
   const tabWidth = (barWidth - BAR_H_PADDING * 2) / TAB_COUNT;
   const pillWidth = tabWidth - 4;
 
-  const translateX = useSharedValue(state.index * tabWidth + BAR_H_PADDING + 2);
-  const activeIndex = useSharedValue(state.index);
+  const activeTabIndex = TABS.findIndex((t) => t.name === state.routes[state.index]?.name);
+  const safeActiveIndex = activeTabIndex >= 0 ? activeTabIndex : 0;
+
+  const translateX = useSharedValue(safeActiveIndex * tabWidth + BAR_H_PADDING + 2);
+  const activeIndex = useSharedValue(safeActiveIndex);
+
+  const fabScale = useSharedValue(1);
 
   useEffect(() => {
-    const target = state.index * tabWidth + BAR_H_PADDING + 2;
+    if (activeTabIndex < 0) {
+      activeIndex.value = withSpring(-5, SPRING_CONFIG);
+      return;
+    }
+    const target = activeTabIndex * tabWidth + BAR_H_PADDING + 2;
     translateX.value = withSpring(target, SPRING_CONFIG);
-    activeIndex.value = withSpring(state.index, SPRING_CONFIG);
-  }, [state.index, tabWidth]);
+    activeIndex.value = withSpring(activeTabIndex, SPRING_CONFIG);
+  }, [state.index, tabWidth, activeTabIndex]);
 
   const pillAnimatedStyle = useAnimatedStyle(() => {
     return {
@@ -76,6 +91,24 @@ function LiquidGlassTabBar({ state, descriptors, navigation }: any) {
     };
   });
 
+  const fabAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: fabScale.value }],
+  }));
+
+  const handleFabPressIn = useCallback(() => {
+    fabScale.value = withSpring(0.88, { damping: 15, stiffness: 300 });
+  }, []);
+
+  const handleFabPressOut = useCallback(() => {
+    fabScale.value = withSpring(1, { damping: 15, stiffness: 300 });
+  }, []);
+
+  const handleDonatePres = useCallback(() => {
+    navigation.navigate("give");
+  }, [navigation]);
+
+  const isGiveActive = state.routes[state.index]?.name === "give";
+
   return (
     <View
       style={[
@@ -83,6 +116,34 @@ function LiquidGlassTabBar({ state, descriptors, navigation }: any) {
         { paddingBottom: Math.max(insets.bottom, 8) + 4 },
       ]}
     >
+      {!isCharity && (
+        <Pressable
+          onPress={handleDonatePres}
+          onPressIn={handleFabPressIn}
+          onPressOut={handleFabPressOut}
+          accessibilityRole="button"
+          accessibilityLabel="Donate"
+          style={styles.fabWrapper}
+        >
+          <Animated.View
+            style={[
+              styles.fabCircle,
+              {
+                backgroundColor: c.green,
+                shadowColor: c.green,
+              },
+              fabAnimatedStyle,
+              isGiveActive && styles.fabCircleActive,
+            ]}
+          >
+            <Ionicons name="heart" size={26} color="#fff" />
+          </Animated.View>
+          <Text style={[styles.fabLabel, { color: isDark ? "rgba(255,255,255,0.75)" : "rgba(0,0,0,0.55)" }]}>
+            Donate
+          </Text>
+        </Pressable>
+      )}
+
       <View
         style={[
           styles.glassContainer,
@@ -106,14 +167,16 @@ function LiquidGlassTabBar({ state, descriptors, navigation }: any) {
           style={StyleSheet.absoluteFill}
         />
 
-        <Animated.View style={[styles.pillIndicator, pillAnimatedStyle, {
-          backgroundColor: isDark
-            ? "rgba(255, 255, 255, 0.12)"
-            : "rgba(0, 0, 0, 0.06)",
-          borderColor: isDark
-            ? "rgba(255, 255, 255, 0.08)"
-            : "rgba(255, 255, 255, 0.9)",
-        }]} />
+        {activeTabIndex >= 0 && (
+          <Animated.View style={[styles.pillIndicator, pillAnimatedStyle, {
+            backgroundColor: isDark
+              ? "rgba(255, 255, 255, 0.12)"
+              : "rgba(0, 0, 0, 0.06)",
+            borderColor: isDark
+              ? "rgba(255, 255, 255, 0.08)"
+              : "rgba(255, 255, 255, 0.9)",
+          }]} />
+        )}
 
         <View style={[styles.barInner, { paddingHorizontal: BAR_H_PADDING }]}>
           {state.routes.map((route: any, index: number) => {
@@ -122,6 +185,8 @@ function LiquidGlassTabBar({ state, descriptors, navigation }: any) {
             const { options } = descriptors[route.key];
             const focused = state.index === index;
             const label = options.title || tab.title;
+
+            const tabIndexInArray = TABS.findIndex((t) => t.name === route.name);
 
             const onPress = () => {
               const event = navigation.emit({
@@ -144,7 +209,7 @@ function LiquidGlassTabBar({ state, descriptors, navigation }: any) {
             return (
               <TabItem
                 key={route.key}
-                index={index}
+                index={tabIndexInArray}
                 activeIndex={activeIndex}
                 icon={tab.icon}
                 iconFilled={tab.iconFilled}
@@ -288,6 +353,7 @@ export default function TabsLayout() {
         {TABS.map((tab) => (
           <Tabs.Screen key={tab.name} name={tab.name} options={{ title: tab.title }} />
         ))}
+        <Tabs.Screen name="give" options={{ title: "Donate", href: null }} />
       </Tabs>
     </View>
   );
@@ -300,6 +366,30 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     alignItems: "center",
+  },
+  fabWrapper: {
+    alignItems: "center",
+    marginBottom: 6,
+  },
+  fabCircle: {
+    width: FAB_SIZE,
+    height: FAB_SIZE,
+    borderRadius: FAB_SIZE / 2,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.45,
+    shadowRadius: 12,
+    elevation: 14,
+  },
+  fabCircleActive: {
+    opacity: 0.85,
+  },
+  fabLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    marginTop: 3,
+    letterSpacing: 0.2,
   },
   glassContainer: {
     borderRadius: 28,
