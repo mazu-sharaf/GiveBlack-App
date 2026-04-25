@@ -12,6 +12,7 @@ import * as LegacyFileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
 
 import { buildReceiptHtml } from "@/lib/receipt-html";
+import RatingModal from "@/components/RatingModal";
 
 type Status = "loading" | "success" | "failed";
 
@@ -271,6 +272,7 @@ export default function CheckoutResultScreen() {
     return (
       <View style={[styles.container, { backgroundColor: c.background }]}>
         <Confetti />
+        <RatingModal delayMs={3000} />
         <ScrollView contentContainerStyle={styles.receiptContainer}>
           <Animated.View
             style={[
