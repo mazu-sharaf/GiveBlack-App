@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef } from "react";
 import { Animated, Keyboard, Platform, View, Text, Pressable, StyleSheet, useWindowDimensions } from "react-native";
 import { Tabs } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -6,7 +6,6 @@ import { useThemeColors } from "@/context/ThemeContext";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import AppHeader from "@/components/AppHeader";
 import { useAuth } from "@/context/AuthContext";
-import { loadDonationIntent } from "@/lib/donation-intent";
 
 interface TabDef {
   name: string;
@@ -25,20 +24,17 @@ const TABS: TabDef[] = [
 
 const BAR_COLOR = "#1C1C1E";
 const BAR_H     = 62;
-const FAB_SIZE  = 56;
-const FAB_RISE  = 18;
 
 function SimpleTabBar({ state, navigation }: any) {
   const c      = useThemeColors();
   const insets = useSafeAreaInsets();
   const { width: screenWidth } = useWindowDimensions();
-  const { isGuest, pendingDonationCount, refreshPendingDonationCount } = useAuth();
+  const { refreshPendingDonationCount } = useAuth();
 
-  const [guestPending, setGuestPending] = useState(false);
   const translateY = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    const hideDistance = BAR_H + FAB_RISE + FAB_SIZE / 2 + Math.max(insets.bottom, 8) + 20;
+    const hideDistance = BAR_H + Math.max(insets.bottom, 8) + 20;
 
     const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
     const hideEvent = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
@@ -64,31 +60,13 @@ function SimpleTabBar({ state, navigation }: any) {
   }, [translateY, insets.bottom]);
 
   useEffect(() => {
-    if (!isGuest) {
-      setGuestPending(false);
-      return;
-    }
-    let cancelled = false;
-    void loadDonationIntent().then((intent) => {
-      if (!cancelled) setGuestPending(intent !== null);
-    });
-    return () => { cancelled = true; };
-  }, [isGuest, state.index]);
-
-  useEffect(() => {
     void refreshPendingDonationCount();
   }, [state.index, refreshPendingDonationCount]);
-
-  const badgeCount = isGuest ? (guestPending ? 1 : 0) : pendingDonationCount;
 
   const barWidth   = Math.min(screenWidth - 32, 420);
   const activeName = state.routes[state.index]?.name ?? "";
 
   const getRoute = (name: string) => state.routes.find((r: any) => r.name === name) ?? null;
-
-  const handleDonatePress = () => {
-    navigation.navigate("give");
-  };
 
   return (
     <Animated.View style={[styles.outer, { paddingBottom: Math.max(insets.bottom, 8) + 6 }, { transform: [{ translateY }] }]}>
@@ -125,27 +103,6 @@ function SimpleTabBar({ state, navigation }: any) {
           })}
         </View>
 
-        <Pressable
-          style={[
-            styles.fab,
-            {
-              backgroundColor: c.green,
-              bottom: (BAR_H / 2) + FAB_RISE - FAB_SIZE / 2,
-            },
-          ]}
-          onPress={handleDonatePress}
-          accessibilityRole="button"
-          accessibilityLabel="Donate"
-        >
-          <Ionicons name="heart" size={24} color="#FFFFFF" />
-          {badgeCount > 0 && (
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>
-                {badgeCount > 9 ? "9+" : String(badgeCount)}
-              </Text>
-            </View>
-          )}
-        </Pressable>
       </View>
     </Animated.View>
   );
@@ -210,40 +167,5 @@ const styles = StyleSheet.create({
     width: 4,
     height: 4,
     borderRadius: 2,
-  },
-  fab: {
-    position: "absolute",
-    width: FAB_SIZE,
-    height: FAB_SIZE,
-    borderRadius: FAB_SIZE / 2,
-    alignItems: "center",
-    justifyContent: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 10,
-    elevation: 14,
-    borderWidth: 3,
-    borderColor: BAR_COLOR,
-  },
-  badge: {
-    position: "absolute",
-    top: -2,
-    right: -2,
-    minWidth: 18,
-    height: 18,
-    borderRadius: 9,
-    backgroundColor: "#FF3B30",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 4,
-    borderWidth: 2,
-    borderColor: BAR_COLOR,
-  },
-  badgeText: {
-    color: "#FFFFFF",
-    fontSize: 10,
-    fontFamily: "SpaceGrotesk_600SemiBold",
-    lineHeight: 12,
   },
 });
