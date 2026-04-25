@@ -65,16 +65,19 @@ export default function RootLayout() {
     ...Ionicons.font,
   });
 
-  if (!fontsLoaded) return null;
-
   return (
     <ThemeProvider>
       <AuthProvider>
         <AppProvider>
           <StripeProviderWrapper>
             <SafeAreaProvider>
-              <InnerLayout />
-              {!splashDone ? <SplashLogoAnimation onComplete={onSplashComplete} /> : null}
+              {fontsLoaded && <InnerLayout />}
+              {!splashDone && (
+                <SplashLogoAnimation
+                  onComplete={onSplashComplete}
+                  ready={fontsLoaded}
+                />
+              )}
             </SafeAreaProvider>
           </StripeProviderWrapper>
         </AppProvider>

@@ -5,17 +5,23 @@ import * as SplashScreen from "expo-splash-screen";
 
 const splashImage = require("@/assets/images/splash-image.png");
 
+Image.prefetch(splashImage);
+
 const SPLASH_BG = "#E9EFD6";
 
 type Props = {
   onComplete: () => void;
+  ready?: boolean;
 };
 
-export function SplashLogoAnimation({ onComplete }: Props) {
+export function SplashLogoAnimation({ onComplete, ready = true }: Props) {
   const opacity = useRef(new Animated.Value(1)).current;
   const doneRef = useRef(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
+    if (!ready) return;
+
     const finish = () => {
       if (doneRef.current) return;
       doneRef.current = true;
@@ -29,7 +35,7 @@ export function SplashLogoAnimation({ onComplete }: Props) {
         /* ignore — web or double-call */
       }
 
-      setTimeout(() => {
+      timerRef.current = setTimeout(() => {
         Animated.timing(opacity, {
           toValue: 0,
           duration: Platform.OS === "web" ? 150 : 200,
@@ -37,11 +43,15 @@ export function SplashLogoAnimation({ onComplete }: Props) {
         }).start(({ finished }) => {
           if (finished) finish();
         });
-      }, 3000);
+      }, 2000);
     };
 
     run();
-  }, [opacity, onComplete]);
+
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, [ready, opacity, onComplete]);
 
   return (
     <Animated.View
@@ -54,7 +64,8 @@ export function SplashLogoAnimation({ onComplete }: Props) {
         source={splashImage}
         style={styles.image}
         contentFit="cover"
-        cachePolicy="memory"
+        cachePolicy="memory-disk"
+        priority="high"
         transition={0}
       />
     </Animated.View>
