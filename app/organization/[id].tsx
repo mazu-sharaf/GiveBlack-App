@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -10,9 +10,10 @@ import {
 } from "react-native";
 import { Image } from "expo-image";
 import { useSafeInsets } from "@/lib/safe-area";
-import { router, useLocalSearchParams } from "expo-router";
+import { router, useLocalSearchParams, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useThemeColors } from "@/context/ThemeContext";
+import { useApp } from "@/context/AppContext";
 import AppHeader from "@/components/AppHeader";
 import OrgAvatar from "@/components/OrgAvatar";
 import { getApiUrl } from "@/lib/query-client";
@@ -56,10 +57,17 @@ export default function OrganizationDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const insets = useSafeInsets();
   const c = useThemeColors();
+  const { setLastMeaningfulRoute } = useApp();
   const bottomPad = insets.bottom;
 
   const [org, setOrg] = useState<OrgDetail | null>(null);
   const [loading, setLoading] = useState(true);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (id) setLastMeaningfulRoute(`/organization/${id}`);
+    }, [id, setLastMeaningfulRoute])
+  );
 
   useEffect(() => {
     const fetchOrg = async () => {

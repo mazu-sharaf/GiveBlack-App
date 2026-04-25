@@ -102,6 +102,8 @@ interface AppContextValue {
   addCard: (card: { last4?: string; [key: string]: unknown }) => void;
   verifyPin: (pin: string) => Promise<boolean>;
   refresh: () => Promise<void>;
+  lastMeaningfulRoute: string | null;
+  setLastMeaningfulRoute: (route: string | null) => void;
 }
 
 const AppContext = createContext<AppContextValue | undefined>(undefined);
@@ -252,6 +254,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   >([]);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [savedCards, setSavedCards] = useState<Array<{ id: string; last4?: string; [key: string]: unknown }>>([]);
+  const [lastMeaningfulRoute, setLastMeaningfulRoute] = useState<string | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
 
   const profileKey = `giveblack_profile_${userId}`;
@@ -292,6 +295,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     loadFavorites();
   }, [userId, loadFavorites]);
+
+  // Clear last browsed route once the guest successfully authenticates so
+  // stale return destinations don't persist across future guest sessions.
+  useEffect(() => {
+    if (user?.id && user.id !== "guest") {
+      setLastMeaningfulRoute(null);
+    }
+  }, [user?.id]);
 
   const accessToken = session?.accessToken;
 
@@ -493,6 +504,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       return btoa(pin) === userProfile.pinHash;
     },
     refresh,
+    lastMeaningfulRoute,
+    setLastMeaningfulRoute,
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

@@ -81,6 +81,7 @@ function GuestAccountScreen() {
   const router = useRouter();
   const c = useThemeColors();
   const { logout } = useAuth();
+  const { lastMeaningfulRoute } = useApp();
   const insets = useSafeInsets();
   const [showLogoutModal, setShowLogoutModal] = useState(false);
 
@@ -117,13 +118,25 @@ function GuestAccountScreen() {
         <Animated.View entering={FadeInDown.delay(160).duration(400)} style={styles.guestCtaWrap}>
           <Pressable
             style={[styles.guestCtaPrimary, { backgroundColor: c.green }]}
-            onPress={() => router.push("/(auth)/donor-signup")}
+            onPress={() =>
+              router.push(
+                lastMeaningfulRoute
+                  ? { pathname: "/(auth)/donor-signup", params: { returnTo: lastMeaningfulRoute } }
+                  : "/(auth)/donor-signup"
+              )
+            }
           >
             <Text style={styles.guestCtaPrimaryText}>Create Free Account</Text>
           </Pressable>
           <Pressable
             style={[styles.guestCtaSecondary, { borderColor: c.green }]}
-            onPress={() => router.push("/(auth)/donor-login")}
+            onPress={() =>
+              router.push(
+                lastMeaningfulRoute
+                  ? { pathname: "/(auth)/donor-login", params: { returnTo: lastMeaningfulRoute } }
+                  : "/(auth)/donor-login"
+              )
+            }
           >
             <Text style={[styles.guestCtaSecondaryText, { color: c.green }]}>Sign In</Text>
           </Pressable>

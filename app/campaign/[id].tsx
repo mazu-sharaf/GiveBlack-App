@@ -38,7 +38,7 @@ function resolveImgUrl(base: string, url?: string | null): string | undefined {
 export default function CampaignDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const insets = useSafeInsets();
-  const { campaigns, categories, isFavorite, toggleFavorite } = useApp();
+  const { campaigns, categories, isFavorite, toggleFavorite, setLastMeaningfulRoute } = useApp();
   const c = useThemeColors();
   const bottomPad = insets.bottom;
 
@@ -88,7 +88,8 @@ export default function CampaignDetailScreen() {
   useFocusEffect(
     useCallback(() => {
       fetchDetail();
-    }, [fetchDetail])
+      if (id) setLastMeaningfulRoute(`/campaign/${id}`);
+    }, [fetchDetail, id, setLastMeaningfulRoute])
   );
 
   const camp = campaign || (contextCampaign ? { ...contextCampaign, gallery: [], orgDescription: undefined, orgTier: undefined } : null);
