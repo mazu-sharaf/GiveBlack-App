@@ -126,10 +126,6 @@ waitForPort = 8080
 [userenv]
 
 [userenv.shared]
-EXPO_PUBLIC_SUPABASE_URL = "https://mwapnzwgusstkgjguhur.supabase.co"
-EXPO_PUBLIC_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im13YXBuendndXNzdGtnamd1aHVyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE2Nzc5ODYsImV4cCI6MjA4NzI1Mzk4Nn0.5KxPMx4k5g4TsaQG6zXCTGVHuR0Us7uHgk45QPL5KY8"
-SUPABASE_URL = "https://mwapnzwgusstkgjguhur.supabase.co"
-SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im13YXBuendndXNzdGtnamd1aHVyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE2Nzc5ODYsImV4cCI6MjA4NzI1Mzk4Nn0.5KxPMx4k5g4TsaQG6zXCTGVHuR0Us7uHgk45QPL5KY8"
 EXPO_PUBLIC_DOMAIN = "giveblackapp.com"
 EXPO_PUBLIC_API_URL = "http://localhost:5000"
 BREVO_SENDER_EMAIL = "mazu@mawamedia.com"
