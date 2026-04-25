@@ -72,7 +72,7 @@ function darken(hex: string): string {
 export default function AccountScreen() {
   const router = useRouter();
   const c = useThemeColors();
-  const { isDark, toggleTheme, theme, setTheme } = useTheme();
+  const { isDark } = useTheme();
   const { walletBalance, userProfile, updateProfile } = useApp();
   const { user, avatarUrl, donationSummary, logout } = useAuth();
   const [showLogoutModal, setShowLogoutModal] = useState(false);
@@ -168,18 +168,6 @@ export default function AccountScreen() {
           />
           <View style={[styles.menuSep, { backgroundColor: c.border }]} />
           <MenuItem
-            icon="moon-outline"
-            label="Dark Mode"
-            iconBg={iconBgs.moon}
-            textColor={c.text}
-            chevronColor={c.textLight}
-            greenColor={c.green}
-            isSwitch
-            switchValue={isDark}
-            onSwitchChange={() => toggleTheme()}
-          />
-          <View style={[styles.menuSep, { backgroundColor: c.border }]} />
-          <MenuItem
             icon="eye-off-outline"
             label="Donate as anonymous"
             iconBg={iconBgs.purple}
@@ -213,7 +201,7 @@ export default function AccountScreen() {
           <View style={[styles.menuSep, { backgroundColor: c.border }]} />
           <MenuItem
             icon="settings-outline"
-            label="Settings"
+            label="Settings & Appearance"
             iconBg={iconBgs.grey}
             textColor={c.text}
             chevronColor={c.textLight}
