@@ -10,9 +10,8 @@ import {
   RefreshControl,
   useWindowDimensions,
 } from "react-native";
-import { useFocusEffect } from "@react-navigation/native";
 import { Image } from "expo-image";
-import { router, useNavigation } from "expo-router";
+import { router, useNavigation, useFocusEffect } from "expo-router";
 import { useSafeInsets } from "@/lib/safe-area";
 import { Ionicons } from "@expo/vector-icons";
 import Animated from "react-native-reanimated";
