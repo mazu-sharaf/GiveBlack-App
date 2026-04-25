@@ -71,7 +71,10 @@ export function buildServer() {
   if (!process.env.VPS_BACKEND_URL) {
     app.register(fastifyStatic, {
       root: path.resolve(process.cwd(), "uploads"),
-      prefix: "/uploads/"
+      prefix: "/uploads/",
+      setHeaders(res) {
+        res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+      },
     });
   }
 

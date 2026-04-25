@@ -48,6 +48,7 @@ export const publicRoutes: FastifyPluginAsync = async (app) => {
          ) oc on oc.category_id = c.id
          order by c.name asc`
       );
+      reply.header("Cache-Control", "public, max-age=60, stale-while-revalidate=300");
       return { categories: result.rows };
     } catch (e: unknown) {
       app.log.error(e);

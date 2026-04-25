@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from "react";
 import { Platform } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Image as ExpoImage } from "expo-image";
 import { apiPatch, getApiUrl } from "@/lib/query-client";
 import { useAuth } from "./AuthContext";
 
@@ -331,7 +332,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (catRes.ok) {
         const data: Record<string, unknown> = await catRes.json();
         const list = Array.isArray(data) ? data : Array.isArray(data.categories) ? data.categories : Array.isArray(data.data) ? data.data : [];
-        setCategories((list as Record<string, unknown>[]).map(normalizeCat));
+        const normalized = (list as Record<string, unknown>[]).map(normalizeCat);
+        setCategories(normalized);
+        const imageUrls = normalized.map((c) => c.imageUrl).filter((u): u is string => !!u);
+        if (imageUrls.length > 0) {
+          ExpoImage.prefetch(imageUrls, { cachePolicy: "disk" }).catch(() => {});
+        }
       }
 
       if (notifRes?.ok) {

@@ -55,7 +55,15 @@ function CategoryRow({ cat, index }: { cat: Category; index: number }) {
           ]}
         >
           {cat.imageUrl ? (
-            <Image source={{ uri: cat.imageUrl }} style={styles.catImage} contentFit="cover" cachePolicy="memory-disk" transition={200} />
+            <Image
+              source={{ uri: cat.imageUrl }}
+              style={styles.catImage}
+              contentFit="cover"
+              cachePolicy="memory-disk"
+              priority="high"
+              placeholder={{ color: iconBg }}
+              transition={0}
+            />
           ) : (
             <Text style={[styles.fallbackLetter, { color: letterColor }]}>{iconLetter}</Text>
           )}
