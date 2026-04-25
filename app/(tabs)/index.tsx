@@ -217,22 +217,6 @@ export default function HomeScreen() {
           </View>
         )}
 
-        {isGuest && (
-          <Pressable
-            style={[styles.guestBanner, { backgroundColor: c.green + "15", borderColor: c.green + "40" }]}
-            onPress={async () => {
-              await logout();
-              router.replace('/(auth)/welcome');
-            }}
-          >
-            <Ionicons name="person-add-outline" size={20} color={c.green} />
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.guestBannerTitle, { color: c.text }]}>Create Your Account</Text>
-              <Text style={[styles.guestBannerDesc, { color: c.textMuted }]}>Sign up to donate, save favorites, and track your impact</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={18} color={c.green} />
-          </Pressable>
-        )}
 
         {isEmpty && !isOffline && (
           <View style={[styles.emptyState, { backgroundColor: c.cardBg }]}>
