@@ -56,6 +56,21 @@ export default function DonateScreen() {
   const [amount, setAmount] = useState<string>("0");
   const [customAmount, setCustomAmount] = useState<string>("");
   const [selectedPreset, setSelectedPreset] = useState<number | null>(null);
+
+  // Pre-fill amount from URL param (e.g. after returning from sign-up/login).
+  useEffect(() => {
+    if (!suggestedAmount) return;
+    if (PRESET_AMOUNTS.includes(suggestedAmount)) {
+      setSelectedPreset(suggestedAmount);
+      setAmount(suggestedAmount.toString());
+      setCustomAmount("");
+    } else {
+      setSelectedPreset(null);
+      setAmount(suggestedAmount.toString());
+      setCustomAmount(suggestedAmount.toString());
+    }
+  }, [suggestedAmount]);
+
   const [step, setStep] = useState<Step>("amount");
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
@@ -233,7 +248,11 @@ export default function DonateScreen() {
             <Pressable
               style={[styles.authGatePrimaryBtn, { backgroundColor: c.green }]}
               onPress={() => {
-                const returnTo = `/donate/${orgId}${campaignId ? `?campaignId=${campaignId}` : ""}`;
+                const qp = new URLSearchParams();
+                if (campaignId) qp.set("campaignId", campaignId);
+                if (suggestedAmount) qp.set("amount", String(suggestedAmount));
+                const qs = qp.toString();
+                const returnTo = `/donate/${orgId}${qs ? `?${qs}` : ""}`;
                 router.push({ pathname: "/(auth)/donor-signup", params: { returnTo } });
               }}
             >
@@ -243,7 +262,11 @@ export default function DonateScreen() {
             <Pressable
               style={[styles.authGateSecondaryBtn, { borderColor: c.border }]}
               onPress={() => {
-                const returnTo = `/donate/${orgId}${campaignId ? `?campaignId=${campaignId}` : ""}`;
+                const qp = new URLSearchParams();
+                if (campaignId) qp.set("campaignId", campaignId);
+                if (suggestedAmount) qp.set("amount", String(suggestedAmount));
+                const qs = qp.toString();
+                const returnTo = `/donate/${orgId}${qs ? `?${qs}` : ""}`;
                 router.push({ pathname: "/(auth)/donor-login", params: { returnTo } });
               }}
             >
