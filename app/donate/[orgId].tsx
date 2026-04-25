@@ -15,6 +15,7 @@ import AppHeader from "@/components/AppHeader";
 import Confetti from "@/components/Confetti";
 
 import { buildReceiptHtml } from "@/lib/receipt-html";
+import { saveDonationIntent, clearDonationIntent } from "@/lib/donation-intent";
 
 const PRESET_AMOUNTS = [5, 10, 25, 50, 100, 200];
 const PLATFORM_FEE_RATE = 0.03;
@@ -70,6 +71,12 @@ export default function DonateScreen() {
       setCustomAmount(suggestedAmount.toString());
     }
   }, [suggestedAmount]);
+
+  // The user has reached the donate screen — clear any persisted intent so it
+  // isn't applied again if they later navigate through auth for an unrelated reason.
+  useEffect(() => {
+    clearDonationIntent();
+  }, []);
 
   const [step, setStep] = useState<Step>("amount");
   const [loading, setLoading] = useState(false);
@@ -264,12 +271,13 @@ export default function DonateScreen() {
 
                 <Pressable
                   style={[styles.authGatePrimaryBtn, { backgroundColor: c.green }]}
-                  onPress={() => {
+                  onPress={async () => {
                     const qp = new URLSearchParams();
                     if (campaignId) qp.set("campaignId", campaignId);
                     if (suggestedAmount) qp.set("amount", String(suggestedAmount));
                     const qs = qp.toString();
                     const returnTo = `/donate/${orgId}${qs ? `?${qs}` : ""}`;
+                    await saveDonationIntent({ orgId, campaignId, amount: suggestedAmount ?? undefined });
                     router.push({ pathname: "/(auth)/donor-signup", params: { returnTo } });
                   }}
                 >
@@ -278,12 +286,13 @@ export default function DonateScreen() {
 
                 <Pressable
                   style={[styles.authGateSecondaryBtn, { borderColor: c.border }]}
-                  onPress={() => {
+                  onPress={async () => {
                     const qp = new URLSearchParams();
                     if (campaignId) qp.set("campaignId", campaignId);
                     if (suggestedAmount) qp.set("amount", String(suggestedAmount));
                     const qs = qp.toString();
                     const returnTo = `/donate/${orgId}${qs ? `?${qs}` : ""}`;
+                    await saveDonationIntent({ orgId, campaignId, amount: suggestedAmount ?? undefined });
                     router.push({ pathname: "/(auth)/donor-login", params: { returnTo } });
                   }}
                 >
