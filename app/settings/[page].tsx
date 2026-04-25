@@ -1811,7 +1811,7 @@ function InviteFriendsPage() {
   );
 }
 
-const GUEST_LOCKED_PAGES = ["transactions", "edit-profile"];
+const GUEST_LOCKED_PAGES = ["transactions", "edit-profile", "privacy", "subscription", "notifications"];
 
 const GUEST_LOCK_CONFIG: Record<string, { icon: React.ComponentProps<typeof Ionicons>["name"]; title: string; message: string }> = {
   transactions: {
@@ -1823,6 +1823,21 @@ const GUEST_LOCK_CONFIG: Record<string, { icon: React.ComponentProps<typeof Ioni
     icon: "person-outline",
     title: "Edit your profile",
     message: "Create a free account to set up your profile, upload a photo, and personalize your GiveBlack experience.",
+  },
+  privacy: {
+    icon: "lock-closed-outline",
+    title: "Privacy & Security",
+    message: "Create a free account to manage your password, biometric login, and account data settings.",
+  },
+  subscription: {
+    icon: "star-outline",
+    title: "Manage your subscription",
+    message: "Create a free account to view and manage your GiveBlack subscription and billing details.",
+  },
+  notifications: {
+    icon: "notifications-outline",
+    title: "Notification preferences",
+    message: "Create a free account to personalise which push notifications you receive from GiveBlack.",
   },
 };
 
