@@ -17,6 +17,7 @@ const TABS: TabDef[] = [
   { name: "index",      title: "Home",       icon: "home-outline",      iconFilled: "home"      },
   { name: "community",  title: "Campaigns",  icon: "megaphone-outline", iconFilled: "megaphone" },
   { name: "categories", title: "Categories", icon: "grid-outline",      iconFilled: "grid"      },
+  { name: "favourite",  title: "Favorites",  icon: "heart-outline",     iconFilled: "heart"     },
   { name: "account",    title: "Account",    icon: "person-outline",    iconFilled: "person"    },
 ];
 
@@ -82,8 +83,7 @@ export default function TabsLayout() {
         {TABS.map((tab) => (
           <Tabs.Screen key={tab.name} name={tab.name} options={{ title: tab.title }} />
         ))}
-        <Tabs.Screen name="favourite" options={{ title: "Favorites", href: null }} />
-        <Tabs.Screen name="give"      options={{ title: "Donate",    href: null }} />
+        <Tabs.Screen name="give" options={{ title: "Donate", href: null }} />
       </Tabs>
     </View>
   );
