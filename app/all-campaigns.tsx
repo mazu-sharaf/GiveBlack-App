@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useCallback } from "react";
 import {
   View,
   Text,
@@ -11,7 +11,7 @@ import {
 } from "react-native";
 import { Image } from "expo-image";
 import { useSafeInsets } from "@/lib/safe-area";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import Colors from "@/constants/colors";
 import { useTheme, useThemeColors } from "@/context/ThemeContext";
@@ -28,7 +28,13 @@ export default function AllCampaignsScreen() {
   const insets = useSafeInsets();
   const c = useThemeColors();
   const { isDark } = useTheme();
-  const { campaigns, categories, toggleFavorite, isFavorite } = useApp();
+  const { campaigns, categories, toggleFavorite, isFavorite, setLastMeaningfulRoute } = useApp();
+
+  useFocusEffect(
+    useCallback(() => {
+      setLastMeaningfulRoute("/all-campaigns");
+    }, [setLastMeaningfulRoute])
+  );
   const [search, setSearch] = useState("");
   const [showFilter, setShowFilter] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState("");

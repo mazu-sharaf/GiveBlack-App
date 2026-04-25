@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { View, Text, TextInput, StyleSheet, Pressable, ScrollView, ActivityIndicator, KeyboardAvoidingView, Platform, Keyboard } from "react-native";
 import { useSafeInsets } from "@/lib/safe-area";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { useApp } from "@/context/AppContext";
@@ -23,8 +23,14 @@ interface SearchResult {
 export default function SearchScreen() {
   const insets = useSafeInsets();
   const c = useThemeColors();
-  const { campaigns } = useApp();
+  const { campaigns, setLastMeaningfulRoute } = useApp();
   const [query, setQuery] = useState("");
+
+  useFocusEffect(
+    useCallback(() => {
+      setLastMeaningfulRoute("/search");
+    }, [setLastMeaningfulRoute])
+  );
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);

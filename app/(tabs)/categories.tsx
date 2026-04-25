@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useCallback } from "react";
 import {
   View,
   Text,
@@ -8,7 +8,7 @@ import {
   TextInput,
 } from "react-native";
 import { Image } from "expo-image";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import { useSafeInsets } from "@/lib/safe-area";
 import { Ionicons } from "@expo/vector-icons";
 import Animated, {
@@ -79,11 +79,17 @@ function CategoryRow({ cat, index }: { cat: Category; index: number }) {
 }
 
 export default function CategoriesScreen() {
-  const { categories } = useApp();
+  const { categories, setLastMeaningfulRoute } = useApp();
   const c = useThemeColors();
   const insets = useSafeInsets();
   const { user } = useAuth();
   const [search, setSearch] = useState("");
+
+  useFocusEffect(
+    useCallback(() => {
+      setLastMeaningfulRoute("/categories");
+    }, [setLastMeaningfulRoute])
+  );
 
   const bottomPad = insets.bottom;
 

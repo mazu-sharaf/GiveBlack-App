@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useCallback } from "react";
 import {
   View,
   Text,
@@ -8,7 +8,7 @@ import {
   TextInput,
 } from "react-native";
 import { useSafeInsets } from "@/lib/safe-area";
-import { router, useLocalSearchParams } from "expo-router";
+import { router, useLocalSearchParams, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
@@ -50,7 +50,13 @@ export default function CategoryScreen() {
   const c = useThemeColors();
   const [search, setSearch] = useState("");
 
-  const { categories, organizations } = useApp();
+  const { categories, organizations, setLastMeaningfulRoute } = useApp();
+
+  useFocusEffect(
+    useCallback(() => {
+      if (id) setLastMeaningfulRoute(`/category/${id}`);
+    }, [id, setLastMeaningfulRoute])
+  );
   const category = categories.find((ct) => ct.id === id);
   const orgs = organizations
     .filter((o) => o.categoryId === id)
