@@ -83,7 +83,7 @@ function CampaignCard({ campaign, index }: { campaign: any; index: number }) {
               color={campaign.orgImageColor}
               size={20}
             />
-            <Text style={[styles.campaignOrg, { color: c.textSecondary }]} numberOfLines={1}>
+            <Text style={[styles.campaignOrg, { color: c.textMuted }]} numberOfLines={1}>
               {campaign.orgName}
             </Text>
             {campaign.orgVerified && (
@@ -98,7 +98,7 @@ function CampaignCard({ campaign, index }: { campaign: any; index: number }) {
             <Text style={[styles.statRaised, { color: c.green }]}>
               {formatCurrency(campaign.raised)}
             </Text>
-            <Text style={[styles.statGoal, { color: c.textSecondary }]}>
+            <Text style={[styles.statGoal, { color: c.textMuted }]}>
               {" "}of {formatCurrency(campaign.goal)} · {pctRaised}%
             </Text>
           </View>
@@ -155,7 +155,7 @@ export default function GiveScreen() {
             <Ionicons name="heart" size={36} color={c.green} />
           </View>
           <Text style={[styles.heroTitle, { color: c.text }]}>Make a Difference</Text>
-          <Text style={[styles.heroSub, { color: c.textSecondary }]}>
+          <Text style={[styles.heroSub, { color: c.textMuted }]}>
             {user
               ? "Choose a campaign below and donate today."
               : "Browse campaigns and support causes you care about."}
@@ -213,8 +213,8 @@ export default function GiveScreen() {
 
           {activeCampaigns.length === 0 ? (
             <View style={styles.emptyState}>
-              <Ionicons name="search-outline" size={40} color={c.textSecondary} />
-              <Text style={[styles.emptyText, { color: c.textSecondary }]}>
+              <Ionicons name="search-outline" size={40} color={c.textMuted} />
+              <Text style={[styles.emptyText, { color: c.textMuted }]}>
                 No active campaigns right now.
               </Text>
             </View>
