@@ -33,11 +33,18 @@ function generateReference() {
 }
 
 export default function DonateScreen() {
-  const { orgId, campaignId: campaignIdParam, partner: partnerParam } = useLocalSearchParams<{
+  const { orgId, campaignId: campaignIdParam, partner: partnerParam, amount: amountParam } = useLocalSearchParams<{
     orgId: string;
     campaignId?: string | string[];
     partner?: string | string[];
+    amount?: string | string[];
   }>();
+  const suggestedAmount = (() => {
+    const raw = Array.isArray(amountParam) ? amountParam[0] : amountParam;
+    if (!raw) return null;
+    const n = parseFloat(raw);
+    return Number.isFinite(n) && n > 0 ? n : null;
+  })();
   const campaignId = Array.isArray(campaignIdParam) ? campaignIdParam[0] : campaignIdParam;
   const insets = useSafeInsets();
   const c = useThemeColors();
@@ -214,9 +221,13 @@ export default function DonateScreen() {
               Create a free account to donate
             </Text>
             <Text style={[styles.authGateBody, { color: c.textMuted }]}>
-              {"You're one step away from supporting "}
+              {suggestedAmount
+                ? `Give $${suggestedAmount.toFixed(2)} to `
+                : "You're one step away from supporting "}
               <Text style={{ color: c.text, fontFamily: "Poppins_600SemiBold" }}>{org.name}</Text>
-              {". It's free and takes 30 seconds."}
+              {suggestedAmount
+                ? " — create a free account to complete your donation."
+                : ". It's free and takes 30 seconds."}
             </Text>
 
             <Pressable

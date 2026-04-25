@@ -23,7 +23,11 @@ export default function Index() {
       setSeenOnboarding(seen);
       if (seen) {
         guestStartedRef.current = true;
-        await guestLogin();
+        try {
+          await guestLogin();
+        } finally {
+          setAuthGateReady(true);
+        }
       } else {
         setAuthGateReady(true);
       }
