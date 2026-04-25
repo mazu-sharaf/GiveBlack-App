@@ -12,7 +12,7 @@ import {
 } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import { Image } from "expo-image";
-import { router } from "expo-router";
+import { router, useNavigation } from "expo-router";
 import { useSafeInsets } from "@/lib/safe-area";
 import { Ionicons } from "@expo/vector-icons";
 import Animated from "react-native-reanimated";
@@ -30,6 +30,7 @@ import CampaignCard from "@/components/ui/CampaignCard";
 const PADDING_H = 20;
 
 export default function HomeScreen() {
+  const navigation = useNavigation();
   const {
     totalDonated,
     organizations,
