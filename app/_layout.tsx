@@ -37,7 +37,6 @@ function InnerLayout() {
       {/* Dev-only overlay to catch bottom safe-area, kept transparent so it doesn't show a bar */}
       {__DEV__ && Platform.OS !== "web" && (
         <View
-          pointerEvents="none"
           style={{
             position: "absolute",
             bottom: 0,
@@ -46,6 +45,7 @@ function InnerLayout() {
             height: 26,
             backgroundColor: "transparent",
             zIndex: 9999,
+            pointerEvents: "none",
           }}
         />
       )}

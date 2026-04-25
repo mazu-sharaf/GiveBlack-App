@@ -373,9 +373,9 @@ export default function CampaignDetailScreen() {
           {
             paddingTop: insets.top + 8,
             backgroundColor: "transparent",
+            pointerEvents: "box-none",
           },
         ]}
-        pointerEvents="box-none"
       >
         <Pressable style={styles.heroBtn} onPress={() => router.back()}>
           <Ionicons name="arrow-back" size={20} color="#0A0A0A" />

@@ -229,32 +229,36 @@ export default function DonorLoginScreen() {
           <View style={[styles.dividerLine, { backgroundColor: c.border }]} />
         </View>
 
-        <View style={styles.socialRow}>
+        <View style={styles.socialGroup}>
           <Pressable
-            style={[styles.socialIcon, { borderColor: c.border, backgroundColor: c.cardBg }, !!oauthBusy && { opacity: 0.55 }]}
+            style={[styles.socialBtn, { borderColor: c.border, backgroundColor: c.cardBg }, (!!oauthBusy || loading) && { opacity: 0.55 }]}
             disabled={!!oauthBusy || loading}
             onPress={() => runDonorOAuth("google", loginWithGoogle)}
             accessibilityLabel="Continue with Google"
           >
-            <Ionicons name="logo-google" size={22} color="#DB4437" />
+            {oauthBusy === "google" ? (
+              <ActivityIndicator size="small" color={c.textMuted} style={{ marginRight: 12 }} />
+            ) : (
+              <Ionicons name="logo-google" size={20} color="#DB4437" style={{ marginRight: 12 }} />
+            )}
+            <Text style={[styles.socialBtnText, { color: c.text }]}>Continue with Google</Text>
           </Pressable>
           {Platform.OS === "ios" && (
             <Pressable
-              style={[styles.socialIcon, { borderColor: c.border, backgroundColor: c.cardBg }, !!oauthBusy && { opacity: 0.55 }]}
+              style={[styles.socialBtn, { borderColor: c.border, backgroundColor: c.cardBg }, (!!oauthBusy || loading) && { opacity: 0.55 }]}
               disabled={!!oauthBusy || loading}
               onPress={() => runDonorOAuth("apple", loginWithApple)}
               accessibilityLabel="Continue with Apple"
             >
-              <Ionicons name="logo-apple" size={22} color={c.text} />
+              {oauthBusy === "apple" ? (
+                <ActivityIndicator size="small" color={c.textMuted} style={{ marginRight: 12 }} />
+              ) : (
+                <Ionicons name="logo-apple" size={20} color={c.text} style={{ marginRight: 12 }} />
+              )}
+              <Text style={[styles.socialBtnText, { color: c.text }]}>Continue with Apple</Text>
             </Pressable>
           )}
         </View>
-        {oauthBusy ? (
-          <View style={styles.oauthRow}>
-            <ActivityIndicator color={c.textMuted} />
-            <Text style={[styles.oauthHint, { color: c.textMuted }]}>Signing in…</Text>
-          </View>
-        ) : null}
 
         <View style={styles.bottomRow}>
           <Text style={[styles.bottomLabel, { color: c.textMuted }]}>{"Don't have an account? "}</Text>
@@ -438,32 +442,21 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: Colors.textMuted,
   },
-  socialRow: {
-    flexDirection: "row",
-    justifyContent: "center",
-    gap: 16,
+  socialGroup: {
+    gap: 12,
     marginBottom: 24,
   },
-  socialIcon: {
-    width: 56,
-    height: 56,
-    borderRadius: 14,
-    borderWidth: 1.5,
-    borderColor: Colors.border,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: Colors.white,
-  },
-  oauthRow: {
+  socialBtn: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 10,
-    marginBottom: 20,
+    borderWidth: 1.5,
+    borderRadius: 14,
+    paddingVertical: 15,
   },
-  oauthHint: {
-    fontFamily: "SpaceGrotesk_400Regular",
-    fontSize: 13,
+  socialBtnText: {
+    fontFamily: "SpaceGrotesk_600SemiBold",
+    fontSize: 15,
   },
   bottomRow: {
     flexDirection: "row",

@@ -90,12 +90,18 @@ function NotificationsPage() {
     try {
       const Notif = require("expo-notifications") as typeof import("expo-notifications");
       const { status } = await Notif.getPermissionsAsync();
-      if (status === "undetermined") {
-        const { status: asked } = await Notif.requestPermissionsAsync();
-        setPermissionStatus(asked);
-      } else {
-        setPermissionStatus(status);
-      }
+      setPermissionStatus(status);
+    } catch {
+      // expo-notifications unavailable in this environment
+    }
+  }, []);
+
+  const requestPermission = useCallback(async () => {
+    if (Platform.OS === "web") return;
+    try {
+      const Notif = require("expo-notifications") as typeof import("expo-notifications");
+      const { status } = await Notif.requestPermissionsAsync();
+      setPermissionStatus(status);
     } catch {
       // expo-notifications unavailable in this environment
     }
@@ -156,6 +162,21 @@ function NotificationsPage() {
   return (
     <>
       <InfoSection title="Push notifications">
+        {permissionStatus === "undetermined" && (
+          <Pressable
+            onPress={() => void requestPermission()}
+            style={{ flexDirection: "row", alignItems: "center", padding: 14, gap: 12, borderBottomWidth: 1, borderBottomColor: c.border }}
+          >
+            <Ionicons name="notifications-outline" size={20} color={Colors.green} />
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.rowLabel, { color: c.text }]}>Enable push notifications</Text>
+              <Text style={[styles.rowDesc, { color: c.textMuted }]}>
+                Tap to allow GiveBlack to send you push notifications
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={16} color={c.textLight} />
+          </Pressable>
+        )}
         {permissionStatus === "denied" && (
           <Pressable
             onPress={() => Linking.openSettings()}

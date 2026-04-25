@@ -53,8 +53,7 @@ export function SplashLogoAnimation({ onComplete, ready = true }: Props) {
 
   return (
     <Animated.View
-      pointerEvents="none"
-      style={[styles.root, { opacity }]}
+      style={[styles.root, { opacity, pointerEvents: "none" }]}
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants"
     >
