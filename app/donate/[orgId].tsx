@@ -232,14 +232,20 @@ export default function DonateScreen() {
 
             <Pressable
               style={[styles.authGatePrimaryBtn, { backgroundColor: c.green }]}
-              onPress={() => router.push("/(auth)/donor-signup")}
+              onPress={() => {
+                const returnTo = `/donate/${orgId}${campaignId ? `?campaignId=${campaignId}` : ""}`;
+                router.push({ pathname: "/(auth)/donor-signup", params: { returnTo } });
+              }}
             >
               <Text style={styles.authGatePrimaryBtnText}>Create Free Account</Text>
             </Pressable>
 
             <Pressable
               style={[styles.authGateSecondaryBtn, { borderColor: c.border }]}
-              onPress={() => router.push("/(auth)/donor-login")}
+              onPress={() => {
+                const returnTo = `/donate/${orgId}${campaignId ? `?campaignId=${campaignId}` : ""}`;
+                router.push({ pathname: "/(auth)/donor-login", params: { returnTo } });
+              }}
             >
               <Text style={[styles.authGateSecondaryBtnText, { color: c.text }]}>Sign In</Text>
             </Pressable>

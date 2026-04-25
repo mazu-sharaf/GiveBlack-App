@@ -11,7 +11,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { useSafeInsets } from "@/lib/safe-area";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";
@@ -24,6 +24,8 @@ export default function DonorLoginScreen() {
   const insets = useSafeInsets();
   const { login, loginWithGoogle, loginWithApple } = useAuth();
   const c = useThemeColors();
+  const params = useLocalSearchParams<{ returnTo?: string }>();
+  const returnTo = params.returnTo ? String(params.returnTo) : undefined;
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -53,7 +55,7 @@ export default function DonorLoginScreen() {
     const result = await login(email.trim(), password, "donor");
     setLoading(false);
     if (result.success) {
-      navigateAfterAuth("donor");
+      navigateAfterAuth("donor", returnTo);
     } else if (result.error) {
       setErrorMessage(result.error);
       if (result.errorType === "invalid_credentials") {
@@ -75,7 +77,7 @@ export default function DonorLoginScreen() {
     setOauthBusy(provider);
     try {
       const r = await fn();
-      if (r.success) navigateAfterAuth("donor");
+      if (r.success) navigateAfterAuth("donor", returnTo);
       else alertDonorOAuthFailure(r, "donor-auth");
     } finally {
       setOauthBusy(null);
@@ -111,7 +113,7 @@ export default function DonorLoginScreen() {
               {showSignUp && (
                 <Pressable
                   style={styles.errorSignUpBtn}
-                  onPress={() => router.push("/(auth)/donor-signup")}
+                  onPress={() => router.push({ pathname: "/(auth)/donor-signup", params: returnTo ? { returnTo } : {} })}
                 >
                   <Text style={styles.errorSignUpText}>Sign Up</Text>
                   <Ionicons name="arrow-forward" size={14} color={Colors.green} />
@@ -120,7 +122,7 @@ export default function DonorLoginScreen() {
               {showDonorCreateFromCharity && (
                 <Pressable
                   style={[styles.errorSignUpBtn, { marginTop: 8 }]}
-                  onPress={() => router.push({ pathname: "/(auth)/donor-signup", params: { email: email.trim() } })}
+                  onPress={() => router.push({ pathname: "/(auth)/donor-signup", params: { email: email.trim(), ...(returnTo ? { returnTo } : {}) } })}
                 >
                   <Text style={styles.errorSignUpText}>Create donor account with this email</Text>
                   <Ionicons name="arrow-forward" size={14} color={Colors.green} />
@@ -224,7 +226,7 @@ export default function DonorLoginScreen() {
 
         <View style={styles.bottomRow}>
           <Text style={[styles.bottomLabel, { color: c.textMuted }]}>{"Don't have an account? "}</Text>
-          <Pressable onPress={() => router.push("/(auth)/donor-signup")}>
+          <Pressable onPress={() => router.push({ pathname: "/(auth)/donor-signup", params: returnTo ? { returnTo } : {} })}>
             <Text style={styles.bottomLink}>Sign up</Text>
           </Pressable>
         </View>

@@ -29,7 +29,8 @@ export default function DonorSignupScreen() {
   const insets = useSafeInsets();
   const c = useThemeColors();
   const { signUpDonor, loginWithGoogle, loginWithApple } = useAuth();
-  const params = useLocalSearchParams<{ email?: string }>();
+  const params = useLocalSearchParams<{ email?: string; returnTo?: string }>();
+  const returnTo = params.returnTo ? String(params.returnTo) : undefined;
 
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -147,7 +148,10 @@ export default function DonorSignupScreen() {
 
     setLoading(false);
     if (success) {
-      router.replace({ pathname: "/(auth)/signup-success", params: { name: firstName, email: email.trim().toLowerCase() } });
+      router.replace({
+        pathname: "/(auth)/signup-success",
+        params: { name: firstName, email: email.trim().toLowerCase(), ...(returnTo ? { returnTo } : {}) },
+      });
     }
   }
 
@@ -159,7 +163,7 @@ export default function DonorSignupScreen() {
     setOauthBusy(provider);
     try {
       const r = await fn();
-      if (r.success) navigateAfterAuth("donor");
+      if (r.success) navigateAfterAuth("donor", returnTo);
       else alertDonorOAuthFailure(r, "donor-auth");
     } finally {
       setOauthBusy(null);

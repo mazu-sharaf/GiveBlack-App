@@ -44,7 +44,8 @@ const ACTIONS = [
 export default function SignupSuccessScreen() {
   const insets = useSafeInsets();
   const c = useThemeColors();
-  const params = useLocalSearchParams<{ name?: string; email?: string }>();
+  const params = useLocalSearchParams<{ name?: string; email?: string; returnTo?: string }>();
+  const returnTo = params.returnTo ? String(params.returnTo) : undefined;
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = insets.bottom;
 
@@ -56,7 +57,7 @@ export default function SignupSuccessScreen() {
     const key = `${WELCOME_SEEN_KEY}_${email}`;
     AsyncStorage.getItem(key).then((seen) => {
       if (seen) {
-        navigateAfterAuth("donor");
+        navigateAfterAuth("donor", returnTo);
       } else {
         AsyncStorage.setItem(key, "1").catch(() => {});
       }
@@ -115,10 +116,12 @@ export default function SignupSuccessScreen() {
       <View style={{ flex: 1 }} />
 
       <Pressable
-        style={[styles.skipBtn, { borderColor: c.border }]}
-        onPress={() => navigateAfterAuth("donor")}
+        style={[styles.skipBtn, { borderColor: returnTo ? c.green : c.border }]}
+        onPress={() => navigateAfterAuth("donor", returnTo)}
       >
-        <Text style={[styles.skipBtnText, { color: c.textMuted }]}>Enter the app</Text>
+        <Text style={[styles.skipBtnText, { color: returnTo ? c.green : c.textMuted }]}>
+          {returnTo ? "Continue to Donate" : "Enter the app"}
+        </Text>
       </Pressable>
     </View>
   );
