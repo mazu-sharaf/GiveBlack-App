@@ -62,7 +62,7 @@ export default function AppHeader({
           {showBack && (
             <Pressable
               style={[styles.backBtn, { backgroundColor: pillBg }]}
-              onPress={() => router.back()}
+              onPress={() => router.canGoBack() ? router.back() : router.replace("/(tabs)/")}
               hitSlop={6}
             >
               <Ionicons name="chevron-back" size={20} color={c.text} />
