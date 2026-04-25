@@ -32,7 +32,7 @@ export default function Index() {
         setAuthGateReady(true);
       }
     });
-  }, [isLoading, isAuthenticated]);
+  }, [isLoading, isAuthenticated, guestLogin]);
 
   if (isLoading || !authGateReady) {
     return <View style={[styles.centered, { backgroundColor: c.background }]} />;
