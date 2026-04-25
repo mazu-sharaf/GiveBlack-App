@@ -2,6 +2,14 @@ import React, { useState, useCallback } from "react";
 import { View, Platform } from "react-native";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
+import { useFonts } from "expo-font";
+import {
+  Poppins_400Regular,
+  Poppins_500Medium,
+  Poppins_600SemiBold,
+  Poppins_700Bold,
+} from "@expo-google-fonts/poppins";
+import { Ionicons } from "@expo/vector-icons";
 import { ThemeProvider, useTheme } from "@/context/ThemeContext";
 import { AuthProvider } from "@/context/AuthContext";
 import { AppProvider } from "@/context/AppContext";
@@ -48,6 +56,16 @@ function InnerLayout() {
 export default function RootLayout() {
   const [splashDone, setSplashDone] = useState(false);
   const onSplashComplete = useCallback(() => setSplashDone(true), []);
+
+  const [fontsLoaded] = useFonts({
+    Poppins_400Regular,
+    Poppins_500Medium,
+    Poppins_600SemiBold,
+    Poppins_700Bold,
+    ...Ionicons.font,
+  });
+
+  if (!fontsLoaded) return null;
 
   return (
     <ThemeProvider>
