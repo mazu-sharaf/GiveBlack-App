@@ -1496,7 +1496,7 @@ function HowToDonatePage() {
   const router = useRouter();
   const [expandedId, setExpandedId] = useState<string>("how-it-works");
 
-  const navItems: Array<{ id: string; label: string; icon: any }> = [
+  const navItems: { id: string; label: string; icon: any }[] = [
     { id: "how-it-works", label: "What happens", icon: "sparkles-outline" },
     { id: "safe-payments", label: "Safe payments", icon: "shield-checkmark-outline" },
     { id: "verification", label: "Verification", icon: "people-checkmark-outline" },

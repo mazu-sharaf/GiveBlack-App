@@ -16,10 +16,10 @@ import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import Animated, { FadeIn, FadeInUp, FadeInDown } from "react-native-reanimated";
 import Colors from "@/constants/colors";
-import { useThemeColors } from "@/context/ThemeContext";
+import { useThemeColors , useTheme } from "@/context/ThemeContext";
 
 import { logoBlack, logoWhite, onboardingPeople } from "@/constants/images";
-import { useTheme } from "@/context/ThemeContext";
+
 import { markOnboardingComplete } from "@/lib/onboarding-storage";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");

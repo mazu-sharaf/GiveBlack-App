@@ -25,7 +25,7 @@ import AppHeader from "@/components/AppHeader";
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 interface CampaignDetail extends Campaign {
-  gallery?: Array<{ id: string; image_url: string; caption?: string }>;
+  gallery?: { id: string; image_url: string; caption?: string }[];
   orgDescription?: string;
   orgTier?: string;
 }

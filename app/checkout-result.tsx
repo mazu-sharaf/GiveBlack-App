@@ -11,6 +11,8 @@ import * as Print from "expo-print";
 import * as LegacyFileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
 
+import { buildReceiptHtml } from "@/lib/receipt-html";
+
 type Status = "loading" | "success" | "failed";
 
 function generateReference() {
@@ -21,8 +23,6 @@ function generateReference() {
   }
   return result;
 }
-
-import { buildReceiptHtml } from "@/lib/receipt-html";
 
 export default function CheckoutResultScreen() {
   const { session_id } = useLocalSearchParams<{ session_id?: string }>();

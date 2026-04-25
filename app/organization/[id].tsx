@@ -34,7 +34,7 @@ interface OrgDetail {
   contact_email?: string;
   website?: string;
   org_tier?: string;
-  campaigns: Array<{
+  campaigns: {
     id: string;
     title: string;
     description?: string;
@@ -43,7 +43,7 @@ interface OrgDetail {
     raised: number;
     donor_count: number;
     status: string;
-  }>;
+  }[];
 }
 
 function resolveImgUrl(base: string, url?: string | null): string | undefined {

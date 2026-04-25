@@ -1,24 +1,41 @@
 /**
- * Extends app.json with env-driven native plugin options (Google iOS URL scheme).
+ * Dynamic Expo config — uses Expo’s ({ config }) merge so `app.json` stays the base (expo doctor).
  * EAS Build: set EXPO_PUBLIC_* in eas.json env or EAS Secrets so prebuild receives them.
  */
-const appJson = require("./app.json");
+/** Matches lib/google-signin-config.ts when env is unset (EAS / local prebuild). */
+const FALLBACK_GOOGLE_IOS_URL_SCHEME =
+  "com.googleusercontent.apps.1015872793306-67gnhk1b900k459o28hm2g6rvmvov482";
 
-const basePlugins = (appJson.expo.plugins || []).filter(
-  (p) =>
-    p !== "@react-native-google-signin/google-signin" &&
-    p !== "react-native-fbsdk-next" &&
-    p !== "expo-apple-authentication"
-);
+function resolveGoogleIosUrlScheme() {
+  const fromEnv = (process.env.EXPO_PUBLIC_GOOGLE_IOS_URL_SCHEME || "").trim();
+  if (fromEnv) return fromEnv;
+  const iosClientId = (process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID || "").trim();
+  const suffix = ".apps.googleusercontent.com";
+  if (iosClientId.endsWith(suffix)) {
+    return `com.googleusercontent.apps.${iosClientId.slice(0, -suffix.length)}`;
+  }
+  return FALLBACK_GOOGLE_IOS_URL_SCHEME;
+}
 
-const googleScheme = process.env.EXPO_PUBLIC_GOOGLE_IOS_URL_SCHEME;
-const googlePlugin = googleScheme
-  ? ["@react-native-google-signin/google-signin", { iosUrlScheme: googleScheme }]
-  : "@react-native-google-signin/google-signin";
+module.exports = ({ config }) => {
+  const expo = config.expo ?? config;
+  const basePlugins = (expo.plugins || []).filter(
+    (p) =>
+      p !== "@react-native-google-signin/google-signin" &&
+      p !== "react-native-fbsdk-next" &&
+      p !== "expo-apple-authentication"
+  );
 
-module.exports = {
-  expo: {
-    ...appJson.expo,
-    plugins: [...basePlugins, googlePlugin, "expo-apple-authentication"],
-  },
+  const googleScheme = resolveGoogleIosUrlScheme();
+  const googlePlugin = googleScheme
+    ? ["@react-native-google-signin/google-signin", { iosUrlScheme: googleScheme }]
+    : "@react-native-google-signin/google-signin";
+
+  return {
+    ...config,
+    expo: {
+      ...expo,
+      plugins: [...basePlugins, googlePlugin, "expo-apple-authentication"],
+    },
+  };
 };

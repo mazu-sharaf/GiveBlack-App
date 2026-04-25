@@ -3,7 +3,7 @@ import { Animated, StyleSheet, Platform } from "react-native";
 import { Image } from "expo-image";
 import * as SplashScreen from "expo-splash-screen";
 
-const splashImage = require("@/assets/images/splash-image.jpg");
+const splashImage = require("@/assets/images/splash-image.png");
 
 const SPLASH_BG = "#E9EFD6";
 

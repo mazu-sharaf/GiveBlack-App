@@ -14,6 +14,8 @@ import * as Sharing from "expo-sharing";
 import AppHeader from "@/components/AppHeader";
 import Confetti from "@/components/Confetti";
 
+import { buildReceiptHtml } from "@/lib/receipt-html";
+
 const PRESET_AMOUNTS = [5, 10, 25, 50, 100, 200];
 const PLATFORM_FEE_RATE = 0.03;
 const DEFAULT_EDUCATION_RATE = 0.05;
@@ -29,8 +31,6 @@ function generateReference() {
   }
   return result;
 }
-
-import { buildReceiptHtml } from "@/lib/receipt-html";
 
 export default function DonateScreen() {
   const { orgId, campaignId: campaignIdParam, partner: partnerParam } = useLocalSearchParams<{

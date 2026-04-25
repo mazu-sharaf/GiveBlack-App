@@ -10,7 +10,7 @@
     "userInterfaceStyle": "dark",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/images/splash-image.jpg",
+      "image": "./assets/images/splash-image.png",
       "resizeMode": "cover",
       "backgroundColor": "#E9EFD6"
     },
@@ -18,7 +18,7 @@
       "supportsTablet": false,
       "usesAppleSignIn": true,
       "appleTeamId": "W5NB3UT9SS",
-      "buildNumber": "6",
+      "buildNumber": "10",
       "bundleIdentifier": "com.giveblack.app",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
@@ -37,6 +37,7 @@
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
+      "expo-dev-client",
       [
         "expo-router",
         {

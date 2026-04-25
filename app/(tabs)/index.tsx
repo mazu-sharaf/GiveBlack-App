@@ -21,13 +21,13 @@ import { useThemeColors } from "@/context/ThemeContext";
 import { useApp } from "@/context/AppContext";
 import { useAuth } from "@/context/AuthContext";
 
-const PADDING_H = 20;
-
 import { getCampaignImage } from "@/constants/images";
 import HeroSection from "@/components/ui/HeroSection";
 import SummaryCard from "@/components/ui/SummaryCard";
 import SearchBar from "@/components/ui/SearchBar";
 import CampaignCard from "@/components/ui/CampaignCard";
+
+const PADDING_H = 20;
 
 export default function HomeScreen() {
   const navigation = useNavigation<any>();

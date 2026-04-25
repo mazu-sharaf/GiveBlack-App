@@ -18,9 +18,9 @@ import { useTheme, useThemeColors } from "@/context/ThemeContext";
 import { useApp } from "@/context/AppContext";
 import AppHeader from "@/components/AppHeader";
 
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
-
 import { getCampaignImage, campaignImages } from "@/constants/images";
+
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 type SortOption = "default" | "name_az" | "name_za" | "raised_high" | "raised_low";
 

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from "react";
+import React, { createContext, useContext, useState, useEffect, useLayoutEffect, useCallback, useRef } from "react";
 import { Alert, Platform } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
@@ -96,6 +96,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isGuest, setIsGuest] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [donationSummary, setDonationSummary] = useState<DonationSummary | null>(null);
+
+  useLayoutEffect(() => {
+    void (async () => {
+      try {
+        const { configureGoogleSignIn } = await import("@/lib/oauth-google");
+        await configureGoogleSignIn();
+      } catch (e) {
+        console.warn("Google Sign-In startup init failed:", e instanceof Error ? e.message : String(e));
+      }
+    })();
+  }, []);
 
   // Load saved session on mount
   useEffect(() => {
