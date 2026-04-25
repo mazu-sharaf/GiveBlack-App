@@ -50,6 +50,10 @@ interface AuthContextValue {
   donationSummary?: DonationSummary | null;
   /** Refetch /api/me/donations/summary (call after donations and on home refresh). */
   refreshDonationSummary: () => Promise<void>;
+  /** Number of pending (incomplete) donations for the signed-in donor. */
+  pendingDonationCount: number;
+  /** Refetch /api/me/donations/pending-count. */
+  refreshPendingDonationCount: () => Promise<void>;
   login: (email: string, password: string, type: "donor" | "charity") => Promise<{ success: boolean; error?: string; errorType?: "invalid_credentials" | "email_not_confirmed" | "network" | "other" }>;
   /** Donor welcome screen — native Google → API → same session as password login. */
   loginWithGoogle: () => Promise<{ success: boolean; error?: string; errorType?: OAuthLoginErrorType }>;
@@ -96,6 +100,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isGuest, setIsGuest] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [donationSummary, setDonationSummary] = useState<DonationSummary | null>(null);
+  const [pendingDonationCount, setPendingDonationCount] = useState(0);
 
   useLayoutEffect(() => {
     void (async () => {
@@ -776,6 +781,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setSession(null);
     setIsGuest(false);
     setDonationSummary(null);
+    setPendingDonationCount(0);
     console.log("✅ Logout complete");
   }
 
@@ -845,11 +851,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [session?.accessToken, user?.type, user?.id, fetchWithAuth]);
 
+  const refreshPendingDonationCount = useCallback(async () => {
+    if (!session?.accessToken || user?.type !== "donor") {
+      setPendingDonationCount(0);
+      return;
+    }
+    try {
+      const res = await fetchWithAuth("/api/me/donations/pending-count");
+      if (res.ok) {
+        const json = (await res.json()) as { pending_count: number };
+        setPendingDonationCount(json.pending_count ?? 0);
+      }
+    } catch {
+      // non-fatal
+    }
+  }, [session?.accessToken, user?.type, user?.id, fetchWithAuth]);
+
   useEffect(() => {
     if (session?.accessToken && user?.type === "donor") {
       void refreshDonationSummary();
+      void refreshPendingDonationCount();
     }
-  }, [session?.accessToken, user?.type, user?.id, refreshDonationSummary]);
+  }, [session?.accessToken, user?.type, user?.id, refreshDonationSummary, refreshPendingDonationCount]);
 
   return (
     <AuthContext.Provider
@@ -862,6 +885,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         avatarUrl,
         donationSummary,
         refreshDonationSummary,
+        pendingDonationCount,
+        refreshPendingDonationCount,
         login,
         loginWithGoogle,
         loginWithApple,

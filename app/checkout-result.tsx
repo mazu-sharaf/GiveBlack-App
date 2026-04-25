@@ -28,7 +28,7 @@ function generateReference() {
 export default function CheckoutResultScreen() {
   const { session_id } = useLocalSearchParams<{ session_id?: string }>();
   const c = useThemeColors();
-  const { user } = useAuth();
+  const { user, refreshPendingDonationCount } = useAuth();
   const [status, setStatus] = useState<Status>("loading");
   const [amount, setAmount] = useState<number | null>(null);
   const [currency, setCurrency] = useState<string>("usd");
@@ -85,13 +85,15 @@ export default function CheckoutResultScreen() {
         if (!paid) {
           setErrorMsg("Your payment was not completed. You can safely try again.");
         }
+        void refreshPendingDonationCount();
       } catch (e: any) {
         setStatus("failed");
         setErrorMsg(e?.message || "Could not verify payment status. Please check your email receipt.");
+        void refreshPendingDonationCount();
       }
     }
     loadStatus();
-  }, [session_id]);
+  }, [session_id, refreshPendingDonationCount]);
 
   useEffect(() => {
     if (status === "success") {

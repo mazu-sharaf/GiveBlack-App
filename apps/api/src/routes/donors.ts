@@ -20,6 +20,23 @@ function splitNameParts(display: string): { first_name: string; last_name: strin
 
 export const donorsRoutes: FastifyPluginAsync = async (app) => {
   app.get(
+    "/api/me/donations/pending-count",
+    { preHandler: [app.authenticate] },
+    async (request) => {
+      const user = request.user as { sub: string };
+      const res = await db.query(
+        `SELECT COUNT(*)::int AS pending_count
+         FROM donations
+         WHERE user_id = $1::uuid
+           AND status = 'pending'`,
+        [user.sub]
+      );
+      const row = res.rows[0] as { pending_count: number } | undefined;
+      return { pending_count: row?.pending_count ?? 0 };
+    }
+  );
+
+  app.get(
     "/api/me/donations/summary",
     { preHandler: [app.authenticate] },
     async (request) => {
