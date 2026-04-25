@@ -359,7 +359,7 @@ const styles = StyleSheet.create({
     paddingTop: 12,
     paddingBottom: 8,
   },
-  headerTitle: { fontFamily: "Poppins_700Bold", fontSize: 26 },
+  headerTitle: { fontFamily: "SpaceGrotesk_700Bold", fontSize: 26 },
   periodRow: { marginBottom: 12, maxHeight: 44 },
   periodChip: {
     paddingHorizontal: 16,
@@ -367,7 +367,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     borderWidth: StyleSheet.hairlineWidth,
   },
-  periodChipText: { fontFamily: "Poppins_500Medium", fontSize: 13 },
+  periodChipText: { fontFamily: "SpaceGrotesk_500Medium", fontSize: 13 },
   content: { paddingHorizontal: 20 },
   statsRow: {
     flexDirection: "row",
@@ -381,8 +381,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 4,
   },
-  statValue: { fontFamily: "Poppins_700Bold", fontSize: 18 },
-  statLabel: { fontFamily: "Poppins_400Regular", fontSize: 11 },
+  statValue: { fontFamily: "SpaceGrotesk_700Bold", fontSize: 18 },
+  statLabel: { fontFamily: "SpaceGrotesk_400Regular", fontSize: 11 },
   searchBar: {
     flexDirection: "row",
     alignItems: "center",
@@ -394,20 +394,20 @@ const styles = StyleSheet.create({
   },
   searchInput: {
     flex: 1,
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 14,
     padding: 0,
   },
   listHeader: {
     marginBottom: 10,
   },
-  listTitle: { fontFamily: "Poppins_600SemiBold", fontSize: 16 },
+  listTitle: { fontFamily: "SpaceGrotesk_600SemiBold", fontSize: 16 },
   emptyCard: {
     borderRadius: 16,
     padding: 40,
     alignItems: "center",
   },
-  emptyText: { fontFamily: "Poppins_500Medium", fontSize: 15, marginTop: 12 },
+  emptyText: { fontFamily: "SpaceGrotesk_500Medium", fontSize: 15, marginTop: 12 },
   donationCard: {
     flexDirection: "row",
     alignItems: "center",
@@ -423,9 +423,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  donorInitial: { fontFamily: "Poppins_700Bold", fontSize: 18 },
-  donorName: { fontFamily: "Poppins_600SemiBold", fontSize: 14 },
-  donCampaign: { fontFamily: "Poppins_400Regular", fontSize: 12, marginTop: 1 },
-  donDate: { fontFamily: "Poppins_400Regular", fontSize: 11, marginTop: 2 },
-  donAmount: { fontFamily: "Poppins_700Bold", fontSize: 18 },
+  donorInitial: { fontFamily: "SpaceGrotesk_700Bold", fontSize: 18 },
+  donorName: { fontFamily: "SpaceGrotesk_600SemiBold", fontSize: 14 },
+  donCampaign: { fontFamily: "SpaceGrotesk_400Regular", fontSize: 12, marginTop: 1 },
+  donDate: { fontFamily: "SpaceGrotesk_400Regular", fontSize: 11, marginTop: 2 },
+  donAmount: { fontFamily: "SpaceGrotesk_700Bold", fontSize: 18 },
 });

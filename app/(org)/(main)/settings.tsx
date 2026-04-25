@@ -378,7 +378,7 @@ export default function SettingsTab() {
                     }
                   }}
                 >
-                  <Text style={{ color: orgCategoryId ? c.text : c.textLight, fontFamily: "Poppins_400Regular", fontSize: 14 }}>
+                  <Text style={{ color: orgCategoryId ? c.text : c.textLight, fontFamily: "SpaceGrotesk_400Regular", fontSize: 14 }}>
                     {categoriesLoading
                       ? "Loading categories…"
                       : orgCategoryName || "Select category"}
@@ -710,7 +710,7 @@ export default function SettingsTab() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   content: { paddingHorizontal: 20 },
-  headerTitle: { fontFamily: "Poppins_700Bold", fontSize: 26, marginTop: 12, marginBottom: 20 },
+  headerTitle: { fontFamily: "SpaceGrotesk_700Bold", fontSize: 26, marginTop: 12, marginBottom: 20 },
   profileCard: {
     flexDirection: "row",
     alignItems: "center",
@@ -734,7 +734,7 @@ const styles = StyleSheet.create({
     height: 52,
     borderRadius: 16,
   },
-  avatarText: { fontFamily: "Poppins_700Bold", fontSize: 22, color: "#fff" },
+  avatarText: { fontFamily: "SpaceGrotesk_700Bold", fontSize: 22, color: "#fff" },
   cameraOverlay: {
     position: "absolute",
     bottom: -2,
@@ -747,10 +747,10 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: "#fff",
   },
-  profileName: { fontFamily: "Poppins_600SemiBold", fontSize: 16 },
-  profileEmail: { fontFamily: "Poppins_400Regular", fontSize: 13, marginTop: 2 },
+  profileName: { fontFamily: "SpaceGrotesk_600SemiBold", fontSize: 16 },
+  profileEmail: { fontFamily: "SpaceGrotesk_400Regular", fontSize: 13, marginTop: 2 },
   sectionLabel: {
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 12,
     letterSpacing: 0.8,
     marginBottom: 10,
@@ -768,9 +768,9 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  infoLabel: { fontFamily: "Poppins_400Regular", fontSize: 12 },
-  infoValue: { fontFamily: "Poppins_500Medium", fontSize: 14, marginTop: 1 },
-  infoSub: { fontFamily: "Poppins_400Regular", fontSize: 12, marginTop: 4 },
+  infoLabel: { fontFamily: "SpaceGrotesk_400Regular", fontSize: 12 },
+  infoValue: { fontFamily: "SpaceGrotesk_500Medium", fontSize: 14, marginTop: 1 },
+  infoSub: { fontFamily: "SpaceGrotesk_400Regular", fontSize: 12, marginTop: 4 },
   stripeRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -787,7 +787,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  stripeBtnText: { fontFamily: "Poppins_600SemiBold", fontSize: 13, color: "#fff" },
+  stripeBtnText: { fontFamily: "SpaceGrotesk_600SemiBold", fontSize: 13, color: "#fff" },
   categoryPickerBtn: {
     flexDirection: "row",
     alignItems: "center",
@@ -817,7 +817,7 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  modalTitle: { fontFamily: "Poppins_600SemiBold", fontSize: 17 },
+  modalTitle: { fontFamily: "SpaceGrotesk_600SemiBold", fontSize: 17 },
   modalList: { paddingBottom: 16 },
   categoryRow: {
     flexDirection: "row",
@@ -827,7 +827,7 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  categoryRowText: { fontFamily: "Poppins_500Medium", fontSize: 16, flex: 1, paddingRight: 12 },
+  categoryRowText: { fontFamily: "SpaceGrotesk_500Medium", fontSize: 16, flex: 1, paddingRight: 12 },
   editBtn: {
     flexDirection: "row",
     alignItems: "center",
@@ -838,14 +838,14 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
   },
-  editBtnText: { fontFamily: "Poppins_500Medium", fontSize: 14 },
+  editBtnText: { fontFamily: "SpaceGrotesk_500Medium", fontSize: 14 },
   editField: { marginBottom: 16 },
-  editLabel: { fontFamily: "Poppins_500Medium", fontSize: 13, marginBottom: 6 },
+  editLabel: { fontFamily: "SpaceGrotesk_500Medium", fontSize: 13, marginBottom: 6 },
   editInput: {
     borderRadius: 12,
     paddingHorizontal: 14,
     paddingVertical: 12,
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 14,
   },
   editActions: { flexDirection: "row", gap: 10, marginTop: 4 },
@@ -856,14 +856,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
     borderWidth: 1,
   },
-  editActionText: { fontFamily: "Poppins_600SemiBold", fontSize: 14 },
+  editActionText: { fontFamily: "SpaceGrotesk_600SemiBold", fontSize: 14 },
   settingRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
     paddingVertical: 4,
   },
-  settingText: { fontFamily: "Poppins_500Medium", fontSize: 15, flex: 1 },
+  settingText: { fontFamily: "SpaceGrotesk_500Medium", fontSize: 15, flex: 1 },
   themeRow: {
     flexDirection: "row",
     gap: 8,
@@ -877,7 +877,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     borderWidth: 1,
   },
-  themeLabel: { fontFamily: "Poppins_500Medium", fontSize: 12 },
+  themeLabel: { fontFamily: "SpaceGrotesk_500Medium", fontSize: 12 },
   aboutRow: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -886,8 +886,8 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: "rgba(0,0,0,0.04)",
   },
-  aboutLabel: { fontFamily: "Poppins_500Medium", fontSize: 14 },
-  aboutValue: { fontFamily: "Poppins_400Regular", fontSize: 14 },
+  aboutLabel: { fontFamily: "SpaceGrotesk_500Medium", fontSize: 14 },
+  aboutValue: { fontFamily: "SpaceGrotesk_400Regular", fontSize: 14 },
   logoutBtn: {
     flexDirection: "row",
     alignItems: "center",
@@ -898,5 +898,5 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     marginTop: 8,
   },
-  logoutText: { fontFamily: "Poppins_600SemiBold", fontSize: 15, color: "#ef4444" },
+  logoutText: { fontFamily: "SpaceGrotesk_600SemiBold", fontSize: 15, color: "#ef4444" },
 });

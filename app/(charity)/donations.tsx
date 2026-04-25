@@ -89,7 +89,7 @@ export default function CharityDonationsScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, paddingHorizontal: 24 },
   title: {
-    fontFamily: "Poppins_700Bold",
+    fontFamily: "SpaceGrotesk_700Bold",
     fontSize: 22,
     marginBottom: 16,
   },
@@ -100,18 +100,18 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   totalLabel: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 13,
     color: "rgba(255,255,255,0.8)",
     marginBottom: 4,
   },
   totalAmount: {
-    fontFamily: "Poppins_700Bold",
+    fontFamily: "SpaceGrotesk_700Bold",
     fontSize: 32,
     color: Colors.white,
   },
   totalCount: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 13,
     color: "rgba(255,255,255,0.7)",
     marginTop: 4,
@@ -123,7 +123,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   emptyText: {
-    fontFamily: "Poppins_500Medium",
+    fontFamily: "SpaceGrotesk_500Medium",
     fontSize: 15,
   },
   row: {
@@ -148,25 +148,25 @@ const styles = StyleSheet.create({
     marginRight: 12,
   },
   avatarText: {
-    fontFamily: "Poppins_700Bold",
+    fontFamily: "SpaceGrotesk_700Bold",
     fontSize: 16,
     color: Colors.white,
   },
   info: { flex: 1 },
   donorName: {
-    fontFamily: "Poppins_500Medium",
+    fontFamily: "SpaceGrotesk_500Medium",
     fontSize: 14,
   },
   date: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 12,
   },
   refText: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 11,
   },
   message: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 12,
     fontStyle: "italic",
     marginTop: 2,
@@ -176,11 +176,11 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   amount: {
-    fontFamily: "Poppins_700Bold",
+    fontFamily: "SpaceGrotesk_700Bold",
     fontSize: 16,
   },
   statusBadge: {
-    fontFamily: "Poppins_500Medium",
+    fontFamily: "SpaceGrotesk_500Medium",
     fontSize: 10,
     paddingHorizontal: 6,
     paddingVertical: 2,

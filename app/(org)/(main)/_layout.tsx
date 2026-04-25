@@ -192,7 +192,7 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   tabLabel: {
-    fontFamily: "Poppins_500Medium",
+    fontFamily: "SpaceGrotesk_500Medium",
     fontSize: 9,
     marginTop: 1,
   },

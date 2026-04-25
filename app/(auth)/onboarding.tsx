@@ -176,14 +176,14 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   slideTitle: {
-    fontFamily: "Poppins_700Bold",
+    fontFamily: "SpaceGrotesk_700Bold",
     fontSize: 36,
     color: "#FFFFFF",
     lineHeight: 46,
     letterSpacing: -0.5,
   },
   slideSubtitle: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 16,
     color: "rgba(255,255,255,0.78)",
     lineHeight: 26,
@@ -209,7 +209,7 @@ const styles = StyleSheet.create({
     alignItems: "flex-end",
   },
   skipText: {
-    fontFamily: "Poppins_500Medium",
+    fontFamily: "SpaceGrotesk_500Medium",
     fontSize: 14,
     color: "rgba(255,255,255,0.75)",
   },
@@ -248,7 +248,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   nextBtnText: {
-    fontFamily: "Poppins_700Bold",
+    fontFamily: "SpaceGrotesk_700Bold",
     fontSize: 17,
     color: Colors.white,
   },

@@ -387,14 +387,14 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   title: {
-    fontFamily: "Poppins_700Bold",
+    fontFamily: "SpaceGrotesk_700Bold",
     fontSize: 36,
     color: Colors.primary,
     lineHeight: 44,
     marginBottom: 12,
   },
   subtitle: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 14,
     color: Colors.textMuted,
     lineHeight: 22,
@@ -411,7 +411,7 @@ const styles = StyleSheet.create({
     opacity: 0.7,
   },
   continueBtnText: {
-    fontFamily: "Poppins_700Bold",
+    fontFamily: "SpaceGrotesk_700Bold",
     fontSize: 16,
     color: Colors.white,
   },
@@ -428,7 +428,7 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: Colors.border,
     backgroundColor: Colors.white,
-    fontFamily: "Poppins_700Bold",
+    fontFamily: "SpaceGrotesk_700Bold",
     fontSize: 22,
     color: Colors.primary,
     textAlign: "center",
@@ -441,7 +441,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#E74C3C10",
   },
   errorText: {
-    fontFamily: "Poppins_500Medium",
+    fontFamily: "SpaceGrotesk_500Medium",
     fontSize: 13,
     color: "#E74C3C",
     textAlign: "center",
@@ -452,7 +452,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   resendText: {
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 14,
     color: Colors.green,
   },
@@ -474,7 +474,7 @@ const styles = StyleSheet.create({
   },
   input: {
     flex: 1,
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 15,
     color: Colors.primary,
   },
@@ -497,7 +497,7 @@ const styles = StyleSheet.create({
     borderRadius: 2,
   },
   strengthLabel: {
-    fontFamily: "Poppins_500Medium",
+    fontFamily: "SpaceGrotesk_500Medium",
     fontSize: 12,
     minWidth: 40,
   },
@@ -534,13 +534,13 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   successTitle: {
-    fontFamily: "Poppins_700Bold",
+    fontFamily: "SpaceGrotesk_700Bold",
     fontSize: 28,
     color: Colors.primary,
     marginBottom: 12,
   },
   successSubtitle: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 14,
     color: Colors.textMuted,
     textAlign: "center",

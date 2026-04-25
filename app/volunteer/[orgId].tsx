@@ -291,7 +291,7 @@ const styles = StyleSheet.create({
     marginRight: 14,
   },
   orgInitials: {
-    fontFamily: "Poppins_700Bold",
+    fontFamily: "SpaceGrotesk_700Bold",
     fontSize: 16,
     color: "#FFFFFF",
   },
@@ -299,21 +299,21 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   orgName: {
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 16,
   },
   orgSubtext: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 13,
     marginTop: 2,
   },
   sectionLabel: {
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 16,
     marginBottom: 6,
   },
   sectionSubtext: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 13,
     marginBottom: 12,
   },
@@ -321,7 +321,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   inputLabel: {
-    fontFamily: "Poppins_500Medium",
+    fontFamily: "SpaceGrotesk_500Medium",
     fontSize: 13,
     marginBottom: 6,
   },
@@ -329,7 +329,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 14,
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 15,
     borderWidth: 1,
   },
@@ -352,7 +352,7 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
   },
   chipText: {
-    fontFamily: "Poppins_500Medium",
+    fontFamily: "SpaceGrotesk_500Medium",
     fontSize: 14,
   },
   availabilityRow: {
@@ -368,7 +368,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   availChipText: {
-    fontFamily: "Poppins_500Medium",
+    fontFamily: "SpaceGrotesk_500Medium",
     fontSize: 14,
   },
   submitBtn: {
@@ -382,7 +382,7 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
   submitBtnText: {
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 16,
     color: "#FFFFFF",
   },
@@ -396,19 +396,19 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   successTitle: {
-    fontFamily: "Poppins_700Bold",
+    fontFamily: "SpaceGrotesk_700Bold",
     fontSize: 28,
     marginBottom: 12,
   },
   successText: {
-    fontFamily: "Poppins_500Medium",
+    fontFamily: "SpaceGrotesk_500Medium",
     fontSize: 16,
     textAlign: "center",
     lineHeight: 24,
     marginBottom: 8,
   },
   successSubtext: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 14,
     textAlign: "center",
     lineHeight: 22,
@@ -421,7 +421,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   successBtnText: {
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 16,
     color: "#FFFFFF",
   },

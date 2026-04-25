@@ -239,7 +239,7 @@ export default function DonateScreen() {
               {suggestedAmount
                 ? `Give $${suggestedAmount.toFixed(2)} to `
                 : "You're one step away from supporting "}
-              <Text style={{ color: c.text, fontFamily: "Poppins_600SemiBold" }}>{org.name}</Text>
+              <Text style={{ color: c.text, fontFamily: "SpaceGrotesk_600SemiBold" }}>{org.name}</Text>
               {suggestedAmount
                 ? " — create a free account to complete your donation."
                 : ". It's free and takes 30 seconds."}
@@ -652,7 +652,7 @@ export default function DonateScreen() {
             <Text style={styles.doneBtnText}>Try Again</Text>
           </Pressable>
           <Pressable style={{ marginTop: 12 }} onPress={() => router.back()}>
-            <Text style={{ color: c.textMuted, fontFamily: "Poppins_500Medium" }}>Cancel</Text>
+            <Text style={{ color: c.textMuted, fontFamily: "SpaceGrotesk_500Medium" }}>Cancel</Text>
           </Pressable>
         </View>
       </View>
@@ -739,7 +739,7 @@ export default function DonateScreen() {
                 <Ionicons name="school-outline" size={18} color={c.green} />
                 <Text style={{ color: c.text, fontSize: 13, marginLeft: 8, flex: 1 }}>
                   Reinvest attribution:{" "}
-                  <Text style={{ fontFamily: "Poppins_600SemiBold" }}>{resolvedPartner.name}</Text>
+                  <Text style={{ fontFamily: "SpaceGrotesk_600SemiBold" }}>{resolvedPartner.name}</Text>
                 </Text>
               </View>
             ) : null}
@@ -885,7 +885,7 @@ export default function DonateScreen() {
               <Ionicons name="school-outline" size={18} color={c.green} />
               <Text style={{ color: c.text, fontSize: 13, marginLeft: 8, flex: 1 }}>
                 Reinvest attribution:{" "}
-                <Text style={{ fontFamily: "Poppins_600SemiBold" }}>{resolvedPartner.name}</Text>
+                <Text style={{ fontFamily: "SpaceGrotesk_600SemiBold" }}>{resolvedPartner.name}</Text>
               </Text>
             </View>
           ) : null}
@@ -929,7 +929,7 @@ export default function DonateScreen() {
                 ]}
                 onPress={() => selectPreset(preset)}
               >
-                <Text style={[styles.presetText, { color: c.text }, selectedPreset === preset && { color: "#fff", fontFamily: "Poppins_600SemiBold" }]}>
+                <Text style={[styles.presetText, { color: c.text }, selectedPreset === preset && { color: "#fff", fontFamily: "SpaceGrotesk_600SemiBold" }]}>
                   ${preset}
                 </Text>
               </Pressable>
@@ -1027,7 +1027,7 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   content: { flex: 1, padding: 20 },
   centerContent: { flex: 1, alignItems: "center", justifyContent: "center", gap: 16, paddingHorizontal: 40 },
-  centerText: { fontFamily: "Poppins_600SemiBold", fontSize: 18, textAlign: "center" },
+  centerText: { fontFamily: "SpaceGrotesk_600SemiBold", fontSize: 18, textAlign: "center" },
 
   partnerBanner: {
     flexDirection: "row",
@@ -1064,7 +1064,7 @@ const styles = StyleSheet.create({
     backgroundColor: "transparent",
   },
   processingStageLabel: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 11,
     textAlign: "center",
     maxWidth: 100,
@@ -1087,9 +1087,9 @@ const styles = StyleSheet.create({
   },
 
   btn: { paddingVertical: 14, paddingHorizontal: 32, borderRadius: 12, alignItems: "center" },
-  btnText: { fontFamily: "Poppins_600SemiBold", fontSize: 16, color: "#fff" },
+  btnText: { fontFamily: "SpaceGrotesk_600SemiBold", fontSize: 16, color: "#fff" },
 
-  sectionTitle: { fontFamily: "Poppins_700Bold", fontSize: 18, marginBottom: 16, textAlign: "center" },
+  sectionTitle: { fontFamily: "SpaceGrotesk_700Bold", fontSize: 18, marginBottom: 16, textAlign: "center" },
 
   amountDisplay: {
     borderWidth: 2,
@@ -1100,9 +1100,9 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   amountInputRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-  dollarPrefix: { fontFamily: "Poppins_700Bold", fontSize: 40 },
+  dollarPrefix: { fontFamily: "SpaceGrotesk_700Bold", fontSize: 40 },
   amountInput: {
-    fontFamily: "Poppins_700Bold",
+    fontFamily: "SpaceGrotesk_700Bold",
     fontSize: 40,
     minWidth: 80,
     textAlign: "center",
@@ -1120,7 +1120,7 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     flexBasis: "30%",
   },
-  presetText: { fontFamily: "Poppins_500Medium", fontSize: 16 },
+  presetText: { fontFamily: "SpaceGrotesk_500Medium", fontSize: 16 },
 
   anonymousRow: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 24 },
   checkbox: {
@@ -1131,7 +1131,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  anonymousText: { fontFamily: "Poppins_400Regular", fontSize: 15 },
+  anonymousText: { fontFamily: "SpaceGrotesk_400Regular", fontSize: 15 },
 
   guideCard: {
     borderWidth: 1,
@@ -1140,10 +1140,10 @@ const styles = StyleSheet.create({
     marginTop: 8,
     gap: 6,
   },
-  guideTitle: { fontFamily: "Poppins_600SemiBold", fontSize: 14, marginBottom: 0 },
-  guideText: { fontFamily: "Poppins_400Regular", fontSize: 13, lineHeight: 18 },
+  guideTitle: { fontFamily: "SpaceGrotesk_600SemiBold", fontSize: 14, marginBottom: 0 },
+  guideText: { fontFamily: "SpaceGrotesk_400Regular", fontSize: 13, lineHeight: 18 },
   guideLink: { paddingVertical: 4 },
-  guideLinkText: { fontFamily: "Poppins_600SemiBold", fontSize: 13 },
+  guideLinkText: { fontFamily: "SpaceGrotesk_600SemiBold", fontSize: 13 },
 
   amountGuideRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 10 },
   amountGuideStage: { flex: 1, alignItems: "center", gap: 4 },
@@ -1157,29 +1157,29 @@ const styles = StyleSheet.create({
     backgroundColor: "transparent",
     marginBottom: 0,
   },
-  amountGuideLabel: { fontFamily: "Poppins_400Regular", fontSize: 10, textAlign: "center", maxWidth: 90 },
-  amountGuideDetailTitle: { fontFamily: "Poppins_600SemiBold", fontSize: 13, marginTop: 8, marginBottom: 2 },
-  amountGuideDetailText: { fontFamily: "Poppins_400Regular", fontSize: 12.5, lineHeight: 17 },
+  amountGuideLabel: { fontFamily: "SpaceGrotesk_400Regular", fontSize: 10, textAlign: "center", maxWidth: 90 },
+  amountGuideDetailTitle: { fontFamily: "SpaceGrotesk_600SemiBold", fontSize: 13, marginTop: 8, marginBottom: 2 },
+  amountGuideDetailText: { fontFamily: "SpaceGrotesk_400Regular", fontSize: 12.5, lineHeight: 17 },
 
   card: { borderRadius: 16, padding: 20, marginBottom: 16 },
 
   feeRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 8 },
-  feeLabel: { fontFamily: "Poppins_400Regular", fontSize: 14, flex: 1 },
-  feeValue: { fontFamily: "Poppins_600SemiBold", fontSize: 14 },
-  feePercent: { fontFamily: "Poppins_500Medium", fontSize: 13, marginTop: 2 },
+  feeLabel: { fontFamily: "SpaceGrotesk_400Regular", fontSize: 14, flex: 1 },
+  feeValue: { fontFamily: "SpaceGrotesk_600SemiBold", fontSize: 14 },
+  feePercent: { fontFamily: "SpaceGrotesk_500Medium", fontSize: 13, marginTop: 2 },
   feeDivider: { height: 1, marginVertical: 8 },
   feeToggleRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 8 },
 
   sliderRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 8 },
-  sliderLabel: { fontFamily: "Poppins_400Regular", fontSize: 12 },
+  sliderLabel: { fontFamily: "SpaceGrotesk_400Regular", fontSize: 12 },
   dotSlider: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   sliderDot: { borderRadius: 5 },
 
-  totalLabel: { fontFamily: "Poppins_700Bold", fontSize: 15 },
-  totalValue: { fontFamily: "Poppins_700Bold", fontSize: 15 },
+  totalLabel: { fontFamily: "SpaceGrotesk_700Bold", fontSize: 15 },
+  totalValue: { fontFamily: "SpaceGrotesk_700Bold", fontSize: 15 },
 
   donateBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", borderRadius: 14, paddingVertical: 16, marginTop: 8 },
-  donateBtnText: { fontFamily: "Poppins_600SemiBold", fontSize: 18, color: "#fff" },
+  donateBtnText: { fontFamily: "SpaceGrotesk_600SemiBold", fontSize: 18, color: "#fff" },
 
   checkCircle: {
     width: 90,
@@ -1197,8 +1197,8 @@ const styles = StyleSheet.create({
     paddingTop: 60,
     paddingBottom: 40,
   },
-  receiptTitle: { fontFamily: "Poppins_700Bold", fontSize: 24, textAlign: "center" },
-  receiptSubtitle: { fontFamily: "Poppins_400Regular", fontSize: 15, textAlign: "center", marginTop: 4, marginBottom: 24 },
+  receiptTitle: { fontFamily: "SpaceGrotesk_700Bold", fontSize: 24, textAlign: "center" },
+  receiptSubtitle: { fontFamily: "SpaceGrotesk_400Regular", fontSize: 15, textAlign: "center", marginTop: 4, marginBottom: 24 },
 
   receiptCard: { borderRadius: 16, padding: 20, width: "100%", marginBottom: 24 },
   receiptHeader: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 16 },
@@ -1209,15 +1209,15 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  gbBadgeText: { fontFamily: "Poppins_700Bold", fontSize: 14, color: "#fff" },
-  receiptBrand: { fontFamily: "Poppins_700Bold", fontSize: 16 },
-  receiptLabel: { fontFamily: "Poppins_400Regular", fontSize: 11, letterSpacing: 1 },
+  gbBadgeText: { fontFamily: "SpaceGrotesk_700Bold", fontSize: 14, color: "#fff" },
+  receiptBrand: { fontFamily: "SpaceGrotesk_700Bold", fontSize: 16 },
+  receiptLabel: { fontFamily: "SpaceGrotesk_400Regular", fontSize: 11, letterSpacing: 1 },
   receiptDivider: { height: 1, marginVertical: 12 },
   receiptRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 6 },
-  receiptRowLabel: { fontFamily: "Poppins_400Regular", fontSize: 14, flex: 1 },
-  receiptRowValue: { fontFamily: "Poppins_600SemiBold", fontSize: 14 },
-  receiptTotalLabel: { fontFamily: "Poppins_700Bold", fontSize: 15 },
-  receiptTotalValue: { fontFamily: "Poppins_700Bold", fontSize: 20 },
+  receiptRowLabel: { fontFamily: "SpaceGrotesk_400Regular", fontSize: 14, flex: 1 },
+  receiptRowValue: { fontFamily: "SpaceGrotesk_600SemiBold", fontSize: 14 },
+  receiptTotalLabel: { fontFamily: "SpaceGrotesk_700Bold", fontSize: 15 },
+  receiptTotalValue: { fontFamily: "SpaceGrotesk_700Bold", fontSize: 20 },
 
   receiptActions: { flexDirection: "row", gap: 12, width: "100%", marginBottom: 16 },
   actionBtn: {
@@ -1229,7 +1229,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingVertical: 14,
   },
-  actionBtnText: { fontFamily: "Poppins_600SemiBold", fontSize: 15, color: "#fff" },
+  actionBtnText: { fontFamily: "SpaceGrotesk_600SemiBold", fontSize: 15, color: "#fff" },
   actionBtnOutline: {
     flex: 1,
     flexDirection: "row",
@@ -1240,7 +1240,7 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderWidth: 2,
   },
-  actionBtnOutlineText: { fontFamily: "Poppins_600SemiBold", fontSize: 15 },
+  actionBtnOutlineText: { fontFamily: "SpaceGrotesk_600SemiBold", fontSize: 15 },
 
   doneBtn: {
     width: "100%",
@@ -1249,7 +1249,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     paddingVertical: 16,
   },
-  doneBtnText: { fontFamily: "Poppins_600SemiBold", fontSize: 18, color: "#fff" },
+  doneBtnText: { fontFamily: "SpaceGrotesk_600SemiBold", fontSize: 18, color: "#fff" },
 
   authGateWrap: {
     flex: 1,
@@ -1281,13 +1281,13 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   authGateHeading: {
-    fontFamily: "Poppins_700Bold",
+    fontFamily: "SpaceGrotesk_700Bold",
     fontSize: 20,
     textAlign: "center",
     lineHeight: 28,
   },
   authGateBody: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 14,
     textAlign: "center",
     lineHeight: 22,
@@ -1300,7 +1300,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   authGatePrimaryBtnText: {
-    fontFamily: "Poppins_700Bold",
+    fontFamily: "SpaceGrotesk_700Bold",
     fontSize: 16,
     color: "#FFFFFF",
   },
@@ -1312,7 +1312,7 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
   },
   authGateSecondaryBtnText: {
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 16,
   },
   authGateBackLink: {
@@ -1323,7 +1323,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   authGateBackText: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 13,
   },
   authGateCharityRow: {
@@ -1333,11 +1333,11 @@ const styles = StyleSheet.create({
     marginTop: 20,
   },
   authGateCharityText: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 13,
   },
   authGateCharityLink: {
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 13,
   },
 });

@@ -142,13 +142,13 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   heading: {
-    fontFamily: "Poppins_700Bold",
+    fontFamily: "SpaceGrotesk_700Bold",
     fontSize: 28,
     textAlign: "center",
     marginBottom: 10,
   },
   subtitle: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 15,
     textAlign: "center",
     lineHeight: 24,
@@ -182,11 +182,11 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   actionTitle: {
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 15,
   },
   actionSubtitle: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 13,
     marginTop: 2,
     lineHeight: 18,
@@ -199,7 +199,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   skipBtnText: {
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 15,
   },
 });

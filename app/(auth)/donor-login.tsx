@@ -278,7 +278,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   title: {
-    fontFamily: "Poppins_700Bold",
+    fontFamily: "SpaceGrotesk_700Bold",
     fontSize: 36,
     color: Colors.primary,
     lineHeight: 44,
@@ -294,7 +294,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   errorText: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 13,
     color: Colors.white,
     lineHeight: 19,
@@ -311,7 +311,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
   },
   errorSignUpText: {
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 13,
     color: Colors.green,
   },
@@ -329,7 +329,7 @@ const styles = StyleSheet.create({
   },
   input: {
     flex: 1,
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 15,
     color: Colors.primary,
   },
@@ -353,7 +353,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.green,
   },
   rememberText: {
-    fontFamily: "Poppins_500Medium",
+    fontFamily: "SpaceGrotesk_500Medium",
     fontSize: 14,
     color: Colors.primary,
   },
@@ -365,7 +365,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   signInBtnText: {
-    fontFamily: "Poppins_700Bold",
+    fontFamily: "SpaceGrotesk_700Bold",
     fontSize: 16,
     color: Colors.white,
   },
@@ -378,7 +378,7 @@ const styles = StyleSheet.create({
     borderColor: Colors.green,
   },
   demoBtnText: {
-    fontFamily: "Poppins_700Bold",
+    fontFamily: "SpaceGrotesk_700Bold",
     fontSize: 16,
   },
   forgotBtn: {
@@ -386,7 +386,7 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   forgotText: {
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 14,
     color: Colors.green,
   },
@@ -402,7 +402,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.border,
   },
   dividerLabel: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 13,
     color: Colors.textMuted,
   },
@@ -430,7 +430,7 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   oauthHint: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 13,
   },
   bottomRow: {
@@ -439,12 +439,12 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   bottomLabel: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 14,
     color: Colors.textMuted,
   },
   bottomLink: {
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 14,
     color: Colors.green,
   },
@@ -461,7 +461,7 @@ const styles = StyleSheet.create({
     alignSelf: "center",
   },
   businessLinkText: {
-    fontFamily: "Poppins_500Medium",
+    fontFamily: "SpaceGrotesk_500Medium",
     fontSize: 13,
     color: Colors.green,
   },
@@ -473,7 +473,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   footerText: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 13,
     color: Colors.textMuted,
   },

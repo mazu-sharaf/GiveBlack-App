@@ -168,7 +168,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   avatarInitial: {
-    fontFamily: "Poppins_700Bold",
+    fontFamily: "SpaceGrotesk_700Bold",
     fontSize: 22,
     color: "#FFFFFF",
   },
@@ -178,26 +178,26 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   name: {
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 18,
   },
   email: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 12,
     marginTop: 2,
   },
   metric: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 13,
     marginTop: 4,
   },
   sectionTitle: {
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 16,
     marginBottom: 12,
   },
   empty: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 13,
   },
   donorRow: {
@@ -208,7 +208,7 @@ const styles = StyleSheet.create({
   },
   rank: {
     width: 28,
-    fontFamily: "Poppins_500Medium",
+    fontFamily: "SpaceGrotesk_500Medium",
     fontSize: 12,
   },
   donorAvatarWrap: { marginRight: 8 },
@@ -220,13 +220,13 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   donorInitial: {
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 14,
     color: "#FFFFFF",
   },
   donorText: { flex: 1, minWidth: 0 },
   donorName: {
-    fontFamily: "Poppins_500Medium",
+    fontFamily: "SpaceGrotesk_500Medium",
     fontSize: 13,
   },
   donorAmount: {
@@ -234,11 +234,11 @@ const styles = StyleSheet.create({
     minWidth: 80,
   },
   amount: {
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 13,
   },
   donationCount: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 11,
   },
 });

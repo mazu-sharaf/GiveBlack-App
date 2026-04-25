@@ -192,12 +192,12 @@ const styles = StyleSheet.create({
     paddingTop: 16,
   },
   title: {
-    fontFamily: "Poppins_700Bold",
+    fontFamily: "SpaceGrotesk_700Bold",
     fontSize: 22,
     marginBottom: 4,
   },
   subtitle: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 14,
     marginBottom: 24,
     lineHeight: 20,
@@ -229,12 +229,12 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   settingLabel: {
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 14,
     marginBottom: 2,
   },
   settingDesc: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 12,
     lineHeight: 18,
   },
@@ -243,12 +243,12 @@ const styles = StyleSheet.create({
     marginVertical: 8,
   },
   previewTitle: {
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 16,
     marginBottom: 2,
   },
   previewSubtitle: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 13,
     marginBottom: 12,
   },
@@ -262,21 +262,21 @@ const styles = StyleSheet.create({
     height: 1,
   },
   breakdownLabel: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 13,
     flex: 1,
   },
   breakdownValue: {
-    fontFamily: "Poppins_500Medium",
+    fontFamily: "SpaceGrotesk_500Medium",
     fontSize: 14,
   },
   breakdownLabelBold: {
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 14,
     flex: 1,
   },
   breakdownValueBold: {
-    fontFamily: "Poppins_700Bold",
+    fontFamily: "SpaceGrotesk_700Bold",
     fontSize: 16,
   },
   saveBtn: {
@@ -286,7 +286,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   saveBtnText: {
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 16,
     color: Colors.white,
   },

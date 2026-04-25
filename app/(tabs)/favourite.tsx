@@ -267,7 +267,7 @@ const styles = StyleSheet.create({
   },
   searchInput: {
     flex: 1,
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 14,
   },
   filterBtn: {
@@ -290,7 +290,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   filterBadgeText: {
-    fontFamily: "Poppins_700Bold",
+    fontFamily: "SpaceGrotesk_700Bold",
     fontSize: 10,
     color: "#FFFFFF",
   },
@@ -319,13 +319,13 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   resultName: {
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 14,
     lineHeight: 20,
     marginBottom: 2,
   },
   resultOrg: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 12,
     marginBottom: 6,
   },
@@ -340,7 +340,7 @@ const styles = StyleSheet.create({
     borderRadius: 2,
   },
   resultPct: {
-    fontFamily: "Poppins_500Medium",
+    fontFamily: "SpaceGrotesk_500Medium",
     fontSize: 11,
   },
   heartBtn: {
@@ -358,12 +358,12 @@ const styles = StyleSheet.create({
     paddingBottom: 100,
   },
   emptyTitle: {
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 18,
     marginTop: 8,
   },
   emptySub: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 14,
     textAlign: "center",
     paddingHorizontal: 40,
@@ -388,7 +388,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   modalTitle: {
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 16,
     marginBottom: 12,
   },
@@ -405,7 +405,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
   },
   chipText: {
-    fontFamily: "Poppins_500Medium",
+    fontFamily: "SpaceGrotesk_500Medium",
     fontSize: 13,
   },
   sortOption: {
@@ -416,11 +416,11 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
   },
   sortOptionText: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 14,
   },
   sortOptionActive: {
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
   },
   radio: {
     width: 22,
@@ -448,7 +448,7 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
   },
   resetBtnText: {
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 15,
   },
   applyBtn: {
@@ -458,7 +458,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   applyBtnText: {
-    fontFamily: "Poppins_700Bold",
+    fontFamily: "SpaceGrotesk_700Bold",
     fontSize: 15,
     color: "#FFFFFF",
   },

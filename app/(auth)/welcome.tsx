@@ -215,7 +215,7 @@ const styles = StyleSheet.create({
     height: 48,
   },
   tagline: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 14,
     color: "rgba(255,255,255,0.55)",
     letterSpacing: 0.3,
@@ -229,7 +229,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   cardTitle: {
-    fontFamily: "Poppins_700Bold",
+    fontFamily: "SpaceGrotesk_700Bold",
     fontSize: 22,
     color: "#FFFFFF",
     textAlign: "center",
@@ -248,7 +248,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   oauthSpinnerText: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 14,
     color: "rgba(255,255,255,0.6)",
   },
@@ -261,7 +261,7 @@ const styles = StyleSheet.create({
     paddingVertical: 15,
   },
   socialBtnText: {
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 15,
   },
   dividerRow: {
@@ -276,7 +276,7 @@ const styles = StyleSheet.create({
     height: 1,
   },
   dividerText: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 14,
   },
   passwordBtn: {
@@ -288,7 +288,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   passwordBtnText: {
-    fontFamily: "Poppins_700Bold",
+    fontFamily: "SpaceGrotesk_700Bold",
     fontSize: 16,
     color: Colors.white,
   },
@@ -298,11 +298,11 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   signupLabel: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 14,
   },
   signupLink: {
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 14,
     color: Colors.green,
   },
@@ -317,7 +317,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.green + "15",
   },
   businessLinkText: {
-    fontFamily: "Poppins_500Medium",
+    fontFamily: "SpaceGrotesk_500Medium",
     fontSize: 13,
     color: Colors.green,
   },
@@ -331,7 +331,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   guestBtnText: {
-    fontFamily: "Poppins_500Medium",
+    fontFamily: "SpaceGrotesk_500Medium",
     fontSize: 14,
   },
   footerRow: {
@@ -343,7 +343,7 @@ const styles = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
   },
   footerText: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 13,
   },
 });

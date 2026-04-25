@@ -384,7 +384,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   avatarText: {
-    fontFamily: "Poppins_700Bold",
+    fontFamily: "SpaceGrotesk_700Bold",
     fontSize: 18,
     color: Colors.white,
   },
@@ -394,16 +394,16 @@ const styles = StyleSheet.create({
     borderRadius: 22,
   },
   profileName: {
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 16,
   },
   profileEmail: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 12,
     marginTop: 2,
   },
   profileRank: {
-    fontFamily: "Poppins_500Medium",
+    fontFamily: "SpaceGrotesk_500Medium",
     fontSize: 12,
     marginTop: 2,
   },
@@ -414,7 +414,7 @@ const styles = StyleSheet.create({
     marginLeft: 12,
   },
   profileImpactText: {
-    fontFamily: "Poppins_500Medium",
+    fontFamily: "SpaceGrotesk_500Medium",
     fontSize: 13,
   },
   heroHeaderRow: {
@@ -423,26 +423,26 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   heroGreeting: {
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 18,
   },
   heroSub: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 12,
     marginTop: 4,
   },
   greeting: {
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 16,
     color: Colors.primary,
   },
   donatedLabel: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 12,
     color: Colors.textMuted,
   },
   donatedAmount: {
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     color: Colors.green,
   },
   headerRight: {
@@ -488,13 +488,13 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   walletLabel: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 13,
     color: "rgba(255,255,255,0.8)",
     marginBottom: 4,
   },
   walletBalance: {
-    fontFamily: "Poppins_700Bold",
+    fontFamily: "SpaceGrotesk_700Bold",
     fontSize: 36,
     color: Colors.white,
     lineHeight: 42,
@@ -521,7 +521,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   topUpText: {
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 12,
     color: Colors.green,
   },
@@ -533,12 +533,12 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   sectionTitle: {
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 18,
     color: Colors.primary,
   },
   seeAll: {
-    fontFamily: "Poppins_500Medium",
+    fontFamily: "SpaceGrotesk_500Medium",
     fontSize: 13,
     color: Colors.green,
   },
@@ -581,13 +581,13 @@ const styles = StyleSheet.create({
     padding: 14,
   },
   featuredName: {
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 14,
     color: Colors.primary,
     marginBottom: 2,
   },
   featuredOrg: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 12,
     color: Colors.textMuted,
     marginBottom: 10,
@@ -609,12 +609,12 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   featuredPct: {
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 12,
     color: Colors.green,
   },
   featuredDonors: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 12,
     color: Colors.textMuted,
   },
@@ -631,7 +631,7 @@ const styles = StyleSheet.create({
     borderColor: Colors.border,
   },
   categoryPillText: {
-    fontFamily: "Poppins_500Medium",
+    fontFamily: "SpaceGrotesk_500Medium",
     fontSize: 13,
     color: Colors.primary,
   },
@@ -671,7 +671,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   latestName: {
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 12,
     color: Colors.primary,
     paddingHorizontal: 10,
@@ -693,7 +693,7 @@ const styles = StyleSheet.create({
     borderRadius: 2,
   },
   latestPct: {
-    fontFamily: "Poppins_500Medium",
+    fontFamily: "SpaceGrotesk_500Medium",
     fontSize: 11,
     color: Colors.green,
     paddingHorizontal: 10,
@@ -710,7 +710,7 @@ const styles = StyleSheet.create({
     flex: 1,
     marginLeft: 8,
     paddingRight: 12,
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
   },
   offlineBanner: {
     flexDirection: "row",
@@ -726,7 +726,7 @@ const styles = StyleSheet.create({
     borderColor: "#FFE082",
   },
   offlineText: {
-    fontFamily: "Poppins_500Medium",
+    fontFamily: "SpaceGrotesk_500Medium",
     fontSize: 12,
     color: "#7B6100",
   },
@@ -739,11 +739,11 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   emptyStateTitle: {
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 18,
   },
   emptyStateDesc: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 14,
     textAlign: "center",
     lineHeight: 20,

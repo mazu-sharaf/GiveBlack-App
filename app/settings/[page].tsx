@@ -1109,7 +1109,7 @@ function EditProfilePage() {
             )}
           </View>
         </Pressable>
-        <Text style={[{ fontSize: 12, fontFamily: "Poppins_400Regular", color: c.textMuted, marginTop: 8 }]}>
+        <Text style={[{ fontSize: 12, fontFamily: "SpaceGrotesk_400Regular", color: c.textMuted, marginTop: 8 }]}>
           Tap to change photo
         </Text>
       </View>
@@ -1545,7 +1545,7 @@ const sMain = StyleSheet.create({
     gap: 10,
   },
   appearanceLabel: {
-    fontFamily: "Poppins_500Medium",
+    fontFamily: "SpaceGrotesk_500Medium",
     fontSize: 12,
     textTransform: "uppercase",
     letterSpacing: 0.8,
@@ -1566,7 +1566,7 @@ const sMain = StyleSheet.create({
     borderRadius: 9,
   },
   themePillText: {
-    fontFamily: "Poppins_500Medium",
+    fontFamily: "SpaceGrotesk_500Medium",
     fontSize: 13,
   },
 });
@@ -1607,8 +1607,8 @@ function HowToDonatePage() {
     <>
       <View style={[styles.sectionCard, { backgroundColor: c.cardBg, shadowColor: c.cardShadow }]}>
         <View style={{ padding: 16, gap: 12 }}>
-          <Text style={{ fontFamily: "Poppins_700Bold", fontSize: 18, color: c.text }}>How to Donate</Text>
-          <Text style={{ fontFamily: "Poppins_400Regular", fontSize: 13, color: c.textMuted, lineHeight: 20 }}>
+          <Text style={{ fontFamily: "SpaceGrotesk_700Bold", fontSize: 18, color: c.text }}>How to Donate</Text>
+          <Text style={{ fontFamily: "SpaceGrotesk_400Regular", fontSize: 13, color: c.textMuted, lineHeight: 20 }}>
             Not legal advice. Donation eligibility and tax deductibility depend on the receiving organization and your personal situation.
           </Text>
 
@@ -1632,7 +1632,7 @@ function HowToDonatePage() {
                 <Ionicons name={item.icon} size={16} color={expandedId === item.id ? "#fff" : c.textMuted} />
                 <Text
                   style={{
-                    fontFamily: "Poppins_600SemiBold",
+                    fontFamily: "SpaceGrotesk_600SemiBold",
                     fontSize: 12,
                     color: expandedId === item.id ? "#fff" : c.text,
                   }}
@@ -1908,7 +1908,7 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   sectionTitle: {
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 14,
     color: Colors.textMuted,
     textTransform: "uppercase",
@@ -1945,12 +1945,12 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   rowLabel: {
-    fontFamily: "Poppins_500Medium",
+    fontFamily: "SpaceGrotesk_500Medium",
     fontSize: 14,
     color: Colors.primary,
   },
   rowDesc: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 12,
     color: Colors.textMuted,
     marginTop: 2,
@@ -1970,14 +1970,14 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   faqQuestion: {
-    fontFamily: "Poppins_500Medium",
+    fontFamily: "SpaceGrotesk_500Medium",
     fontSize: 14,
     color: Colors.primary,
     flex: 1,
     paddingRight: 10,
   },
   faqAnswer: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 13,
     color: Colors.textMuted,
     lineHeight: 20,
@@ -1987,27 +1987,27 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   legalDate: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 12,
     color: Colors.textLight,
     marginBottom: 16,
   },
   legalHeading: {
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 14,
     color: Colors.primary,
     marginTop: 16,
     marginBottom: 6,
   },
   legalSubheading: {
-    fontFamily: "Poppins_500Medium",
+    fontFamily: "SpaceGrotesk_500Medium",
     fontSize: 13,
     color: Colors.primary,
     marginTop: 10,
     marginBottom: 4,
   },
   legalText: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 13,
     color: Colors.textMuted,
     lineHeight: 20,
@@ -2027,12 +2027,12 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   shareTitle: {
-    fontFamily: "Poppins_700Bold",
+    fontFamily: "SpaceGrotesk_700Bold",
     fontSize: 24,
     color: Colors.primary,
   },
   shareSubtitle: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 14,
     color: Colors.textMuted,
     textAlign: "center",
@@ -2052,12 +2052,12 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
   },
   impactValue: {
-    fontFamily: "Poppins_700Bold",
+    fontFamily: "SpaceGrotesk_700Bold",
     fontSize: 20,
     color: Colors.green,
   },
   impactLabel: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 11,
     color: Colors.textMuted,
     marginTop: 4,
@@ -2067,7 +2067,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   fieldLabel: {
-    fontFamily: "Poppins_500Medium",
+    fontFamily: "SpaceGrotesk_500Medium",
     fontSize: 12,
     color: Colors.textMuted,
     marginBottom: 6,
@@ -2075,7 +2075,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   fieldInput: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 15,
     color: Colors.primary,
     borderWidth: 1,
@@ -2086,7 +2086,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.cream,
   },
   fieldHint: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 11,
     color: Colors.textLight,
     marginTop: 4,
@@ -2099,7 +2099,7 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   saveBtnText: {
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 16,
     color: Colors.white,
   },
@@ -2125,7 +2125,7 @@ const s2 = StyleSheet.create({
     borderRadius: 45,
   },
   avatarText: {
-    fontFamily: "Poppins_700Bold",
+    fontFamily: "SpaceGrotesk_700Bold",
     fontSize: 28,
     color: Colors.white,
   },
@@ -2150,7 +2150,7 @@ const s2 = StyleSheet.create({
     marginBottom: 24,
   },
   greenBtnText: {
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 16,
     color: Colors.white,
   },
@@ -2168,7 +2168,7 @@ const s2 = StyleSheet.create({
   },
   searchInput: {
     flex: 1,
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 14,
     color: Colors.primary,
     padding: 0,
@@ -2179,12 +2179,12 @@ const s2 = StyleSheet.create({
     gap: 12,
   },
   emptyText: {
-    fontFamily: "Poppins_500Medium",
+    fontFamily: "SpaceGrotesk_500Medium",
     fontSize: 15,
     color: Colors.textLight,
   },
   monthLabel: {
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 14,
     color: Colors.textMuted,
     marginBottom: 10,
@@ -2205,18 +2205,18 @@ const s2 = StyleSheet.create({
     justifyContent: "center",
   },
   txTitle: {
-    fontFamily: "Poppins_500Medium",
+    fontFamily: "SpaceGrotesk_500Medium",
     fontSize: 14,
     color: Colors.primary,
   },
   txDate: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 12,
     color: Colors.textLight,
     marginTop: 2,
   },
   txAmount: {
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 15,
   },
   menuRow: {
@@ -2235,7 +2235,7 @@ const s2 = StyleSheet.create({
   },
   menuLabel: {
     flex: 1,
-    fontFamily: "Poppins_500Medium",
+    fontFamily: "SpaceGrotesk_500Medium",
     fontSize: 14,
     color: Colors.primary,
   },
@@ -2254,17 +2254,17 @@ const s2 = StyleSheet.create({
     justifyContent: "center",
   },
   contactInitials: {
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 14,
     color: Colors.white,
   },
   contactName: {
-    fontFamily: "Poppins_500Medium",
+    fontFamily: "SpaceGrotesk_500Medium",
     fontSize: 14,
     color: Colors.primary,
   },
   contactPhone: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 12,
     color: Colors.textLight,
     marginTop: 2,
@@ -2289,13 +2289,13 @@ const s2 = StyleSheet.create({
     marginBottom: 16,
   },
   inviteHeroTitle: {
-    fontFamily: "Poppins_700Bold",
+    fontFamily: "SpaceGrotesk_700Bold",
     fontSize: 20,
     marginBottom: 10,
     textAlign: "center",
   },
   inviteHeroSubtitle: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 14,
     lineHeight: 22,
     textAlign: "center",
@@ -2307,14 +2307,14 @@ const s2 = StyleSheet.create({
     marginBottom: 20,
   },
   invitePreviewLabel: {
-    fontFamily: "Poppins_500Medium",
+    fontFamily: "SpaceGrotesk_500Medium",
     fontSize: 12,
     marginBottom: 8,
     textTransform: "uppercase",
     letterSpacing: 0.5,
   },
   invitePreviewText: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 14,
     lineHeight: 22,
   },
@@ -2328,7 +2328,7 @@ const s2 = StyleSheet.create({
     gap: 10,
   },
   inviteShareBtnText: {
-    fontFamily: "Poppins_700Bold",
+    fontFamily: "SpaceGrotesk_700Bold",
     fontSize: 16,
     color: Colors.white,
   },
@@ -2346,12 +2346,12 @@ const s2 = StyleSheet.create({
     alignItems: "center",
   },
   txDetailLabel: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 13,
     color: Colors.textMuted,
   },
   txDetailValue: {
-    fontFamily: "Poppins_500Medium",
+    fontFamily: "SpaceGrotesk_500Medium",
     fontSize: 13,
     color: Colors.primary,
   },
@@ -2362,7 +2362,7 @@ const s2 = StyleSheet.create({
     paddingVertical: 3,
   },
   txStatusText: {
-    fontFamily: "Poppins_500Medium",
+    fontFamily: "SpaceGrotesk_500Medium",
     fontSize: 12,
     color: Colors.green,
   },
@@ -2372,7 +2372,7 @@ const s2 = StyleSheet.create({
     gap: 10,
   },
   pinInput: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 15,
     color: Colors.primary,
     borderWidth: 1,
@@ -2391,7 +2391,7 @@ const s2 = StyleSheet.create({
     alignItems: "center",
   },
   pinSaveBtnText: {
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 14,
     color: Colors.white,
   },

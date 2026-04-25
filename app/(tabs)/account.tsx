@@ -385,16 +385,16 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   avatarInitial: {
-    fontFamily: "Poppins_700Bold",
+    fontFamily: "SpaceGrotesk_700Bold",
     fontSize: 18,
     color: "#FFFFFF",
   },
   profileName: {
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 16,
   },
   profileEmail: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 12,
     marginTop: 2,
   },
@@ -406,7 +406,7 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
   profileEditText: {
-    fontFamily: "Poppins_500Medium",
+    fontFamily: "SpaceGrotesk_500Medium",
     fontSize: 13,
   },
   avatarImage: {
@@ -415,7 +415,7 @@ const styles = StyleSheet.create({
     borderRadius: 22,
   },
   profileStat: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 12,
     marginTop: 2,
   },
@@ -427,11 +427,11 @@ const styles = StyleSheet.create({
     paddingBottom: 20,
   },
   helloText: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 15,
   },
   userName: {
-    fontFamily: "Poppins_700Bold",
+    fontFamily: "SpaceGrotesk_700Bold",
     fontSize: 24,
     marginTop: -2,
   },
@@ -457,12 +457,12 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   walletLabel: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 13,
     color: "rgba(255,255,255,0.65)",
   },
   walletBalance: {
-    fontFamily: "Poppins_700Bold",
+    fontFamily: "SpaceGrotesk_700Bold",
     fontSize: 26,
     color: "#FFFFFF",
     marginTop: -2,
@@ -473,7 +473,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   topUpText: {
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 14,
     color: "#FFFFFF",
   },
@@ -502,7 +502,7 @@ const styles = StyleSheet.create({
   },
   menuLabel: {
     flex: 1,
-    fontFamily: "Poppins_500Medium",
+    fontFamily: "SpaceGrotesk_500Medium",
     fontSize: 15,
   },
   menuSep: {
@@ -523,7 +523,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   modalText: {
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 17,
     textAlign: "center",
     marginBottom: 24,
@@ -541,7 +541,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   cancelBtnText: {
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 15,
   },
   okBtn: {
@@ -551,7 +551,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   okBtnText: {
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 15,
     color: "#FFFFFF",
   },
@@ -570,13 +570,13 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   guestTitle: {
-    fontFamily: "Poppins_700Bold",
+    fontFamily: "SpaceGrotesk_700Bold",
     fontSize: 22,
     textAlign: "center",
     marginBottom: 10,
   },
   guestSubtitle: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 14,
     textAlign: "center",
     lineHeight: 22,
@@ -608,7 +608,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   guestBenefitText: {
-    fontFamily: "Poppins_500Medium",
+    fontFamily: "SpaceGrotesk_500Medium",
     fontSize: 15,
     flex: 1,
   },
@@ -623,7 +623,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   guestCtaPrimaryText: {
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 16,
     color: "#FFFFFF",
   },
@@ -634,7 +634,7 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
   },
   guestCtaSecondaryText: {
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 16,
   },
   guestLogoutBtn: {
@@ -644,7 +644,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   guestLogoutText: {
-    fontFamily: "Poppins_500Medium",
+    fontFamily: "SpaceGrotesk_500Medium",
     fontSize: 14,
     color: "#E53935",
   },

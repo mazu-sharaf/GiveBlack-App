@@ -424,8 +424,8 @@ export default function CampaignsTab() {
       <View style={styles.usageAndFilters}>
         <View style={[styles.usageBar, { backgroundColor: c.cardBg }]}>
           <Text style={[styles.usageText, { color: c.textMuted }]}>
-            Using <Text style={{ color: c.text, fontFamily: "Poppins_600SemiBold" }}>{currentCount}/{maxCampaigns === 999999 ? "\u221e" : maxCampaigns}</Text> campaigns
-            {" \u00b7 "}Max goal: <Text style={{ color: c.text, fontFamily: "Poppins_600SemiBold" }}>${maxGoal >= 999999 ? "\u221e" : maxGoal.toLocaleString()}</Text>
+            Using <Text style={{ color: c.text, fontFamily: "SpaceGrotesk_600SemiBold" }}>{currentCount}/{maxCampaigns === 999999 ? "\u221e" : maxCampaigns}</Text> campaigns
+            {" \u00b7 "}Max goal: <Text style={{ color: c.text, fontFamily: "SpaceGrotesk_600SemiBold" }}>${maxGoal >= 999999 ? "\u221e" : maxGoal.toLocaleString()}</Text>
           </Text>
         </View>
 
@@ -832,7 +832,7 @@ const styles = StyleSheet.create({
     paddingTop: 12,
     paddingBottom: 10,
   },
-  headerTitle: { fontFamily: "Poppins_700Bold", fontSize: 26 },
+  headerTitle: { fontFamily: "SpaceGrotesk_700Bold", fontSize: 26 },
   createBtn: {
     flexDirection: "row",
     alignItems: "center",
@@ -841,7 +841,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 14,
   },
-  createBtnText: { fontFamily: "Poppins_600SemiBold", fontSize: 14, color: "#fff" },
+  createBtnText: { fontFamily: "SpaceGrotesk_600SemiBold", fontSize: 14, color: "#fff" },
   /** Shared horizontal inset with header + list so usage, filters, and cards share one column. */
   usageAndFilters: {
     marginHorizontal: SCREEN_H_PAD,
@@ -853,7 +853,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     marginBottom: 10,
   },
-  usageText: { fontFamily: "Poppins_400Regular", fontSize: 13 },
+  usageText: { fontFamily: "SpaceGrotesk_400Regular", fontSize: 13 },
   filterRowScroll: {
     alignSelf: "stretch",
   },
@@ -870,7 +870,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   filterChipText: {
-    fontFamily: "Poppins_500Medium",
+    fontFamily: "SpaceGrotesk_500Medium",
     fontSize: 13,
     lineHeight: 16,
     textAlign: "center",
@@ -884,7 +884,7 @@ const styles = StyleSheet.create({
     padding: 40,
     alignItems: "center",
   },
-  emptyText: { fontFamily: "Poppins_500Medium", fontSize: 15, marginTop: 12 },
+  emptyText: { fontFamily: "SpaceGrotesk_500Medium", fontSize: 15, marginTop: 12 },
   campCard: {
     borderRadius: 18,
     padding: 18,
@@ -901,7 +901,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     marginBottom: 12,
   },
-  campTitle: { fontFamily: "Poppins_600SemiBold", fontSize: 16, marginBottom: 6 },
+  campTitle: { fontFamily: "SpaceGrotesk_600SemiBold", fontSize: 16, marginBottom: 6 },
   statusBadge: {
     flexDirection: "row",
     alignItems: "center",
@@ -912,13 +912,13 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   statusDot: { width: 6, height: 6, borderRadius: 3 },
-  statusText: { fontFamily: "Poppins_500Medium", fontSize: 11, textTransform: "capitalize" },
+  statusText: { fontFamily: "SpaceGrotesk_500Medium", fontSize: 11, textTransform: "capitalize" },
   campAmounts: { flexDirection: "row", alignItems: "baseline", marginBottom: 8 },
-  campRaised: { fontFamily: "Poppins_700Bold", fontSize: 20 },
-  campGoal: { fontFamily: "Poppins_400Regular", fontSize: 13 },
+  campRaised: { fontFamily: "SpaceGrotesk_700Bold", fontSize: 20 },
+  campGoal: { fontFamily: "SpaceGrotesk_400Regular", fontSize: 13 },
   progressTrack: { height: 6, borderRadius: 3, overflow: "hidden" },
   progressFill: { height: "100%", borderRadius: 3 },
-  progressPercent: { fontFamily: "Poppins_400Regular", fontSize: 12, marginTop: 6 },
+  progressPercent: { fontFamily: "SpaceGrotesk_400Regular", fontSize: 12, marginTop: 6 },
   campActions: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -937,7 +937,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     borderWidth: 1,
   },
-  actionChipText: { fontFamily: "Poppins_500Medium", fontSize: 12 },
+  actionChipText: { fontFamily: "SpaceGrotesk_500Medium", fontSize: 12 },
   modalHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -946,19 +946,19 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  modalCancel: { fontFamily: "Poppins_500Medium", fontSize: 15 },
-  modalTitle: { fontFamily: "Poppins_600SemiBold", fontSize: 17 },
-  modalSave: { fontFamily: "Poppins_600SemiBold", fontSize: 15 },
+  modalCancel: { fontFamily: "SpaceGrotesk_500Medium", fontSize: 15 },
+  modalTitle: { fontFamily: "SpaceGrotesk_600SemiBold", fontSize: 17 },
+  modalSave: { fontFamily: "SpaceGrotesk_600SemiBold", fontSize: 15 },
   formContent: { padding: 20, paddingBottom: 40 },
   formField: { marginBottom: 20 },
-  formLabel: { fontFamily: "Poppins_600SemiBold", fontSize: 15, marginBottom: 2 },
-  formSublabel: { fontFamily: "Poppins_400Regular", fontSize: 12, marginBottom: 10 },
+  formLabel: { fontFamily: "SpaceGrotesk_600SemiBold", fontSize: 15, marginBottom: 2 },
+  formSublabel: { fontFamily: "SpaceGrotesk_400Regular", fontSize: 12, marginBottom: 10 },
   sectionDivider: { borderTopWidth: 1, marginBottom: 20, marginTop: 4 },
   formInput: {
     borderRadius: 14,
     paddingHorizontal: 16,
     paddingVertical: 12,
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 15,
   },
   imageModeTabs: {
@@ -975,7 +975,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     borderWidth: 1,
   },
-  imageModeTabText: { fontFamily: "Poppins_500Medium", fontSize: 13 },
+  imageModeTabText: { fontFamily: "SpaceGrotesk_500Medium", fontSize: 13 },
   uploadArea: {
     borderRadius: 14,
     borderWidth: 1.5,
@@ -997,16 +997,16 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   uploadTitle: {
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 15,
     marginBottom: 4,
   },
   uploadHint: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 12,
   },
   uploadText: {
-    fontFamily: "Poppins_500Medium",
+    fontFamily: "SpaceGrotesk_500Medium",
     fontSize: 14,
     marginTop: 8,
   },
@@ -1029,7 +1029,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
   },
   changeBtnText: {
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 12,
     color: "#fff",
   },
@@ -1047,7 +1047,7 @@ const styles = StyleSheet.create({
     alignSelf: "flex-start",
   },
   removeImageText: {
-    fontFamily: "Poppins_500Medium",
+    fontFamily: "SpaceGrotesk_500Medium",
     fontSize: 12,
   },
   galleryHint: {
@@ -1059,7 +1059,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   galleryHintText: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 13,
     flex: 1,
   },
@@ -1093,11 +1093,11 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   galleryAddText: {
-    fontFamily: "Poppins_500Medium",
+    fontFamily: "SpaceGrotesk_500Medium",
     fontSize: 12,
   },
   galleryEmptyText: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 13,
     textAlign: "center",
     marginTop: 8,

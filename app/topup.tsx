@@ -632,7 +632,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   headerTitle: {
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 18,
   },
   bodyContent: {
@@ -651,11 +651,11 @@ const styles = StyleSheet.create({
     minWidth: 150,
   },
   dollarPrefix: {
-    fontFamily: "Poppins_700Bold",
+    fontFamily: "SpaceGrotesk_700Bold",
     fontSize: 40,
   },
   amountInput: {
-    fontFamily: "Poppins_700Bold",
+    fontFamily: "SpaceGrotesk_700Bold",
     fontSize: 40,
     minWidth: 60,
     textAlign: "center",
@@ -678,20 +678,20 @@ const styles = StyleSheet.create({
     borderColor: Colors.green,
   },
   presetBtnText: {
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 16,
   },
   presetBtnTextActive: {
     color: "#FFFFFF",
   },
   amountDisplay: {
-    fontFamily: "Poppins_700Bold",
+    fontFamily: "SpaceGrotesk_700Bold",
     fontSize: 40,
     textAlign: "center",
     marginBottom: 4,
   },
   amountLabel: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 14,
     textAlign: "center",
     marginBottom: 30,
@@ -718,11 +718,11 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   paymentName: {
-    fontFamily: "Poppins_500Medium",
+    fontFamily: "SpaceGrotesk_500Medium",
     fontSize: 15,
   },
   paymentSub: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 12,
     marginTop: 2,
   },
@@ -736,7 +736,7 @@ const styles = StyleSheet.create({
     borderStyle: "dashed",
   },
   addCardText: {
-    fontFamily: "Poppins_500Medium",
+    fontFamily: "SpaceGrotesk_500Medium",
     fontSize: 15,
   },
   bottomBar: {
@@ -753,12 +753,12 @@ const styles = StyleSheet.create({
     opacity: 0.4,
   },
   continueBtnText: {
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 16,
     color: "#FFFFFF",
   },
   pinSubtitle: {
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 16,
     textAlign: "center",
     marginBottom: 24,
@@ -801,14 +801,14 @@ const styles = StyleSheet.create({
     width: 0,
   },
   pinHint: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 13,
     textAlign: "center" as const,
     marginTop: 8,
     marginBottom: 4,
   },
   pinErrorText: {
-    fontFamily: "Poppins_500Medium",
+    fontFamily: "SpaceGrotesk_500Medium",
     fontSize: 13,
     color: "#E74C3C",
     textAlign: "center" as const,
@@ -820,13 +820,13 @@ const styles = StyleSheet.create({
     marginBottom: 28,
   },
   cardPreviewLabel: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 11,
     color: "rgba(255,255,255,0.7)",
     marginBottom: 4,
   },
   cardPreviewNumber: {
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 20,
     color: "#FFFFFF",
     letterSpacing: 2,
@@ -837,7 +837,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   cardPreviewValue: {
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 14,
     color: "#FFFFFF",
   },
@@ -845,12 +845,12 @@ const styles = StyleSheet.create({
     marginBottom: 18,
   },
   formLabel: {
-    fontFamily: "Poppins_500Medium",
+    fontFamily: "SpaceGrotesk_500Medium",
     fontSize: 13,
     marginBottom: 8,
   },
   formInput: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 15,
     borderRadius: 12,
     borderWidth: 1.5,
@@ -880,12 +880,12 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   successTitle: {
-    fontFamily: "Poppins_700Bold",
+    fontFamily: "SpaceGrotesk_700Bold",
     fontSize: 36,
     marginBottom: 12,
   },
   successMsg: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 16,
     textAlign: "center",
     marginBottom: 40,
@@ -897,7 +897,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   okBtnText: {
-    fontFamily: "Poppins_700Bold",
+    fontFamily: "SpaceGrotesk_700Bold",
     fontSize: 17,
     color: "#FFFFFF",
   },
