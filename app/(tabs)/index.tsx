@@ -181,7 +181,7 @@ export default function HomeScreen() {
           <View style={styles.heroHeaderRow}>
             <View>
               <Text style={[styles.heroGreeting, { color: "#FFFFFF" }]}>
-                Good {new Date().getHours() < 12 ? "morning" : "evening"},{" "}
+                {(() => { const h = new Date().getHours(); return h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : h < 21 ? "Good evening" : "Good night"; })()},{" "}
                 {firstName}
               </Text>
               <Text style={[styles.heroSub, { color: "#E3FCEF" }]}>
