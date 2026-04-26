@@ -1,6 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const INTENT_KEY = "@gb_donation_intent";
+const EXPIRY_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 export interface DonationIntent {
   orgId: string;
@@ -10,7 +11,10 @@ export interface DonationIntent {
 
 export async function saveDonationIntent(intent: DonationIntent): Promise<void> {
   try {
-    await AsyncStorage.setItem(INTENT_KEY, JSON.stringify(intent));
+    await AsyncStorage.setItem(
+      INTENT_KEY,
+      JSON.stringify({ ...intent, savedAt: Date.now() }),
+    );
   } catch {
     // non-critical — ignore
   }
@@ -22,6 +26,13 @@ export async function loadDonationIntent(): Promise<DonationIntent | null> {
     if (!raw) return null;
     const parsed = JSON.parse(raw);
     if (!parsed || typeof parsed !== "object") return null;
+
+    const savedAt = typeof parsed.savedAt === "number" ? parsed.savedAt : 0;
+    if (Date.now() - savedAt > EXPIRY_MS) {
+      await AsyncStorage.removeItem(INTENT_KEY);
+      return null;
+    }
+
     if (typeof parsed.orgId !== "string" || !parsed.orgId) return null;
     const amount =
       parsed.amount != null
