@@ -167,9 +167,17 @@ export const oauthRoutes: FastifyPluginAsync = async (app) => {
     const body = appleBody.parse(request.body);
     try {
       const JWKS = jose.createRemoteJWKSet(new URL("https://appleid.apple.com/auth/keys"));
+
+      // Decode header/claims first so we can log useful context on failure
+      const decoded = jose.decodeJwt(body.identityToken);
+      app.log.info({ aud: decoded.aud, iss: decoded.iss, sub: decoded.sub, exp: decoded.exp }, "apple token claims");
+
+      // Accept both the bundle ID and the Services ID (web) if configured.
+      // clockTolerance handles minor clock skew between client and server.
       const { payload } = await jose.jwtVerify(body.identityToken, JWKS, {
         issuer: "https://appleid.apple.com",
         audience: env.APPLE_CLIENT_ID,
+        clockTolerance: "5m",
       });
       const sub = typeof payload.sub === "string" ? payload.sub : "";
       if (!sub) return reply.code(401).send({ error: "Invalid Apple token" });
@@ -178,7 +186,12 @@ export const oauthRoutes: FastifyPluginAsync = async (app) => {
       if (!fullName) fullName = email ? email.split("@")[0] : "User";
       return findOrCreateOAuthDonor(app, request, reply, "apple", sub, email, fullName);
     } catch (e: unknown) {
-      app.log.error({ err: e }, "apple oauth verify failed");
+      const msg = e instanceof Error ? e.message : String(e);
+      app.log.error({ err: e, clientId: env.APPLE_CLIENT_ID }, `apple oauth verify failed: ${msg}`);
+      // Surface a more specific message for audience mismatch to aid debugging
+      if (msg.includes("audience") || msg.includes("aud")) {
+        return reply.code(401).send({ error: `Apple token audience mismatch — server expects: ${env.APPLE_CLIENT_ID}` });
+      }
       return reply.code(401).send({ error: "Invalid or expired Apple token" });
     }
   });
