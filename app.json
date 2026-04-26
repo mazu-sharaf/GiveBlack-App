@@ -46,6 +46,16 @@
     "plugins": [
       "expo-dev-client",
       [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/android-icon-monochrome.png",
+          "color": "#2D7A4F",
+          "defaultChannel": "default",
+          "sounds": [],
+          "enableBackgroundRemoteNotifications": false
+        }
+      ],
+      [
         "expo-router",
         {
           "origin": "https://giveblackapp.com/"

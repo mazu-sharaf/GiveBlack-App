@@ -3,29 +3,26 @@ import Constants from "expo-constants";
 import { registerDevicePushToken } from "@/lib/query-client";
 
 const isExpoGo = Constants.executionEnvironment === "storeClient";
-const isAndroidExpoGo = Platform.OS === "android" && isExpoGo;
 
 let Notifications: typeof import("expo-notifications") | null = null;
 let Device: typeof import("expo-device") | null = null;
 
-if (!isAndroidExpoGo) {
-  try {
-    Notifications = require("expo-notifications");
-    Device = require("expo-device");
+try {
+  Notifications = require("expo-notifications");
+  Device = require("expo-device");
 
-    if (Notifications) {
-      Notifications.setNotificationHandler({
-        handleNotification: async () =>
-          ({
-            shouldShowAlert: true,
-            shouldPlaySound: true,
-            shouldSetBadge: true,
-          }) as any,
-      });
-    }
-  } catch (e) {
-    console.log("expo-notifications not available:", e);
+  if (Notifications) {
+    Notifications.setNotificationHandler({
+      handleNotification: async () =>
+        ({
+          shouldShowAlert: true,
+          shouldPlaySound: true,
+          shouldSetBadge: true,
+        }) as any,
+    });
   }
+} catch (e) {
+  console.log("expo-notifications not available:", e);
 }
 
 /** Android notification channels (ids must match server push payload channelId when set). */
@@ -62,6 +59,12 @@ export async function registerPushTokenWithAuth(accessToken: string): Promise<st
   if (Platform.OS === "web" || !Notifications || !Device) return null;
 
   if (!Device.isDevice) {
+    console.log("[push] Skipping push registration — not a physical device");
+    return null;
+  }
+
+  if (isExpoGo) {
+    console.log("[push] Skipping remote push registration — Expo Go does not support remote/background push notifications (SDK 53+). Build a development build via EAS to enable push.");
     return null;
   }
 
@@ -75,6 +78,7 @@ export async function registerPushTokenWithAuth(accessToken: string): Promise<st
     }
 
     if (finalStatus !== "granted") {
+      console.log("[push] Permission not granted");
       return null;
     }
 
