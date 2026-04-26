@@ -107,7 +107,7 @@ outputType = "console"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "EXPO_PACKAGER_PROXY_URL=https://$REPLIT_DEV_DOMAIN REACT_NATIVE_PACKAGER_HOSTNAME=$REPLIT_DEV_DOMAIN EXPO_PUBLIC_DOMAIN=$REPLIT_DEV_DOMAIN:3000 EXPO_PUBLIC_API_URL=https://$REPLIT_DEV_DOMAIN:3000 node_modules/.bin/expo start --localhost --clear"
+args = "EXPO_PACKAGER_PROXY_URL=https://$REPLIT_DEV_DOMAIN REACT_NATIVE_PACKAGER_HOSTNAME=$REPLIT_DEV_DOMAIN EXPO_PUBLIC_DOMAIN=$REPLIT_DEV_DOMAIN:3000 EXPO_PUBLIC_REPLIT_API_URL=https://$REPLIT_DEV_DOMAIN:3000 node_modules/.bin/expo start --localhost --clear"
 
 [[workflows.workflow]]
 name = "Start Admin"

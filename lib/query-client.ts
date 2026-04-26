@@ -15,6 +15,12 @@ function isLocalhost(url: string): boolean {
 }
 
 export function getApiUrl(): string {
+  // EXPO_PUBLIC_REPLIT_API_URL is set only by the workflow command (not in .env),
+  // so Expo's internal dotenv loader cannot override it. This makes it the reliable
+  // dev override that always beats the production URL baked into .env.
+  const replitUrl = process.env.EXPO_PUBLIC_REPLIT_API_URL || "";
+  if (replitUrl && !isLocalhost(replitUrl)) return normalizeUrl(replitUrl);
+
   const envUrl = process.env.EXPO_PUBLIC_API_URL || "";
   if (Platform.OS === "web" && typeof window !== "undefined") {
     if (envUrl && !isLocalhost(envUrl)) return normalizeUrl(envUrl);
