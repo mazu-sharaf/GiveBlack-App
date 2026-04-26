@@ -20,6 +20,7 @@ import Colors from "@/constants/colors";
 import { logoWhite, onboardingSlides } from "@/constants/images";
 
 import { markOnboardingComplete } from "@/lib/onboarding-storage";
+import { useAuth } from "@/context/AuthContext";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 
@@ -63,6 +64,7 @@ export default function OnboardingScreen() {
   const scrollRef = useRef<ScrollView>(null);
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = insets.bottom;
+  const { guestLogin } = useAuth();
 
   const handleScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
     const page = Math.round(e.nativeEvent.contentOffset.x / SCREEN_WIDTH);
@@ -71,7 +73,8 @@ export default function OnboardingScreen() {
 
   const goToWelcome = async () => {
     await markOnboardingComplete();
-    router.replace("/(auth)/welcome");
+    await guestLogin();
+    router.replace("/(tabs)");
   };
 
   const goNext = () => {

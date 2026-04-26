@@ -80,7 +80,7 @@ const GUEST_BENEFITS: { icon: IoniconsName; label: string }[] = [
 function GuestAccountScreen() {
   const router = useRouter();
   const c = useThemeColors();
-  const { logout } = useAuth();
+  const { logout, guestLogin } = useAuth();
   const { lastMeaningfulRoute } = useApp();
   const insets = useSafeInsets();
   const [showLogoutModal, setShowLogoutModal] = useState(false);
@@ -163,7 +163,8 @@ function GuestAccountScreen() {
                 onPress={async () => {
                   setShowLogoutModal(false);
                   await logout();
-                  router.replace("/(auth)/welcome");
+                  await guestLogin();
+                  router.replace("/(tabs)");
                 }}
               >
                 <Text style={styles.okBtnText}>OK</Text>
@@ -190,7 +191,7 @@ function AuthenticatedAccountScreen() {
   const router = useRouter();
   const c = useThemeColors();
   const { walletBalance, userProfile, updateProfile } = useApp();
-  const { user, avatarUrl, donationSummary, logout } = useAuth();
+  const { user, avatarUrl, donationSummary, logout, guestLogin } = useAuth();
   const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   const insets = useSafeInsets();
@@ -356,7 +357,8 @@ function AuthenticatedAccountScreen() {
                 onPress={async () => {
                   setShowLogoutModal(false);
                   await logout();
-                  router.replace("/(auth)/welcome");
+                  await guestLogin();
+                  router.replace("/(tabs)");
                 }}
               >
                 <Text style={styles.okBtnText}>OK</Text>
