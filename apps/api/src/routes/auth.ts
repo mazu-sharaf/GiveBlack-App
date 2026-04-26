@@ -373,6 +373,13 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
       }
     }
 
+    // Claim any guest donations made with this email before this login
+    if (user.role === "donor") {
+      await claimGuestDonations(user.id, user.email).catch((err) => {
+        app.log.warn({ err, userId: user.id, email: user.email }, "Failed to claim guest donations on login");
+      });
+    }
+
     const tokens = await issueSessionForUser(app, request, {
       id: user.id,
       email: user.email,
