@@ -6,7 +6,7 @@ import { useThemeColors } from "@/context/ThemeContext";
 import { hasCompletedOnboarding } from "@/lib/onboarding-storage";
 
 export default function Index() {
-  const { isAuthenticated, isLoading, user } = useAuth();
+  const { isAuthenticated, isLoading, user, guestLogin } = useAuth();
   const c = useThemeColors();
   const [authGateReady, setAuthGateReady] = useState(false);
   const [seenOnboarding, setSeenOnboarding] = useState(false);
@@ -20,11 +20,19 @@ export default function Index() {
     }
     if (guestStartedRef.current) return;
     guestStartedRef.current = true;
-    hasCompletedOnboarding().then((seen) => {
+    hasCompletedOnboarding().then(async (seen) => {
       setSeenOnboarding(seen);
-      setAuthGateReady(true);
+      if (seen) {
+        try {
+          await guestLogin();
+        } finally {
+          setAuthGateReady(true);
+        }
+      } else {
+        setAuthGateReady(true);
+      }
     });
-  }, [isLoading, isAuthenticated]);
+  }, [isLoading, isAuthenticated, guestLogin]);
 
   if (isLoading || !authGateReady) {
     return <View style={[styles.centered, { backgroundColor: c.background }]} />;
@@ -32,10 +40,6 @@ export default function Index() {
 
   if (!isAuthenticated && !seenOnboarding) {
     return <Redirect href="/(auth)/onboarding" />;
-  }
-
-  if (!isAuthenticated && seenOnboarding) {
-    return <Redirect href="/(auth)/welcome" />;
   }
 
   if (user?.type === "charity") {
