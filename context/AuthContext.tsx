@@ -4,11 +4,13 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
 import { getApiUrl } from "@/lib/query-client";
 import { isGoogleSignInUserCancelled } from "@/lib/google-signin-errors";
+import { getPreferredDisplayName } from "@/lib/user-display";
 
 interface UserProfile {
   id: string;
   name: string;
   email: string;
+  avatar_url?: string | null;
   phone?: string;
   type: "donor" | "charity";
   zipCode?: string;
@@ -277,8 +279,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           // Prepare user profile
           const userProfile: UserProfile = {
             id: data.user.id,
-            name: data.user.full_name || data.user.name || "User",
+            name: getPreferredDisplayName(
+              String(data.user.full_name || data.user.name || ""),
+              String(data.user.email || ""),
+              "User"
+            ),
             email: String(data.user.email || ""),
+            avatar_url: (data.user.avatar_url as string | null | undefined) ?? null,
             type: serverType,
             phone: data.user.phone,
             zipCode: data.user.zip_code || data.user.zipCode,
@@ -346,8 +353,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
     const userProfile: UserProfile = {
       id: String(raw.id),
-      name: String(raw.full_name || raw.name || "User"),
+      name: getPreferredDisplayName(
+        String(raw.full_name || raw.name || ""),
+        String(raw.email || ""),
+        "User"
+      ),
       email: String(raw.email || ""),
+      avatar_url: (raw.avatar_url as string | null | undefined) ?? null,
       type: "donor",
       phone: raw.phone as string | undefined,
       zipCode: (raw.zip_code || raw.zipCode) as string | undefined,

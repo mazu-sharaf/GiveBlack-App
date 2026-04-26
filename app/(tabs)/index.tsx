@@ -20,6 +20,7 @@ import Colors from "@/constants/colors";
 import { useThemeColors } from "@/context/ThemeContext";
 import { useApp } from "@/context/AppContext";
 import { useAuth } from "@/context/AuthContext";
+import { getPreferredDisplayName } from "@/lib/user-display";
 
 const PADDING_H = 20;
 
@@ -128,7 +129,7 @@ export default function HomeScreen() {
 
   const bottomPad = insets.bottom;
 
-  const rawName = (userProfile.fullName || user?.name || "").trim();
+  const rawName = getPreferredDisplayName(userProfile.fullName as string | undefined, user?.email, "").trim();
   const derivedFromName = rawName ? rawName.split(" ")[0] : "";
   const derivedFromEmail = !derivedFromName && user?.email ? user.email.split("@")[0] : "";
   const firstName = derivedFromName || derivedFromEmail || "Friend";

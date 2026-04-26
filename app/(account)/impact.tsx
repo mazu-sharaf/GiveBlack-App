@@ -6,6 +6,7 @@ import { useSafeInsets } from "@/lib/safe-area";
 import { useThemeColors } from "@/context/ThemeContext";
 import { useAuth } from "@/context/AuthContext";
 import { getApiUrl } from "@/lib/query-client";
+import { getPreferredDisplayName } from "@/lib/user-display";
 import AppHeader from "@/components/AppHeader";
 
 interface DonationSummary {
@@ -28,6 +29,7 @@ interface TopDonor {
 
 export default function ImpactScreen() {
   const { user, avatarUrl, donationSummary, refreshDonationSummary } = useAuth();
+  const displayName = getPreferredDisplayName(user?.name, user?.email, "GiveBlack Member");
 
   useFocusEffect(
     useCallback(() => {
@@ -77,13 +79,13 @@ export default function ImpactScreen() {
           ) : (
             <View style={[styles.avatarCircle, { backgroundColor: c.green }]}>
               <Text style={styles.avatarInitial}>
-                {(user?.name || user?.email || "U").charAt(0).toUpperCase()}
+                {displayName.charAt(0).toUpperCase()}
               </Text>
             </View>
           )}
           <View style={styles.headerText}>
             <Text style={[styles.name, { color: c.text }]} numberOfLines={1} ellipsizeMode="tail">
-              {user?.name || "GiveBlack Member"}
+              {displayName}
             </Text>
             <Text style={[styles.email, { color: c.textMuted }]} numberOfLines={1} ellipsizeMode="tail">
               {user?.email || ""}

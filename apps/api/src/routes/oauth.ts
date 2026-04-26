@@ -15,6 +15,23 @@ type Role = "super_admin" | "admin" | "charity_owner" | "donor";
 
 type JwtApp = { jwt: { sign: (payload: Record<string, unknown>, opts: Record<string, unknown>) => string } };
 
+function isApplePrivateRelayEmail(email?: string): boolean {
+  return /@privaterelay\.appleid\.com$/i.test((email || "").trim());
+}
+
+function getDefaultOAuthName(provider: "google" | "apple", email?: string): string {
+  const emailNorm = email?.trim().toLowerCase();
+  if (!emailNorm) return "User";
+  if (provider === "apple" && isApplePrivateRelayEmail(emailNorm)) {
+    return "Apple User";
+  }
+  return emailNorm.split("@")[0] || "User";
+}
+
+function buildGeneratedAvatarUrl(name: string): string {
+  return `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=39C27A&color=ffffff&size=256&bold=true`;
+}
+
 async function loadProfileForUser(userId: string): Promise<Record<string, unknown>> {
   try {
     const profileQuery = await db.query(
@@ -31,7 +48,7 @@ async function loadProfileForUser(userId: string): Promise<Record<string, unknow
 async function buildAuthResponse(
   app: JwtApp,
   request: { headers: Record<string, string | string[] | undefined>; ip?: string },
-  user: { id: string; email: string; full_name: string; role: Role }
+  user: { id: string; email: string; full_name: string; role: Role; avatar_url?: string | null }
 ) {
   const tokens = await issueSessionForUser(app, request, {
     id: user.id,
@@ -46,6 +63,7 @@ async function buildAuthResponse(
       id: user.id,
       email: user.email,
       name: user.full_name,
+      avatar_url: user.avatar_url || null,
       role: user.role,
       type: profileData.user_type || (user.role === "charity_owner" ? "charity" : "donor"),
       zipCode: profileData.zip_code,
@@ -73,7 +91,7 @@ async function findOrCreateOAuthDonor(
   }
 
   const existingOAuth = await db.query(
-    `select u.id, u.email, u.full_name, u.role, u.disabled_at
+    `select u.id, u.email, u.full_name, u.role, u.disabled_at, u.avatar_url
      from oauth_identities o
      join users u on u.id = o.user_id
      where o.provider = $1 and o.provider_user_id = $2
@@ -86,6 +104,7 @@ async function findOrCreateOAuthDonor(
       email: string;
       full_name: string;
       role: Role;
+      avatar_url?: string | null;
       disabled_at?: string | null;
     };
     if (u.disabled_at) return reply.code(403).send({ error: "This account has been disabled." });
@@ -110,13 +129,14 @@ async function findOrCreateOAuthDonor(
     });
   }
 
+  const avatarUrl = buildGeneratedAvatarUrl(fullName);
   const created = await db.query(
-    `insert into users (email, full_name, password_hash, role)
-     values ($1, $2, null, 'donor')
-     returning id, email, full_name, role`,
-    [emailNorm, fullName]
+    `insert into users (email, full_name, password_hash, role, avatar_url, avatar_source)
+     values ($1, $2, null, 'donor', $3, 'generated')
+     returning id, email, full_name, role, avatar_url`,
+    [emailNorm, fullName, avatarUrl]
   );
-  const user = created.rows[0] as { id: string; email: string; full_name: string; role: Role };
+  const user = created.rows[0] as { id: string; email: string; full_name: string; role: Role; avatar_url?: string | null };
   await db.query(`insert into oauth_identities (user_id, provider, provider_user_id) values ($1, $2, $3)`, [
     user.id,
     provider,
@@ -143,16 +163,22 @@ export const oauthRoutes: FastifyPluginAsync = async (app) => {
     if (!audiences?.length) {
       return reply.code(503).send({ error: "Google sign-in is not configured on the server." });
     }
-    const body = googleBody.parse(request.body);
+    let body: z.infer<typeof googleBody>;
+    try {
+      body = googleBody.parse(request.body);
+    } catch (e: unknown) {
+      if (e instanceof z.ZodError) {
+        return reply.code(400).send({ error: "Invalid Google OAuth payload." });
+      }
+      throw e;
+    }
     try {
       const client = new OAuth2Client();
       const ticket = await client.verifyIdToken({ idToken: body.idToken, audience: audiences });
       const payload = ticket.getPayload();
       if (!payload?.sub) return reply.code(401).send({ error: "Invalid Google token" });
       const email = payload.email;
-      const name =
-        payload.name ||
-        (email ? email.split("@")[0] : "User");
+      const name = payload.name || getDefaultOAuthName("google", email);
       return findOrCreateOAuthDonor(app, request, reply, "google", payload.sub, email, name);
     } catch (e: unknown) {
       app.log.error({ err: e }, "google oauth verify failed");
@@ -164,7 +190,15 @@ export const oauthRoutes: FastifyPluginAsync = async (app) => {
     if (!env.APPLE_CLIENT_ID) {
       return reply.code(503).send({ error: "Apple sign-in is not configured on the server." });
     }
-    const body = appleBody.parse(request.body);
+    let body: z.infer<typeof appleBody>;
+    try {
+      body = appleBody.parse(request.body);
+    } catch (e: unknown) {
+      if (e instanceof z.ZodError) {
+        return reply.code(400).send({ error: "Invalid Apple OAuth payload." });
+      }
+      throw e;
+    }
     try {
       const JWKS = jose.createRemoteJWKSet(new URL("https://appleid.apple.com/auth/keys"));
       const { payload } = await jose.jwtVerify(body.identityToken, JWKS, {
@@ -175,7 +209,7 @@ export const oauthRoutes: FastifyPluginAsync = async (app) => {
       if (!sub) return reply.code(401).send({ error: "Invalid Apple token" });
       const email = typeof payload.email === "string" ? payload.email : undefined;
       let fullName = body.fullName?.trim() || "";
-      if (!fullName) fullName = email ? email.split("@")[0] : "User";
+      if (!fullName) fullName = getDefaultOAuthName("apple", email);
       return findOrCreateOAuthDonor(app, request, reply, "apple", sub, email, fullName);
     } catch (e: unknown) {
       app.log.error({ err: e }, "apple oauth verify failed");

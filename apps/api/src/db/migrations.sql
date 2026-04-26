@@ -27,6 +27,8 @@ ALTER TABLE categories ADD COLUMN IF NOT EXISTS icon_bg_color text null;
 ALTER TABLE categories ADD COLUMN IF NOT EXISTS icon_border_color text null;
 
 ALTER TABLE users ALTER COLUMN password_hash DROP NOT NULL;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_url text null;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_source text null;
 
 CREATE TABLE IF NOT EXISTS oauth_identities (
   id uuid primary key default gen_random_uuid(),

@@ -17,6 +17,7 @@ import Colors from "@/constants/colors";
 import { useTheme, useThemeColors } from "@/context/ThemeContext";
 import { useApp } from "@/context/AppContext";
 import { useAuth } from "@/context/AuthContext";
+import { getPreferredDisplayName } from "@/lib/user-display";
 
 interface MenuItemProps {
   icon: string;
@@ -79,6 +80,11 @@ export default function AccountScreen() {
 
   const insets = useSafeInsets();
   const bottomPad = insets.bottom;
+  const displayName = getPreferredDisplayName(
+    String(userProfile.fullName || user?.name || ""),
+    String(user?.email || ""),
+    "GiveBlack Member"
+  );
 
   const iconBgs = isDark
     ? { green: "#1B2E1B", blue: "#1B2A3D", purple: "#2D1B3D", orange: "#3D2A1B", red: "#3D1515", grey: "#2A2A2A", moon: "#2D2A1B" }
@@ -93,7 +99,7 @@ export default function AccountScreen() {
         <Animated.View entering={FadeInDown.delay(0).duration(400)} style={styles.header}>
           <View>
             <Text style={[styles.helloText, { color: c.textMuted }]}>Hello,</Text>
-            <Text style={[styles.userName, { color: c.text }]}>{userProfile.fullName || user?.name || "GiveBlack Member"}</Text>
+            <Text style={[styles.userName, { color: c.text }]}>{displayName}</Text>
           </View>
           <Pressable onPress={() => router.push("/notifications")} testID="notifications-btn">
             <Ionicons name="notifications-outline" size={26} color={c.text} />
@@ -107,7 +113,7 @@ export default function AccountScreen() {
             ) : (
               <View style={[styles.avatarCircle, { backgroundColor: c.green }]}>
                 <Text style={styles.avatarInitial}>
-                  {(userProfile.fullName || user?.name || "U").charAt(0).toUpperCase()}
+                  {displayName.charAt(0).toUpperCase()}
                 </Text>
               </View>
             )}
@@ -117,7 +123,7 @@ export default function AccountScreen() {
                 numberOfLines={1}
                 ellipsizeMode="tail"
               >
-                {userProfile.fullName || user?.name || "GiveBlack Member"}
+                {displayName}
               </Text>
               <Text
                 style={[styles.profileEmail, { color: c.textMuted }]}
