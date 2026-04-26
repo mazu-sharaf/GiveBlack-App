@@ -4,7 +4,7 @@
  */
 /** Matches lib/google-signin-config.ts when env is unset (EAS / local prebuild). */
 const FALLBACK_GOOGLE_IOS_URL_SCHEME =
-  "com.googleusercontent.apps.1015872793306-67gnhk1b900k459o28hm2g6rvmvov482";
+  "com.googleusercontent.apps.686496134866-k5a914jeu1b3si5gl4ratimoaphll6f3";
 
 function resolveGoogleIosUrlScheme() {
   const fromEnv = (process.env.EXPO_PUBLIC_GOOGLE_IOS_URL_SCHEME || "").trim();

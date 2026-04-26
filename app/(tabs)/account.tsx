@@ -75,7 +75,10 @@ function GuestAccountScreen() {
     <View style={[styles.container, { backgroundColor: c.background }]}>
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 24, alignItems: "center" }]}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingBottom: insets.bottom + 100, alignItems: "center" },
+        ]}
       >
         <Animated.View entering={FadeInDown.delay(0).duration(400)} style={styles.guestHeroWrap}>
           <View style={[styles.guestIconCircle, { backgroundColor: c.green + "22" }]}>
@@ -372,6 +375,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: 20,
+    flexGrow: 1,
   },
   profileCard: {
     borderRadius: 20,

@@ -49,10 +49,10 @@ const start = async () => {
     }
     await app.listen({ port: env.PORT, host: env.API_HOST });
     app.log.info(`API listening on ${env.API_HOST}:${env.PORT}`);
-    if (!env.EXPO_TOKEN) {
+    if (!env.EXPO_TOKEN && !(env as { EXPO_ACCESS_TOKEN?: string }).EXPO_ACCESS_TOKEN) {
       app.log.warn(
         "[push] EXPO_TOKEN is not set — push notification delivery is DISABLED. " +
-        "Create an access token at expo.dev → Account → Access Tokens and set it as EXPO_TOKEN."
+        "Create an access token at expo.dev → Account → Access Tokens and set it as EXPO_TOKEN (or EXPO_ACCESS_TOKEN)."
       );
     }
   } catch (error) {

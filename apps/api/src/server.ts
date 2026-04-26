@@ -220,12 +220,13 @@ export function buildServer() {
   }
 
   app.get("/api/system/features", async () => {
+    const expoPushEnabled = Boolean(env.EXPO_TOKEN || (env as { EXPO_ACCESS_TOKEN?: string }).EXPO_ACCESS_TOKEN);
     return {
       auth: true,
       realtime: true,
       stripe: Boolean(env.STRIPE_SECRET_KEY),
-      brevo: Boolean(env.BREVO_API_KEY),
-      expoPush: Boolean(env.EXPO_ACCESS_TOKEN)
+      brevo: Boolean(env.BREVO_API_KEY && env.BREVO_SENDER_EMAIL),
+      expoPush: expoPushEnabled
     };
   });
 

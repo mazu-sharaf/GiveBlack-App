@@ -13,7 +13,8 @@ let missingTokenLogged = false;
 
 export async function sendExpoPush(message: PushMessage): Promise<void> {
   if (!message.to.length) return;
-  if (!env.EXPO_TOKEN) {
+  const token = env.EXPO_TOKEN || (env as { EXPO_ACCESS_TOKEN?: string }).EXPO_ACCESS_TOKEN;
+  if (!token) {
     if (!missingTokenLogged) {
       console.warn("[push] EXPO_TOKEN not set; push delivery skipped");
       missingTokenLogged = true;
@@ -26,6 +27,7 @@ export async function sendExpoPush(message: PushMessage): Promise<void> {
     const payload = chunk.map((token) => ({
       to: token,
       sound: "default",
+      priority: "high",
       title: message.title,
       body: message.body,
       data: message.data ?? {},
@@ -37,7 +39,7 @@ export async function sendExpoPush(message: PushMessage): Promise<void> {
       headers: {
         "Content-Type": "application/json",
         Accept: "application/json",
-        Authorization: `Bearer ${env.EXPO_TOKEN}`
+        Authorization: `Bearer ${token}`
       },
       body: JSON.stringify(payload)
     });

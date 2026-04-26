@@ -33,21 +33,25 @@ export async function ensureAndroidNotificationChannels(): Promise<void> {
     name: "General",
     importance: Notifications.AndroidImportance.MAX,
     vibrationPattern: [0, 250, 250, 250],
+    sound: "default",
   });
   await Notifications.setNotificationChannelAsync("donations", {
     name: "Donations",
     importance: ch,
     description: "Donation receipts and new gifts to your organization",
+    sound: "default",
   });
   await Notifications.setNotificationChannelAsync("campaigns", {
     name: "Campaigns",
     importance: ch,
     description: "New campaigns and when your campaign goes live",
+    sound: "default",
   });
   await Notifications.setNotificationChannelAsync("volunteers", {
     name: "Volunteers",
     importance: ch,
     description: "Volunteer signups for your organization",
+    sound: "default",
   });
 }
 

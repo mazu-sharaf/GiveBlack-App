@@ -14,6 +14,7 @@ import {
   FlatList,
 } from "react-native";
 import * as WebBrowser from "expo-web-browser";
+import * as Linking from "expo-linking";
 import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
 import { useSafeInsets } from "@/lib/safe-area";
@@ -37,7 +38,9 @@ export default function SettingsTab() {
   const [orgUrl, setOrgUrl] = useState(user?.charityUrl || "");
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [orgImageUrl, setOrgImageUrl] = useState<string | null>(null);
+  const [orgCoverUrl, setOrgCoverUrl] = useState<string | null>(null);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [uploadingCover, setUploadingCover] = useState(false);
   const [categories, setCategories] = useState<CategoryOption[]>([]);
   const [categoriesLoading, setCategoriesLoading] = useState(true);
   const [categoryModalVisible, setCategoryModalVisible] = useState(false);
@@ -55,6 +58,7 @@ export default function SettingsTab() {
   const [connectBusy, setConnectBusy] = useState(false);
 
   const base = getApiUrl().replace(/\/$/, "");
+  const stripeRedirectUri = Linking.createURL("org-stripe");
 
   const loadOrgProfile = useCallback(async () => {
     if (!session) return;
@@ -73,6 +77,7 @@ export default function SettingsTab() {
           setRoutingNumber(String(data.org.routing_number ?? ""));
           setAccountLast4(String(data.org.account_last4 ?? ""));
           setTaxId(String(data.org.tax_id ?? ""));
+          setOrgCoverUrl(data.org.cover_image_url ? String(data.org.cover_image_url) : null);
         }
         if (data.org?.image_url) {
           setOrgImageUrl(data.org.image_url);
@@ -145,8 +150,14 @@ export default function SettingsTab() {
         Alert.alert("Stripe", json.error || "Could not start Stripe onboarding.");
         return;
       }
-      if (json.url) await WebBrowser.openBrowserAsync(json.url);
-      await loadConnectStatus();
+      if (json.url) {
+        const r = await WebBrowser.openAuthSessionAsync(json.url, stripeRedirectUri);
+        if (r.type === "success") {
+          // Sync immediately (webhooks may lag), then refresh status UI
+          await fetchWithAuth("/api/org/connect/sync", { method: "POST" }).catch(() => {});
+          await loadConnectStatus();
+        }
+      }
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Something went wrong";
       Alert.alert("Stripe", msg);
@@ -253,6 +264,93 @@ export default function SettingsTab() {
   ];
 
   const resolvedOrgImage = resolveImageUrl(orgImageUrl);
+  const resolvedCoverImage = resolveImageUrl(orgCoverUrl);
+
+  async function pickCoverImage() {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [16, 9],
+      quality: 0.85,
+    });
+
+    if (result.canceled || !result.assets?.length) return;
+
+    if (!session) {
+      Alert.alert("Sign in required", "Please sign in to upload a cover image.");
+      return;
+    }
+
+    const asset = result.assets[0];
+    setUploadingCover(true);
+
+    try {
+      const formData = new FormData();
+
+      if (Platform.OS === "web") {
+        const response = await fetch(asset.uri);
+        const blob = await response.blob();
+        formData.append("file", blob, `cover.${asset.uri.split(".").pop() || "jpg"}`);
+      } else {
+        const uri = asset.uri;
+        const ext = uri.split(".").pop() || "jpg";
+        formData.append("file", {
+          uri,
+          name: `cover.${ext}`,
+          type: asset.mimeType || `image/${ext}`,
+        } as any);
+      }
+
+      const uploadRes = await fetchWithAuth("/api/upload/image", { method: "POST", body: formData });
+      if (!uploadRes.ok) {
+        const err = await uploadRes.json().catch(() => ({}));
+        Alert.alert("Upload Failed", (err as { error?: string }).error || "Could not upload image");
+        return;
+      }
+      const uploadJson = (await uploadRes.json()) as { url?: string };
+      const url = String(uploadJson.url || "").trim();
+      if (!url) {
+        Alert.alert("Upload Failed", "Upload did not return a valid URL.");
+        return;
+      }
+
+      const saveRes = await fetchWithAuth("/api/org/cover-image", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cover_image_url: url }),
+      });
+      if (!saveRes.ok) {
+        const err = await saveRes.json().catch(() => ({}));
+        Alert.alert("Error", (err as { error?: string }).error || "Image uploaded but failed to update cover image.");
+        return;
+      }
+      setOrgCoverUrl(url);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Something went wrong while uploading";
+      Alert.alert("Error", msg);
+    } finally {
+      setUploadingCover(false);
+    }
+  }
+
+  async function removeCoverImage() {
+    if (!session) return;
+    setUploadingCover(true);
+    try {
+      const res = await fetchWithAuth("/api/org/cover-image", { method: "DELETE" });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        Alert.alert("Error", (err as { error?: string }).error || "Could not remove cover image.");
+        return;
+      }
+      setOrgCoverUrl(null);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Could not remove cover image";
+      Alert.alert("Error", msg);
+    } finally {
+      setUploadingCover(false);
+    }
+  }
 
   async function handleSaveProfile() {
     if (!session) {
@@ -351,6 +449,54 @@ export default function SettingsTab() {
               {user?.email}
             </Text>
           </View>
+        </View>
+
+        <Text style={[styles.sectionLabel, { color: c.textMuted }]}>COVER IMAGE (OPTIONAL)</Text>
+        <View style={[styles.card, { backgroundColor: c.cardBg }]}>
+          <Pressable
+            onPress={pickCoverImage}
+            disabled={uploadingCover}
+            style={[styles.coverUpload, { borderColor: c.border, backgroundColor: c.inputBg }]}
+          >
+            {resolvedCoverImage ? (
+              <Image
+                source={{ uri: resolvedCoverImage }}
+                style={styles.coverImage}
+                contentFit="cover"
+                cachePolicy="memory-disk"
+                transition={200}
+              />
+            ) : (
+              <View style={styles.coverPlaceholder}>
+                <Ionicons name="image-outline" size={22} color={c.textMuted} />
+                <Text style={[styles.coverHint, { color: c.textMuted }]}>
+                  {uploadingCover ? "Uploading…" : "Tap to upload cover image"}
+                </Text>
+              </View>
+            )}
+            {uploadingCover ? (
+              <View style={[styles.coverBusyPill, { backgroundColor: c.green }]}>
+                <ActivityIndicator size={12} color="#fff" />
+                <Text style={styles.coverBusyText}>Uploading</Text>
+              </View>
+            ) : null}
+          </Pressable>
+
+          {resolvedCoverImage ? (
+            <Pressable
+              onPress={() => {
+                Alert.alert("Remove cover image?", "This will remove your organization cover image.", [
+                  { text: "Cancel", style: "cancel" },
+                  { text: "Remove", style: "destructive", onPress: () => void removeCoverImage() },
+                ]);
+              }}
+              disabled={uploadingCover}
+              style={styles.coverRemoveBtn}
+            >
+              <Ionicons name="trash-outline" size={16} color={c.danger} />
+              <Text style={[styles.coverRemoveText, { color: c.danger }]}>Remove cover</Text>
+            </Pressable>
+          ) : null}
         </View>
 
         <Text style={[styles.sectionLabel, { color: c.textMuted }]}>ORGANIZATION PROFILE</Text>
@@ -760,6 +906,56 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 16,
     marginBottom: 24,
+  },
+  coverUpload: {
+    borderWidth: 1,
+    borderRadius: 16,
+    overflow: "hidden",
+    width: "100%",
+    aspectRatio: 16 / 9,
+    justifyContent: "center",
+  },
+  coverImage: {
+    width: "100%",
+    height: "100%",
+  },
+  coverPlaceholder: {
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    padding: 12,
+  },
+  coverHint: {
+    fontFamily: "SpaceGrotesk_400Regular",
+    fontSize: 13,
+  },
+  coverRemoveBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingTop: 12,
+    paddingBottom: 2,
+    justifyContent: "center",
+  },
+  coverRemoveText: {
+    fontFamily: "SpaceGrotesk_500Medium",
+    fontSize: 13,
+  },
+  coverBusyPill: {
+    position: "absolute",
+    right: 12,
+    bottom: 12,
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  coverBusyText: {
+    fontFamily: "SpaceGrotesk_600SemiBold",
+    fontSize: 12,
+    color: "#fff",
   },
   infoRow: {
     flexDirection: "row",

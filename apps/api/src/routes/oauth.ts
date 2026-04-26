@@ -31,7 +31,7 @@ async function loadProfileForUser(userId: string): Promise<Record<string, unknow
 async function buildAuthResponse(
   app: JwtApp,
   request: { headers: Record<string, string | string[] | undefined>; ip?: string },
-  user: { id: string; email: string; full_name: string; role: Role }
+  user: { id: string; email: string; full_name: string; role: Role; avatar_url?: string | null }
 ) {
   const tokens = await issueSessionForUser(app, request, {
     id: user.id,
@@ -47,6 +47,7 @@ async function buildAuthResponse(
       email: user.email,
       name: user.full_name,
       role: user.role,
+      avatar_url: user.avatar_url ?? null,
       type: profileData.user_type || (user.role === "charity_owner" ? "charity" : "donor"),
       zipCode: profileData.zip_code,
       collegeAttended: profileData.college_attended,
@@ -65,7 +66,8 @@ async function findOrCreateOAuthDonor(
   provider: "google" | "apple",
   providerUserId: string,
   email: string | undefined,
-  fullName: string
+  fullName: string,
+  avatarUrl?: string | null
 ) {
   const emailNorm = email?.toLowerCase().trim();
   if (!emailNorm) {
@@ -73,7 +75,7 @@ async function findOrCreateOAuthDonor(
   }
 
   const existingOAuth = await db.query(
-    `select u.id, u.email, u.full_name, u.role, u.disabled_at
+    `select u.id, u.email, u.full_name, u.role, u.disabled_at, u.avatar_url
      from oauth_identities o
      join users u on u.id = o.user_id
      where o.provider = $1 and o.provider_user_id = $2
@@ -87,12 +89,27 @@ async function findOrCreateOAuthDonor(
       full_name: string;
       role: Role;
       disabled_at?: string | null;
+      avatar_url?: string | null;
     };
     if (u.disabled_at) return reply.code(403).send({ error: "This account has been disabled." });
     if (u.role !== "donor") {
       return reply.code(403).send({
         error: "This sign-in is for donor accounts only. Use the organization login for charity accounts.",
       });
+    }
+
+    // Best-effort: if user has no avatar yet, store provider avatar.
+    if (!u.avatar_url && avatarUrl) {
+      try {
+        await db.query("update users set avatar_url = $1, avatar_source = $2 where id = $3", [
+          avatarUrl,
+          provider,
+          u.id,
+        ]);
+        u.avatar_url = avatarUrl;
+      } catch {
+        /* ignore */
+      }
     }
     return buildAuthResponse(app, request, u);
   }
@@ -111,12 +128,12 @@ async function findOrCreateOAuthDonor(
   }
 
   const created = await db.query(
-    `insert into users (email, full_name, password_hash, role)
-     values ($1, $2, null, 'donor')
-     returning id, email, full_name, role`,
-    [emailNorm, fullName]
+    `insert into users (email, full_name, password_hash, role, avatar_url, avatar_source)
+     values ($1, $2, null, 'donor', $3, $4)
+     returning id, email, full_name, role, avatar_url`,
+    [emailNorm, fullName, avatarUrl || null, avatarUrl ? provider : null]
   );
-  const user = created.rows[0] as { id: string; email: string; full_name: string; role: Role };
+  const user = created.rows[0] as { id: string; email: string; full_name: string; role: Role; avatar_url?: string | null };
   await db.query(`insert into oauth_identities (user_id, provider, provider_user_id) values ($1, $2, $3)`, [
     user.id,
     provider,
@@ -153,7 +170,8 @@ export const oauthRoutes: FastifyPluginAsync = async (app) => {
       const name =
         payload.name ||
         (email ? email.split("@")[0] : "User");
-      return findOrCreateOAuthDonor(app, request, reply, "google", payload.sub, email, name);
+      const avatarUrl = typeof payload.picture === "string" ? payload.picture : null;
+      return findOrCreateOAuthDonor(app, request, reply, "google", payload.sub, email, name, avatarUrl);
     } catch (e: unknown) {
       app.log.error({ err: e }, "google oauth verify failed");
       return reply.code(401).send({ error: "Invalid or expired Google token" });

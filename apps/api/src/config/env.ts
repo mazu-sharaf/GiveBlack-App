@@ -17,13 +17,20 @@ const schema = z.object({
   STRIPE_PRODUCT_GROWTH: z.string().default("prod_U8Iotu17CesgKO"),
   STRIPE_PRODUCT_INSTITUTIONAL: z.string().default("prod_U8IpZXR2R0SNHb"),
   BREVO_API_KEY: z.string().optional(),
+  /** Legacy/alternate env name sometimes used for Brevo/Sendinblue */
+  SENDINBLUE_API_KEY: z.string().optional(),
   BREVO_SENDER_EMAIL: z.string().email().optional(),
+  /** Legacy/alternate env name for from-address */
+  BREVO_FROM_EMAIL: z.string().email().optional(),
   BREVO_SENDER_NAME: z.string().default("GiveBlack"),
   ADMIN_EMAIL: z.string().email().optional(),
   APP_URL: z.string().url().optional(),
   SUPPORT_EMAIL: z.string().email().optional(),
   EMAIL_LOGO_URL: z.string().url().optional(),
+  /** Expo access token used for push delivery (preferred name). */
   EXPO_TOKEN: z.string().min(1).optional(),
+  /** Back-compat alias for EXPO_TOKEN (some deploy setups use this name). */
+  EXPO_ACCESS_TOKEN: z.string().min(1).optional(),
   EXPO_PUBLIC_API_URL: z.string().optional(),
   /** Public App Store / Play Store links for thank-you and marketing pages */
   APP_STORE_URL: z.string().optional(),

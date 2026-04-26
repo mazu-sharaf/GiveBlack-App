@@ -11,11 +11,14 @@ import { getApiUrl } from "@/lib/query-client";
 import * as Print from "expo-print";
 import * as LegacyFileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { buildReceiptHtml } from "@/lib/receipt-html";
 import RatingModal from "@/components/RatingModal";
 
 type Status = "loading" | "success" | "failed";
+
+const HAS_DONATED_KEY = "@gb_has_donated";
 
 function generateReference() {
   const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
@@ -36,6 +39,7 @@ export default function CheckoutResultScreen() {
   const [orgName, setOrgName] = useState<string>("Organization");
   const [errorMsg, setErrorMsg] = useState<string>("");
   const [donationRef] = useState(generateReference());
+  const [showRating, setShowRating] = useState(false);
 
   const checkmarkScale = useRef(new Animated.Value(0)).current;
   const checkmarkOpacity = useRef(new Animated.Value(0)).current;
@@ -95,6 +99,29 @@ export default function CheckoutResultScreen() {
     }
     loadStatus();
   }, [session_id, refreshPendingDonationCount]);
+
+  useEffect(() => {
+    if (status !== "success") return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const raw = await AsyncStorage.getItem(HAS_DONATED_KEY);
+        if (cancelled) return;
+        if (raw === "1") {
+          setShowRating(false);
+          return;
+        }
+        await AsyncStorage.setItem(HAS_DONATED_KEY, "1");
+        if (!cancelled) setShowRating(true);
+      } catch {
+        // If storage fails, we still prefer showing the prompt over skipping it.
+        if (!cancelled) setShowRating(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [status]);
 
   useEffect(() => {
     if (status === "success") {
@@ -275,7 +302,7 @@ export default function CheckoutResultScreen() {
     return (
       <View style={[styles.container, { backgroundColor: c.background }]}>
         <Confetti />
-        <RatingModal delayMs={3000} />
+        {showRating ? <RatingModal delayMs={3000} /> : null}
         <ScrollView contentContainerStyle={styles.receiptContainer}>
           <Animated.View
             style={[

@@ -47,6 +47,8 @@ interface AuthContextValue {
   isAuthenticated: boolean;
   isGuest: boolean;
   avatarUrl?: string | null;
+  /** Update avatar URL locally (also persists in AsyncStorage). */
+  setAvatarUrl: (url: string | null) => Promise<void>;
   donationSummary?: DonationSummary | null;
   /** Refetch /api/me/donations/summary (call after donations and on home refresh). */
   refreshDonationSummary: () => Promise<void>;
@@ -150,6 +152,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     void session;
   }, [session]);
+
+  const setAvatarUrlAndPersist = useCallback(
+    async (url: string | null) => {
+      setAvatarUrl(url);
+      try {
+        const raw = await AsyncStorage.getItem(USER_KEY);
+        if (!raw) return;
+        const parsed = JSON.parse(raw) as Record<string, unknown>;
+        parsed.avatar_url = url;
+        await AsyncStorage.setItem(USER_KEY, JSON.stringify(parsed));
+      } catch {
+        // non-fatal
+      }
+    },
+    [setAvatarUrl]
+  );
 
   useEffect(() => {
     if (!session?.accessToken || !user?.id || isGuest) return;
@@ -932,6 +950,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         isAuthenticated: !!user && (!!session || isGuest),
         isGuest,
         avatarUrl,
+        setAvatarUrl: setAvatarUrlAndPersist,
         donationSummary,
         refreshDonationSummary,
         pendingDonationCount,

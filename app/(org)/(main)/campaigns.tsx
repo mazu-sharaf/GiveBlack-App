@@ -228,8 +228,8 @@ export default function CampaignsTab() {
   }
 
   async function pickGalleryImage() {
-    if (!editingId) {
-      Alert.alert("Save First", "Please save the campaign first before adding gallery images.");
+    if (galleryImages.length >= 5) {
+      Alert.alert("Limit reached", "You can add up to 5 gallery images.");
       return;
     }
 
@@ -272,27 +272,48 @@ export default function CampaignsTab() {
         return;
       }
 
-      const uploadJson = await uploadRes.json();
+      const uploadJson = (await uploadRes.json()) as { url?: unknown };
+      const uploadedUrl = String(uploadJson.url ?? "").trim();
+      if (!uploadedUrl) {
+        Alert.alert("Upload Failed", "Upload did not return a valid URL.");
+        return;
+      }
 
-      const addRes = await fetchWithAuth(`/api/org/campaign-images/${editingId}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          image_url: uploadJson.url,
-          sort_order: galleryImages.length,
-        }),
-      });
+      // If campaign exists, persist immediately. Otherwise stage locally and send on create.
+      if (editingId) {
+        const addRes = await fetchWithAuth(`/api/org/campaign-images/${editingId}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            image_url: uploadedUrl,
+            sort_order: galleryImages.length,
+          }),
+        });
 
-      if (addRes.ok) {
-        const addJson = await addRes.json();
-        setGalleryImages((prev) => [...prev, {
-          id: addJson.id,
-          image_url: uploadJson.url,
-          caption: null,
-          sort_order: galleryImages.length,
-        }]);
+        if (addRes.ok) {
+          const addJson = (await addRes.json().catch(() => ({}))) as { id?: unknown };
+          setGalleryImages((prev) => [
+            ...prev,
+            {
+              id: String(addJson.id || `local:${Date.now()}`),
+              image_url: uploadedUrl,
+              caption: null,
+              sort_order: galleryImages.length,
+            },
+          ]);
+        } else {
+          Alert.alert("Error", "Image uploaded but failed to add to gallery");
+        }
       } else {
-        Alert.alert("Error", "Image uploaded but failed to add to gallery");
+        setGalleryImages((prev) => [
+          ...prev,
+          {
+            id: `local:${Date.now()}`,
+            image_url: uploadedUrl,
+            caption: null,
+            sort_order: prev.length,
+          },
+        ]);
       }
     } catch (_e) {
       Alert.alert("Error", "Something went wrong");
@@ -302,6 +323,10 @@ export default function CampaignsTab() {
   }
 
   async function removeGalleryImage(imageId: string) {
+    if (imageId.startsWith("local:")) {
+      setGalleryImages((prev) => prev.filter((img) => img.id !== imageId));
+      return;
+    }
     try {
       const res = await fetchWithAuth(`/api/org/campaign-images/${imageId}`, {
         method: "DELETE",
@@ -334,6 +359,11 @@ export default function CampaignsTab() {
         story: form.story.trim() || null,
         about: form.about.trim() || null,
       };
+      if (!editingId && galleryImages.length) {
+        campaignData.gallery = galleryImages
+          .slice(0, 5)
+          .map((g, i) => ({ image_url: g.image_url, caption: g.caption ?? null, sort_order: i }));
+      }
 
       const path = editingId ? `/api/org/campaigns/${editingId}` : "/api/org/campaigns";
       const method = editingId ? "PUT" : "POST";
@@ -741,61 +771,57 @@ export default function CampaignsTab() {
               <Text style={[styles.formSublabel, { color: c.textMuted }]}>
                 Additional photos shown in the campaign detail page
               </Text>
-              {!editingId && (
-                <View style={[styles.galleryHint, { backgroundColor: c.green + "10", borderColor: c.green + "30" }]}>
-                  <Ionicons name="information-circle-outline" size={16} color={c.green} />
-                  <Text style={[styles.galleryHintText, { color: c.green }]}>
-                    Save the campaign first to add gallery images
-                  </Text>
-                </View>
-              )}
-              {editingId && (
-                <>
-                  <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={styles.galleryScroll}
+              <>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.galleryScroll}
+                >
+                  {galleryImages.map((img) => (
+                    <View key={img.id} style={styles.galleryItem}>
+                      <Image
+                        source={{ uri: resolveImageUrl(img.image_url) }}
+                        style={styles.galleryThumb}
+                        contentFit="cover"
+                        cachePolicy="memory-disk"
+                        recyclingKey={img.id}
+                        transition={200}
+                      />
+                      <Pressable
+                        style={styles.galleryRemoveBtn}
+                        onPress={() => removeGalleryImage(img.id)}
+                      >
+                        <Ionicons name="close-circle" size={22} color={c.danger} />
+                      </Pressable>
+                    </View>
+                  ))}
+                  <Pressable
+                    style={[styles.galleryAddBtn, { borderColor: c.border, backgroundColor: c.inputBg }]}
+                    onPress={pickGalleryImage}
+                    disabled={galleryUploading || galleryImages.length >= 5}
                   >
-                    {galleryImages.map((img) => (
-                      <View key={img.id} style={styles.galleryItem}>
-                        <Image
-                          source={{ uri: resolveImageUrl(img.image_url) }}
-                          style={styles.galleryThumb}
-                          contentFit="cover"
-                          cachePolicy="memory-disk"
-                          recyclingKey={img.id}
-                          transition={200}
-                        />
-                        <Pressable
-                          style={styles.galleryRemoveBtn}
-                          onPress={() => removeGalleryImage(img.id)}
-                        >
-                          <Ionicons name="close-circle" size={22} color={c.danger} />
-                        </Pressable>
-                      </View>
-                    ))}
-                    <Pressable
-                      style={[styles.galleryAddBtn, { borderColor: c.border, backgroundColor: c.inputBg }]}
-                      onPress={pickGalleryImage}
-                      disabled={galleryUploading}
-                    >
-                      {galleryUploading ? (
-                        <ActivityIndicator size="small" color={c.green} />
-                      ) : (
-                        <>
-                          <Ionicons name="add-circle-outline" size={28} color={c.green} />
-                          <Text style={[styles.galleryAddText, { color: c.textMuted }]}>Add</Text>
-                        </>
-                      )}
-                    </Pressable>
-                  </ScrollView>
-                  {galleryImages.length === 0 && !galleryUploading && (
-                    <Text style={[styles.galleryEmptyText, { color: c.textMuted }]}>
-                      No gallery images yet. Tap + to add photos.
-                    </Text>
-                  )}
-                </>
-              )}
+                    {galleryUploading ? (
+                      <ActivityIndicator size="small" color={c.green} />
+                    ) : (
+                      <>
+                        <Ionicons name="add-circle-outline" size={28} color={c.green} />
+                        <Text style={[styles.galleryAddText, { color: c.textMuted }]}>Add</Text>
+                      </>
+                    )}
+                  </Pressable>
+                </ScrollView>
+                {galleryImages.length === 0 && !galleryUploading && (
+                  <Text style={[styles.galleryEmptyText, { color: c.textMuted }]}>
+                    No gallery images yet. Tap + to add photos.
+                  </Text>
+                )}
+                {galleryImages.length >= 5 ? (
+                  <View style={[styles.galleryHint, { backgroundColor: c.green + "10", borderColor: c.green + "30" }]}>
+                    <Ionicons name="information-circle-outline" size={16} color={c.green} />
+                    <Text style={[styles.galleryHintText, { color: c.green }]}>Limit: 5 images</Text>
+                  </View>
+                ) : null}
+              </>
             </View>
 
             <View style={[styles.sectionDivider, { borderTopColor: c.border }]} />

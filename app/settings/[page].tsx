@@ -1053,7 +1053,7 @@ function SharePage() {
 function EditProfilePage() {
   const c = useThemeColors();
   const { userProfile, updateProfile } = useApp();
-  const { avatarUrl, session, fetchWithAuth } = useAuth();
+  const { avatarUrl, session, fetchWithAuth, setAvatarUrl } = useAuth();
   const [fullName, setFullName] = useState(String(userProfile.fullName ?? ""));
   const [nickname, setNickname] = useState(String(userProfile.nickname ?? ""));
   const [phone, setPhone] = useState(String(userProfile.phone ?? ""));
@@ -1128,6 +1128,7 @@ function EditProfilePage() {
       });
       if (saveRes.ok) {
         setLocalAvatarUrl(uploadJson.url);
+        await setAvatarUrl(uploadJson.url);
       } else {
         Alert.alert("Error", "Image uploaded but failed to update profile.");
       }

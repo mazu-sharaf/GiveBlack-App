@@ -19,12 +19,15 @@ export const uploadRoutes: FastifyPluginAsync = async (app) => {
         return reply.code(400).send({ error: "No file uploaded" });
       }
 
-      const allowed = ["image/jpeg", "image/png", "image/webp", "image/gif"];
-      if (!allowed.includes(file.mimetype)) {
-        return reply.code(400).send({ error: "Only JPEG, PNG, WebP and GIF images are allowed" });
+      const allowed = ["image/jpeg", "image/png", "image/webp", "image/gif", "image/heic", "image/heif"];
+      const extLower = (path.extname(file.filename) || "").toLowerCase();
+      const isOctetStream = file.mimetype === "application/octet-stream";
+      const extAllowedWhenUnknown = new Set([".jpg", ".jpeg", ".png", ".webp", ".gif", ".heic", ".heif"]);
+      if (!allowed.includes(file.mimetype) && !(isOctetStream && extAllowedWhenUnknown.has(extLower))) {
+        return reply.code(400).send({ error: "Only JPEG, PNG, WebP, GIF, HEIC and HEIF images are allowed" });
       }
 
-      const ext = path.extname(file.filename) || ".jpg";
+      const ext = extLower || ".jpg";
       const name = `${crypto.randomUUID()}${ext}`;
       const dest = path.join(UPLOADS_DIR, name);
 

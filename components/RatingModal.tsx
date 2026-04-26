@@ -16,7 +16,7 @@ import { useThemeColors } from "@/context/ThemeContext";
 const RATING_KEY = "@gb_rating_prompt";
 const COOLDOWN_DAYS = 30;
 
-const APP_STORE_URL = "https://apps.apple.com/app/giveblack/id0000000000";
+const APP_STORE_URL = "https://apps.apple.com/app/id1474463975";
 const PLAY_STORE_URL = "https://play.google.com/store/apps/details?id=com.giveblack.app";
 
 interface StoredRating {

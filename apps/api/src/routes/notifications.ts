@@ -84,12 +84,17 @@ async function deliverAdminBulkNotifications(
     const { emailLayout } = await import("../services/email-template.js");
     const brandedHtml = emailLayout(body.emailHtml);
     for (const row of rows) {
-      await sendBrevoEmail({
-        to: row.email as string,
-        subject: body.emailSubject,
-        html: brandedHtml,
-        tags: emailTags
-      });
+      try {
+        await sendBrevoEmail({
+          to: row.email as string,
+          subject: body.emailSubject,
+          html: brandedHtml,
+          tags: emailTags,
+        });
+      } catch (err) {
+        // Keep push delivery working even if email is misconfigured
+        console.warn("[notifications] email send failed", err);
+      }
     }
   }
 
@@ -205,12 +210,17 @@ export const notificationRoutes: FastifyPluginAsync = async (app) => {
     );
 
     const { emailLayout } = await import("../services/email-template.js");
-    await sendBrevoEmail({
-      to: targetEmail,
-      subject: body.emailSubject,
-      html: emailLayout(body.emailHtml),
-      tags: ["giveblack", "user-notification"]
-    });
+    try {
+      await sendBrevoEmail({
+        to: targetEmail,
+        subject: body.emailSubject,
+        html: emailLayout(body.emailHtml),
+        tags: ["giveblack", "user-notification"],
+      });
+    } catch (err) {
+      request.log.error({ err, targetEmail }, "notify-user email failed");
+      return reply.code(503).send({ error: err instanceof Error ? err.message : "Email send failed" });
+    }
 
     const tokensQuery = await db.query(
       "select expo_push_token from device_push_tokens where user_id = $1 and disabled_at is null",

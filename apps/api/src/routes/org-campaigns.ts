@@ -36,6 +36,19 @@ export const orgCampaignRoutes: FastifyPluginAsync = async (app) => {
     tax_id: z.union([z.string().trim().max(50), z.null()]).optional(),
   });
 
+  const orgCoverImageSchema = z.object({
+    cover_image_url: z.string().trim().min(1).max(2000),
+  });
+
+  async function resolveOrgIdForUserOr403(input: { userId: string }) {
+    const userRes = await db.query("select email from users where id = $1", [input.userId]);
+    const email = (userRes.rows[0] as Record<string, unknown> | undefined)?.email as string | undefined;
+    if (!email) return { ok: false as const, status: 401 as const, error: "User not found" };
+    const orgResolved = await resolveOrgForCharityUser(input.userId, email);
+    if (!orgResolved) return { ok: false as const, status: 403 as const, error: "No organization linked to your account" };
+    return { ok: true as const, orgId: orgResolved.id };
+  }
+
   app.get(
     "/api/org/my-campaigns",
     { preHandler: [app.authenticate] },
@@ -166,6 +179,33 @@ export const orgCampaignRoutes: FastifyPluginAsync = async (app) => {
     }
   );
 
+  app.put(
+    "/api/org/cover-image",
+    { preHandler: [app.authenticate] },
+    async (request, reply) => {
+      const user = request.user as { sub: string };
+      const resolved = await resolveOrgIdForUserOr403({ userId: user.sub });
+      if (!resolved.ok) return reply.code(resolved.status).send({ error: resolved.error });
+
+      const body = orgCoverImageSchema.parse(request.body ?? {});
+      await db.query("update organizations set cover_image_url = $1 where id = $2", [body.cover_image_url, resolved.orgId]);
+      return { cover_image_url: body.cover_image_url, org_id: resolved.orgId };
+    }
+  );
+
+  app.delete(
+    "/api/org/cover-image",
+    { preHandler: [app.authenticate] },
+    async (request) => {
+      const user = request.user as { sub: string };
+      const resolved = await resolveOrgIdForUserOr403({ userId: user.sub });
+      if (!resolved.ok) return { success: false, error: resolved.error };
+
+      await db.query("update organizations set cover_image_url = null where id = $1", [resolved.orgId]);
+      return { success: true, org_id: resolved.orgId };
+    }
+  );
+
   app.post(
     "/api/org/campaigns",
     { preHandler: [app.authenticate] },
@@ -224,6 +264,17 @@ export const orgCampaignRoutes: FastifyPluginAsync = async (app) => {
         if (imageTrimmed.length > 2000) return reply.code(400).send({ error: "Image URL is too long" });
         const imageUrl = imageTrimmed || null;
 
+        const galleryRaw = (body.gallery ?? null) as unknown;
+        const gallery = Array.isArray(galleryRaw) ? galleryRaw : [];
+        if (gallery.length > 5) return reply.code(400).send({ error: "At most 5 gallery images are allowed" });
+        const galleryItems = gallery.map((x) => {
+          const o = x as { image_url?: unknown; caption?: unknown };
+          return {
+            image_url: String(o.image_url ?? "").trim(),
+            caption: o.caption == null ? null : String(o.caption).trim().slice(0, 240) || null,
+          };
+        }).filter((g) => g.image_url);
+
         const id = `camp-${Date.now()}`;
 
         await db.query(
@@ -231,6 +282,22 @@ export const orgCampaignRoutes: FastifyPluginAsync = async (app) => {
            values ($1, $2, $3, $4, $5, $6, 0, 'pending_review', $7, $8, $9, now())`,
           [id, title, description, story, about, goal, orgId, location, imageUrl]
         );
+
+        if (galleryItems.length) {
+          const values: unknown[] = [];
+          const chunks: string[] = [];
+          let order = 0;
+          for (const g of galleryItems.slice(0, 5)) {
+            const imgId = `img-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+            values.push(imgId, id, orgId, g.image_url, g.caption, order++);
+            const o = (values.length / 6 - 1) * 6;
+            chunks.push(`($${o + 1}, $${o + 2}, $${o + 3}, $${o + 4}, $${o + 5}, $${o + 6})`);
+          }
+          await db.query(
+            `insert into campaign_images (id, campaign_id, org_id, image_url, caption, sort_order) values ${chunks.join(", ")}`,
+            values
+          );
+        }
 
         await notifyAdminsNewCampaign({
           campaignId: id,
