@@ -37,7 +37,14 @@ function resolveImgUrl(base: string, url?: string | null): string | undefined {
 }
 
 export default function CampaignDetailScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, quick_amount } = useLocalSearchParams<{ id: string; quick_amount?: string }>();
+
+  const prefilledAmount = (() => {
+    const raw = Array.isArray(quick_amount) ? quick_amount[0] : quick_amount;
+    if (!raw) return null;
+    const n = parseFloat(raw);
+    return Number.isFinite(n) && n > 0 ? n : null;
+  })();
   const insets = useSafeInsets();
   const { campaigns, categories, isFavorite, toggleFavorite, setLastMeaningfulRoute } = useApp();
   const c = useThemeColors();
@@ -358,7 +365,11 @@ export default function CampaignDetailScreen() {
               onPress={() =>
                 router.push({
                   pathname: "/donate/[orgId]",
-                  params: { orgId: camp.organizationId, campaignId: id },
+                  params: {
+                    orgId: camp.organizationId,
+                    campaignId: id,
+                    ...(prefilledAmount ? { amount: String(prefilledAmount) } : {}),
+                  },
                 })
               }
             >
