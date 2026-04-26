@@ -55,10 +55,9 @@ function typeAccent(
   type: AppNotification["type"],
   c: ReturnType<typeof useThemeColors>
 ): { circleBg: string; iconColor: string } {
-  const warn = "#f59e0b";
   switch (type) {
     case "warning":
-      return { circleBg: warn + "28", iconColor: warn };
+      return { circleBg: c.warningAmber + "28", iconColor: c.warningAmber };
     default:
       return { circleBg: c.green + "28", iconColor: c.green };
   }
@@ -196,7 +195,7 @@ export default function NotificationsScreen() {
                   <NotificationMessageText
                     message={detail.message}
                     baseStyle={[styles.modalBody, { color: c.textMuted }]}
-                    linkColor="#60a5fa"
+                    linkColor={c.linkAccent}
                   />
                   <Text style={[styles.modalTime, { color: c.textLight }]}>{formatTimeAgo(detail.created_at)}</Text>
                 </>

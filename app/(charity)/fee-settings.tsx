@@ -105,7 +105,7 @@ export default function FeeSettingsScreen() {
             <Switch
               value={absorbFees}
               onValueChange={setAbsorbFees}
-              trackColor={{ false: "#E0E0E0", true: c.green }}
+              trackColor={{ false: c.progressBarBg, true: c.green }}
               thumbColor={Colors.white}
             />
           </View>
@@ -125,7 +125,7 @@ export default function FeeSettingsScreen() {
             <Switch
               value={ecosystemOptIn}
               onValueChange={setEcosystemOptIn}
-              trackColor={{ false: "#E0E0E0", true: c.green }}
+              trackColor={{ false: c.progressBarBg, true: c.green }}
               thumbColor={Colors.white}
             />
           </View>
@@ -146,7 +146,7 @@ export default function FeeSettingsScreen() {
             <Text style={[styles.breakdownLabel, { color: c.textMuted }]}>
               Platform Fee (3%) {absorbFees ? "(you pay)" : "(donor pays)"}
             </Text>
-            <Text style={[styles.breakdownValue, { color: absorbFees ? "#EF4444" : c.textMuted }]}>
+            <Text style={[styles.breakdownValue, { color: absorbFees ? c.danger : c.textMuted }]}>
               {absorbFees ? `-$${platformFee.toFixed(2)}` : "$0.00"}
             </Text>
           </View>
@@ -155,7 +155,7 @@ export default function FeeSettingsScreen() {
               <View style={[styles.breakdownSep, { backgroundColor: c.border }]} />
               <View style={styles.breakdownRow}>
                 <Text style={[styles.breakdownLabel, { color: c.textMuted }]}>Education Ecosystem (5%)</Text>
-                <Text style={[styles.breakdownValue, { color: "#EF4444" }]}>-${ecosystemFee.toFixed(2)}</Text>
+                <Text style={[styles.breakdownValue, { color: c.danger }]}>-${ecosystemFee.toFixed(2)}</Text>
               </View>
             </>
           )}

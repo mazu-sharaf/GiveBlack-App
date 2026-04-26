@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { View, Text, StyleSheet, ActivityIndicator, Pressable, Animated, Platform, Alert, ScrollView } from "react-native";
 import { useLocalSearchParams, router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import Colors from "@/constants/colors";
 import { useThemeColors } from "@/context/ThemeContext";
 import { useAuth } from "@/context/AuthContext";
 import AppHeader from "@/components/AppHeader";
@@ -369,8 +370,8 @@ export default function CheckoutResultScreen() {
     <View style={[styles.container, { backgroundColor: c.background }]}>
       <AppHeader showBack title="Donation status" showSearch={false} />
       <View style={styles.centerContent}>
-        <View style={[styles.iconCircle, { borderColor: "#FF4444" }]}>
-          <Ionicons name="close" size={42} color="#FF4444" />
+        <View style={[styles.iconCircle, { borderColor: c.danger }]}>
+          <Ionicons name="close" size={42} color={c.danger} />
         </View>
         <Text style={[styles.title, { color: c.text }]}>Payment Failed</Text>
         <Text style={[styles.message, { color: c.textMuted }]}>
@@ -494,6 +495,6 @@ const styles = StyleSheet.create({
   primaryText: {
     fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 18,
-    color: "#FFFFFF",
+    color: Colors.white,
   },
 });

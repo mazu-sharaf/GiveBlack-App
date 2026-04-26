@@ -15,6 +15,7 @@ import { useSafeInsets } from "@/lib/safe-area";
 import { router, useLocalSearchParams, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useApp, type Campaign } from "@/context/AppContext";
+import Colors from "@/constants/colors";
 import { useThemeColors } from "@/context/ThemeContext";
 import OrgAvatar from "@/components/OrgAvatar";
 import { getApiUrl } from "@/lib/query-client";
@@ -236,7 +237,7 @@ export default function CampaignDetailScreen() {
                       { borderColor: c.background },
                     ]}
                   >
-                    <Ionicons name="person" size={12} color="#FFFFFF" />
+                    <Ionicons name="person" size={12} color={Colors.white} />
                   </View>
                 ))}
               </View>
@@ -378,11 +379,11 @@ export default function CampaignDetailScreen() {
         ]}
       >
         <Pressable style={styles.heroBtn} onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={20} color="#0A0A0A" />
+          <Ionicons name="arrow-back" size={20} color={Colors.primary} />
         </Pressable>
         <View style={styles.heroRight}>
           <Pressable style={styles.heroBtn} onPress={handleShare}>
-            <Ionicons name="share-outline" size={20} color="#0A0A0A" />
+            <Ionicons name="share-outline" size={20} color={Colors.primary} />
           </Pressable>
           <Pressable
             style={styles.heroBtn}
@@ -391,7 +392,7 @@ export default function CampaignDetailScreen() {
             <Ionicons
               name={isFavorite(camp.id) ? "heart" : "heart-outline"}
               size={20}
-              color={isFavorite(camp.id) ? c.green : "#0A0A0A"}
+              color={isFavorite(camp.id) ? c.green : Colors.primary}
             />
           </Pressable>
         </View>
@@ -491,7 +492,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     minHeight: 52,
   },
-  donateBtnText: { fontFamily: "SpaceGrotesk_600SemiBold", fontSize: 16, color: "#FFFFFF", textAlign: "center" },
+  donateBtnText: { fontFamily: "SpaceGrotesk_600SemiBold", fontSize: 16, color: Colors.white, textAlign: "center" },
   notFound: { flex: 1, alignItems: "center", justifyContent: "center", gap: 12 },
   notFoundText: { fontFamily: "SpaceGrotesk_500Medium", fontSize: 16 },
   backLink: { marginTop: 8 },

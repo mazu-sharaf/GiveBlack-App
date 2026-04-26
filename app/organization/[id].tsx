@@ -12,6 +12,7 @@ import { Image } from "expo-image";
 import { useSafeInsets } from "@/lib/safe-area";
 import { router, useLocalSearchParams, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import Colors from "@/constants/colors";
 import { useThemeColors } from "@/context/ThemeContext";
 import { useApp } from "@/context/AppContext";
 import AppHeader from "@/components/AppHeader";
@@ -316,5 +317,5 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     minHeight: 52,
   },
-  donateBtnText: { fontFamily: "SpaceGrotesk_600SemiBold", fontSize: 14, color: "#FFFFFF", textAlign: "center" },
+  donateBtnText: { fontFamily: "SpaceGrotesk_600SemiBold", fontSize: 14, color: Colors.white, textAlign: "center" },
 });

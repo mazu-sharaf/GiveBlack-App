@@ -182,7 +182,7 @@ function NotificationsPage() {
             onPress={() => Linking.openSettings()}
             style={{ flexDirection: "row", alignItems: "center", padding: 14, gap: 12, borderBottomWidth: 1, borderBottomColor: c.border }}
           >
-            <Ionicons name="warning-outline" size={20} color="#F59E0B" />
+            <Ionicons name="warning-outline" size={20} color={c.warningAmber} />
             <View style={{ flex: 1 }}>
               <Text style={[styles.rowLabel, { color: c.text }]}>Notifications are blocked</Text>
               <Text style={[styles.rowDesc, { color: c.textMuted }]}>
@@ -1169,9 +1169,9 @@ function EditProfilePage() {
           </View>
           <View style={s2.cameraOverlay}>
             {uploadingAvatar ? (
-              <ActivityIndicator size={12} color="#FFFFFF" />
+              <ActivityIndicator size={12} color={Colors.white} />
             ) : (
-              <Ionicons name="camera" size={14} color="#FFFFFF" />
+              <Ionicons name="camera" size={14} color={Colors.white} />
             )}
           </View>
         </Pressable>
@@ -1256,7 +1256,7 @@ function TransactionRow({ t, onPress, expanded }: { t: any; onPress: () => void;
           <Ionicons
             name={isTopup ? "arrow-up" : "arrow-down"}
             size={18}
-            color={isTopup ? c.green : "#E53935"}
+            color={isTopup ? c.green : c.danger}
           />
         </View>
         <View style={{ flex: 1 }}>
@@ -1266,7 +1266,7 @@ function TransactionRow({ t, onPress, expanded }: { t: any; onPress: () => void;
         <Text
           style={[
             s2.txAmount,
-            { color: isTopup ? c.green : "#E53935" },
+            { color: isTopup ? c.green : c.danger },
           ]}
         >
           {isTopup ? "+" : "-"}${Number(t.amount || 0).toFixed(2)}
@@ -1280,7 +1280,7 @@ function TransactionRow({ t, onPress, expanded }: { t: any; onPress: () => void;
           </View>
           <View style={s2.txDetailRow}>
             <Text style={[s2.txDetailLabel, { color: c.textMuted }]}>Amount</Text>
-            <Text style={[s2.txDetailValue, { color: isTopup ? c.green : "#E53935" }]}>{isTopup ? "+" : "-"}${Number(t.amount || 0).toFixed(2)}</Text>
+            <Text style={[s2.txDetailValue, { color: isTopup ? c.green : c.danger }]}>{isTopup ? "+" : "-"}${Number(t.amount || 0).toFixed(2)}</Text>
           </View>
           <View style={s2.txDetailRow}>
             <Text style={[s2.txDetailLabel, { color: c.textMuted }]}>Date</Text>
@@ -1288,8 +1288,8 @@ function TransactionRow({ t, onPress, expanded }: { t: any; onPress: () => void;
           </View>
           <View style={s2.txDetailRow}>
             <Text style={[s2.txDetailLabel, { color: c.textMuted }]}>Status</Text>
-            <View style={[s2.txStatusBadge, { backgroundColor: isFailed ? "#fdecea" : isPending ? "#fff8e1" : c.successBg }]}>
-              <Text style={[s2.txStatusText, { color: isFailed ? "#E53935" : isPending ? "#f59e0b" : "#059669" }]}>
+            <View style={[s2.txStatusBadge, { backgroundColor: isFailed ? c.errorBg : isPending ? c.warningBg : c.successBg }]}>
+              <Text style={[s2.txStatusText, { color: isFailed ? c.danger : isPending ? c.warningAmber : c.green }]}>
                 {isFailed ? "Failed" : isPending ? "Pending" : "Completed"}
               </Text>
             </View>
@@ -1538,12 +1538,12 @@ function SettingsMainPage() {
   const { user } = useAuth();
   const menuItems = [
     ...(user?.type === "charity"
-      ? [{ icon: "card-outline" as const, label: "Subscription", color: isDark ? "#132737" : "#E3F2FD", route: "/settings/subscription" }]
+      ? [{ icon: "card-outline" as const, label: "Subscription", color: c.iconBgBlue, route: "/settings/subscription" }]
       : []),
-    { icon: "call-outline", label: "Contact", color: isDark ? "#1B2A3D" : "#E3F2FD", route: "/settings/help" },
-    { icon: "help-circle-outline", label: "How to Donate", color: isDark ? "#1B2E1B" : "#E8F5E9", route: "/settings/how-to-donate" },
-    { icon: "shield-checkmark-outline", label: "Privacy", color: isDark ? "#2D1B3D" : "#F3E5F5", route: "/settings/privacy-settings" },
-    { icon: "settings-outline", label: "Advanced Settings", color: isDark ? "#2A2A2A" : "#F5F5F5", route: "/settings/notifications" },
+    { icon: "call-outline", label: "Contact", color: c.iconBgBlue, route: "/settings/help" },
+    { icon: "help-circle-outline", label: "How to Donate", color: c.iconBgGreen, route: "/settings/how-to-donate" },
+    { icon: "shield-checkmark-outline", label: "Privacy", color: c.iconBgPurple, route: "/settings/privacy-settings" },
+    { icon: "settings-outline", label: "Advanced Settings", color: c.iconBgGrey, route: "/settings/notifications" },
   ];
 
   const themeOptions: { mode: "light" | "dark" | "system"; icon: string; label: string }[] = [
@@ -1572,9 +1572,9 @@ function SettingsMainPage() {
                   <Ionicons
                     name={opt.icon as any}
                     size={15}
-                    color={active ? "#FFFFFF" : c.textMuted}
+                    color={active ? Colors.white : c.textMuted}
                   />
-                  <Text style={[sMain.themePillText, { color: active ? "#FFFFFF" : c.textMuted }]}>
+                  <Text style={[sMain.themePillText, { color: active ? Colors.white : c.textMuted }]}>
                     {opt.label}
                   </Text>
                 </Pressable>
@@ -1639,7 +1639,6 @@ const sMain = StyleSheet.create({
 
 function HowToDonatePage() {
   const c = useThemeColors();
-  const { isDark } = useTheme();
   const router = useRouter();
   const [expandedId, setExpandedId] = useState<string>("how-it-works");
 
@@ -1791,7 +1790,6 @@ function HelpCenterPage() {
 
 function PrivacySettingsPage() {
   const c = useThemeColors();
-  const { isDark } = useTheme();
   return (
     <>
       <View style={[styles.sectionCard, { backgroundColor: c.cardBg, shadowColor: c.cardShadow }]}>
@@ -1799,8 +1797,8 @@ function PrivacySettingsPage() {
           style={s2.menuRow}
           onPress={() => Alert.alert("Privacy Policy", "Our privacy policy details how we collect, use, and protect your personal data. Visit giveblack.org/privacy for the full document.")}
         >
-          <View style={[s2.menuIconCircle, { backgroundColor: isDark ? "#1B2A3D" : "#E3F2FD" }]}>
-            <Ionicons name="shield-checkmark" size={20} color="#1976D2" />
+          <View style={[s2.menuIconCircle, { backgroundColor: c.iconBgBlue }]}>
+            <Ionicons name="shield-checkmark" size={20} color={c.iconFgBlue} />
           </View>
           <Text style={[s2.menuLabel, { color: c.text }]}>Privacy Policy</Text>
           <Ionicons name="chevron-forward" size={16} color={c.textLight} />
@@ -1824,10 +1822,10 @@ function PrivacySettingsPage() {
             )
           }
         >
-          <View style={[s2.menuIconCircle, { backgroundColor: isDark ? "#3D1515" : "#FFEBEE" }]}>
-            <Ionicons name="trash" size={20} color="#E53935" />
+          <View style={[s2.menuIconCircle, { backgroundColor: c.iconBgRed }]}>
+            <Ionicons name="trash" size={20} color={c.danger} />
           </View>
-          <Text style={[s2.menuLabel, { color: "#E53935" }]}>Delete all private data</Text>
+          <Text style={[s2.menuLabel, { color: c.danger }]}>Delete all private data</Text>
           <Ionicons name="chevron-forward" size={16} color={c.textLight} />
         </Pressable>
       </View>
@@ -2055,7 +2053,7 @@ const styles = StyleSheet.create({
   lockedEmptyBtnText: {
     fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 15,
-    color: "#FFFFFF",
+    color: Colors.white,
   },
   backBtn: {
     width: 40,
@@ -2501,7 +2499,6 @@ const s2 = StyleSheet.create({
     color: Colors.white,
   },
   txDetail: {
-    backgroundColor: "#F9F9F9",
     marginHorizontal: 16,
     marginBottom: 12,
     borderRadius: 12,
@@ -2524,7 +2521,6 @@ const s2 = StyleSheet.create({
     color: Colors.primary,
   },
   txStatusBadge: {
-    backgroundColor: "#E8F5E9",
     borderRadius: 8,
     paddingHorizontal: 10,
     paddingVertical: 3,

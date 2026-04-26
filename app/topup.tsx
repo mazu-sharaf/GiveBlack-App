@@ -430,7 +430,7 @@ export default function TopUpScreen() {
                   styles.pinBox,
                   { backgroundColor: c.cardBg, borderColor: c.border },
                   pin.length === i && { borderColor: c.green },
-                  pin.length > i && { borderColor: c.text, backgroundColor: isDark ? "#2A2A2A" : "#FAFAFA" },
+                  pin.length > i && { borderColor: c.text, backgroundColor: c.inputBg },
                 ]}
               >
                 {pin.length > i ? (
@@ -502,7 +502,7 @@ export default function TopUpScreen() {
                   ]}
                   onPress={() => setSelectedPayment(card.id)}
                 >
-                  <View style={[styles.paymentIconWrap, { backgroundColor: isDark ? "#2A2A2A" : "#F5F5F5" }]}>
+                  <View style={[styles.paymentIconWrap, { backgroundColor: c.inputBg }]}>
                     <Ionicons name="card-outline" size={24} color={c.text} />
                   </View>
                   <View style={{ flex: 1 }}>
@@ -525,7 +525,7 @@ export default function TopUpScreen() {
                 ]}
                 onPress={() => setSelectedPayment(secureCheckoutOption.id)}
               >
-                <View style={[styles.paymentIconWrap, { backgroundColor: isDark ? "#2A2A2A" : "#F5F5F5" }]}>
+                <View style={[styles.paymentIconWrap, { backgroundColor: c.inputBg }]}>
                   <Ionicons name={secureCheckoutOption.icon} size={24} color={c.text} />
                 </View>
                 <Text style={[styles.paymentName, { flex: 1, color: c.text }]}>{secureCheckoutOption.name}</Text>
@@ -682,7 +682,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   presetBtnTextActive: {
-    color: "#FFFFFF",
+    color: Colors.white,
   },
   amountDisplay: {
     fontFamily: "SpaceGrotesk_700Bold",
@@ -755,7 +755,7 @@ const styles = StyleSheet.create({
   continueBtnText: {
     fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 16,
-    color: "#FFFFFF",
+    color: Colors.white,
   },
   pinSubtitle: {
     fontFamily: "SpaceGrotesk_600SemiBold",
@@ -782,9 +782,6 @@ const styles = StyleSheet.create({
   pinBoxActive: {
     borderColor: Colors.green,
   },
-  pinBoxFilled: {
-    backgroundColor: "#FAFAFA",
-  },
   pinDot: {
     width: 14,
     height: 14,
@@ -810,7 +807,7 @@ const styles = StyleSheet.create({
   pinErrorText: {
     fontFamily: "SpaceGrotesk_500Medium",
     fontSize: 13,
-    color: "#E74C3C",
+    color: Colors.danger,
     textAlign: "center" as const,
     marginTop: 8,
   },
@@ -828,7 +825,7 @@ const styles = StyleSheet.create({
   cardPreviewNumber: {
     fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 20,
-    color: "#FFFFFF",
+    color: Colors.white,
     letterSpacing: 2,
     marginBottom: 20,
   },
@@ -839,7 +836,7 @@ const styles = StyleSheet.create({
   cardPreviewValue: {
     fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 14,
-    color: "#FFFFFF",
+    color: Colors.white,
   },
   formGroup: {
     marginBottom: 18,
@@ -899,6 +896,6 @@ const styles = StyleSheet.create({
   okBtnText: {
     fontFamily: "SpaceGrotesk_700Bold",
     fontSize: 17,
-    color: "#FFFFFF",
+    color: Colors.white,
   },
 });

@@ -8,14 +8,13 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import Colors from "@/constants/colors";
-import { useTheme, useThemeColors } from "@/context/ThemeContext";
+import { useThemeColors } from "@/context/ThemeContext";
 import { useAuth } from "@/context/AuthContext";
 import { getApiUrl } from "@/lib/query-client";
 
 export default function CharityDonationsScreen() {
   const { user } = useAuth();
   const c = useThemeColors();
-  const { isDark } = useTheme();
   const [donations, setDonations] = useState<any[]>([]);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -77,7 +76,7 @@ export default function CharityDonationsScreen() {
             </View>
             <View style={styles.amountCol}>
               <Text style={[styles.amount, { color: c.green }]}>+${Number(item.amount).toLocaleString()}</Text>
-              <Text style={[styles.statusBadge, { color: c.green, backgroundColor: isDark ? "#1B2E1B" : "#D1FAE5" }]}>{item.status || "completed"}</Text>
+              <Text style={[styles.statusBadge, { color: c.green, backgroundColor: c.iconBgGreen }]}>{item.status || "completed"}</Text>
             </View>
           </View>
         )}

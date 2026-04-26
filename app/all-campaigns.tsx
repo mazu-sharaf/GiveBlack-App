@@ -14,7 +14,7 @@ import { useSafeInsets } from "@/lib/safe-area";
 import { router, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import Colors from "@/constants/colors";
-import { useTheme, useThemeColors } from "@/context/ThemeContext";
+import { useThemeColors } from "@/context/ThemeContext";
 import { useApp } from "@/context/AppContext";
 import AppHeader from "@/components/AppHeader";
 
@@ -27,7 +27,6 @@ type SortOption = "default" | "name_az" | "name_za" | "raised_high" | "raised_lo
 export default function AllCampaignsScreen() {
   const insets = useSafeInsets();
   const c = useThemeColors();
-  const { isDark } = useTheme();
   const { campaigns, categories, toggleFavorite, isFavorite, setLastMeaningfulRoute } = useApp();
 
   useFocusEffect(
@@ -85,8 +84,8 @@ export default function AllCampaignsScreen() {
     { key: "raised_low", label: "Least raised" },
   ];
 
-  const chipBg = isDark ? "#2A2A2A" : "#F1F1F1";
-  const sortBorderColor = isDark ? "#333" : "#F5F5F5";
+  const chipBg = c.inputBg;
+  const sortBorderColor = c.border;
 
   return (
     <View style={[styles.container, { backgroundColor: c.background }]}>
@@ -111,7 +110,7 @@ export default function AllCampaignsScreen() {
           style={[styles.filterBtn, { backgroundColor: activeFilterCount > 0 ? c.green : c.cardBg, borderColor: activeFilterCount > 0 ? c.green : c.border }]}
           onPress={() => setShowFilter(true)}
         >
-          <Ionicons name="options-outline" size={20} color={activeFilterCount > 0 ? "#FFFFFF" : c.text} />
+          <Ionicons name="options-outline" size={20} color={activeFilterCount > 0 ? Colors.white : c.text} />
           {activeFilterCount > 0 && (
             <View style={styles.filterBadge}>
               <Text style={styles.filterBadgeText}>{activeFilterCount}</Text>
@@ -161,7 +160,7 @@ export default function AllCampaignsScreen() {
                   <Ionicons
                     name={isFavorite(camp.id) ? "heart" : "heart-outline"}
                     size={18}
-                    color={isFavorite(camp.id) ? c.green : "#FFFFFF"}
+                    color={isFavorite(camp.id) ? c.green : Colors.white}
                   />
                 </Pressable>
               </View>
@@ -181,7 +180,7 @@ export default function AllCampaignsScreen() {
                 <Text style={[styles.goalText, { color: c.textMuted, marginBottom: 8 }]} numberOfLines={1}>
                   {camp.orgName}
                 </Text>
-                <View style={[styles.progressBar, { backgroundColor: isDark ? "#333" : "#E8E8E8" }]}>
+                <View style={[styles.progressBar, { backgroundColor: c.progressBarBg }]}>
                   <View
                     style={[
                       styles.progressFill,
@@ -227,7 +226,7 @@ export default function AllCampaignsScreen() {
                 style={[styles.chip, { backgroundColor: !selectedCategory ? c.green : chipBg }]}
                 onPress={() => setSelectedCategory("")}
               >
-                <Text style={[styles.chipText, { color: !selectedCategory ? "#FFFFFF" : c.text }]}>All</Text>
+                <Text style={[styles.chipText, { color: !selectedCategory ? Colors.white : c.text }]}>All</Text>
               </Pressable>
               {categories.map((cat) => (
                 <Pressable
@@ -235,7 +234,7 @@ export default function AllCampaignsScreen() {
                   style={[styles.chip, { backgroundColor: selectedCategory === cat.id ? c.green : chipBg }]}
                   onPress={() => setSelectedCategory(selectedCategory === cat.id ? "" : cat.id)}
                 >
-                  <Text style={[styles.chipText, { color: selectedCategory === cat.id ? "#FFFFFF" : c.text }]}>{cat.name}</Text>
+                  <Text style={[styles.chipText, { color: selectedCategory === cat.id ? Colors.white : c.text }]}>{cat.name}</Text>
                 </Pressable>
               ))}
             </ScrollView>
@@ -318,7 +317,7 @@ const styles = StyleSheet.create({
   filterBadgeText: {
     fontFamily: "SpaceGrotesk_700Bold",
     fontSize: 10,
-    color: "#FFFFFF",
+    color: Colors.white,
   },
   scrollContent: {
     paddingHorizontal: 20,
@@ -496,6 +495,6 @@ const styles = StyleSheet.create({
   applyBtnText: {
     fontFamily: "SpaceGrotesk_700Bold",
     fontSize: 15,
-    color: "#FFFFFF",
+    color: Colors.white,
   },
 });

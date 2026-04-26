@@ -180,11 +180,11 @@ export default function HomeScreen() {
         <HeroSection>
           <View style={styles.heroHeaderRow}>
             <View>
-              <Text style={[styles.heroGreeting, { color: "#FFFFFF" }]}>
+              <Text style={[styles.heroGreeting, { color: Colors.white }]}>
                 {(() => { const h = new Date().getHours(); return h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : h < 21 ? "Good evening" : "Good night"; })()},{" "}
                 {firstName}
               </Text>
-              <Text style={[styles.heroSub, { color: "#E3FCEF" }]}>
+              <Text style={[styles.heroSub, { color: c.heroBannerSubtext }]}>
                 Thank you for supporting Black philanthropy
               </Text>
             </View>
@@ -210,9 +210,9 @@ export default function HomeScreen() {
         </HeroSection>
 
         {isOffline && (
-          <View style={styles.offlineBanner}>
-            <Ionicons name="cloud-offline-outline" size={14} color="#7B6100" />
-            <Text style={styles.offlineText}>Offline - Showing saved data</Text>
+          <View style={[styles.offlineBanner, { backgroundColor: c.warningBg, borderColor: c.warningBorder }]}>
+            <Ionicons name="cloud-offline-outline" size={14} color={c.warningText} />
+            <Text style={[styles.offlineText, { color: c.warningText }]}>Offline - Showing saved data</Text>
           </View>
         )}
 
@@ -320,7 +320,7 @@ export default function HomeScreen() {
                     <Ionicons
                       name={isFavorite(camp.id) ? "heart" : "heart-outline"}
                       size={14}
-                      color={isFavorite(camp.id) ? c.green : "#FFFFFF"}
+                      color={isFavorite(camp.id) ? c.green : Colors.white}
                     />
                   </Pressable>
                 </View>
@@ -470,7 +470,7 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: "#FF3B30",
+    backgroundColor: Colors.danger,
     borderWidth: 1.5,
     borderColor: Colors.white,
   },
@@ -594,7 +594,6 @@ const styles = StyleSheet.create({
   },
   progressBar: {
     height: 6,
-    backgroundColor: "#E8E8E8",
     borderRadius: 3,
     marginBottom: 8,
     overflow: "hidden",
@@ -680,7 +679,6 @@ const styles = StyleSheet.create({
   },
   progressBarSmall: {
     height: 4,
-    backgroundColor: "#E8E8E8",
     borderRadius: 2,
     marginHorizontal: 10,
     marginTop: 8,
@@ -717,18 +715,15 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 6,
-    backgroundColor: "#FFF8E1",
     borderRadius: 10,
     paddingVertical: 8,
     paddingHorizontal: 14,
     marginBottom: 4,
     borderWidth: 1,
-    borderColor: "#FFE082",
   },
   offlineText: {
     fontFamily: "SpaceGrotesk_500Medium",
     fontSize: 12,
-    color: "#7B6100",
   },
 
   emptyState: {

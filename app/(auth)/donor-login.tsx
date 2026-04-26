@@ -323,7 +323,7 @@ const styles = StyleSheet.create({
   errorBar: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#991B1B",
+    backgroundColor: Colors.danger,
     borderRadius: 14,
     paddingVertical: 14,
     paddingHorizontal: 16,
@@ -354,7 +354,7 @@ const styles = StyleSheet.create({
   inputWrap: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#F1F1F1",
+    backgroundColor: Colors.inputBg,
     borderRadius: 14,
     paddingHorizontal: 16,
     paddingVertical: 15,

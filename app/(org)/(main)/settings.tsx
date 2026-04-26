@@ -698,9 +698,9 @@ export default function SettingsTab() {
           </Pressable>
         </View>
 
-        <Pressable style={[styles.logoutBtn, { borderColor: "#ef4444" }]} onPress={handleLogout}>
-          <Ionicons name="log-out-outline" size={20} color="#ef4444" />
-          <Text style={styles.logoutText}>Sign Out</Text>
+        <Pressable style={[styles.logoutBtn, { borderColor: c.danger }]} onPress={handleLogout}>
+          <Ionicons name="log-out-outline" size={20} color={c.danger} />
+          <Text style={[styles.logoutText, { color: c.danger }]}>Sign Out</Text>
         </Pressable>
       </ScrollView>
     </View>
@@ -898,5 +898,5 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     marginTop: 8,
   },
-  logoutText: { fontFamily: "SpaceGrotesk_600SemiBold", fontSize: 15, color: "#ef4444" },
+  logoutText: { fontFamily: "SpaceGrotesk_600SemiBold", fontSize: 15 },
 });

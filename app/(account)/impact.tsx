@@ -4,6 +4,7 @@ import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Pressable } from
 import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeInsets } from "@/lib/safe-area";
+import Colors from "@/constants/colors";
 import { useThemeColors } from "@/context/ThemeContext";
 import { useAuth } from "@/context/AuthContext";
 import { getApiUrl } from "@/lib/query-client";
@@ -220,7 +221,7 @@ const styles = StyleSheet.create({
   lockedEmptyBtnText: {
     fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 15,
-    color: "#FFFFFF",
+    color: Colors.white,
   },
   headerCard: {
     flexDirection: "row",
@@ -244,7 +245,7 @@ const styles = StyleSheet.create({
   avatarInitial: {
     fontFamily: "SpaceGrotesk_700Bold",
     fontSize: 22,
-    color: "#FFFFFF",
+    color: Colors.white,
   },
   headerText: {
     marginLeft: 14,
@@ -296,7 +297,7 @@ const styles = StyleSheet.create({
   donorInitial: {
     fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 14,
-    color: "#FFFFFF",
+    color: Colors.white,
   },
   donorText: { flex: 1, minWidth: 0 },
   donorName: {

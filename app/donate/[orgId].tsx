@@ -5,6 +5,7 @@ import { router, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useApp } from "@/context/AppContext";
 import { useAuth } from "@/context/AuthContext";
+import Colors from "@/constants/colors";
 import { useThemeColors } from "@/context/ThemeContext";
 import { apiGet, apiPost, getApiUrl } from "@/lib/query-client";
 import { isNativeStripeAvailable, presentNativePaymentSheet } from "@/lib/stripe-confirm";
@@ -865,8 +866,8 @@ export default function DonateScreen() {
       <View style={[styles.container, { backgroundColor: c.background }]}>
         <AppHeader showBack title="Donate" showSearch={false} />
         <View style={[styles.centerContent, { paddingTop: 40 }]}>
-          <View style={[styles.checkCircle, { borderColor: "#FF4444" }]}>
-            <Ionicons name="close" size={48} color="#FF4444" />
+          <View style={[styles.checkCircle, { borderColor: c.danger }]}>
+            <Ionicons name="close" size={48} color={c.danger} />
           </View>
           <Text style={[styles.receiptTitle, { color: c.text }]}>Payment Failed</Text>
           <Text style={[styles.receiptSubtitle, { color: c.textMuted }]}>{errorMsg}</Text>
@@ -1524,7 +1525,7 @@ const styles = StyleSheet.create({
   authGatePrimaryBtnText: {
     fontFamily: "SpaceGrotesk_700Bold",
     fontSize: 16,
-    color: "#FFFFFF",
+    color: Colors.white,
   },
   authGateSecondaryBtn: {
     width: "100%",

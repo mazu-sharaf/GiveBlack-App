@@ -16,6 +16,7 @@ import { router, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useApp } from "@/context/AppContext";
 import { useAuth } from "@/context/AuthContext";
+import Colors from "@/constants/colors";
 import { useThemeColors } from "@/context/ThemeContext";
 import OrgAvatar from "@/components/OrgAvatar";
 import { getApiUrl } from "@/lib/query-client";
@@ -206,9 +207,9 @@ export default function VolunteerSignupScreen() {
                 onPress={() => toggleSkill(skill)}
               >
                 {selected && (
-                  <Ionicons name="checkmark" size={14} color="#FFFFFF" style={{ marginRight: 4 }} />
+                  <Ionicons name="checkmark" size={14} color={Colors.white} style={{ marginRight: 4 }} />
                 )}
-                <Text style={[styles.chipText, { color: c.text }, selected && { color: "#FFFFFF" }]}>
+                <Text style={[styles.chipText, { color: c.text }, selected && { color: Colors.white }]}>
                   {skill}
                 </Text>
               </Pressable>
@@ -227,7 +228,7 @@ export default function VolunteerSignupScreen() {
                 style={[styles.availChip, { backgroundColor: c.cardBg, borderColor: c.border }, selected && { backgroundColor: c.green, borderColor: c.green }]}
                 onPress={() => setAvailability(opt)}
               >
-                <Text style={[styles.availChipText, { color: c.text }, selected && { color: "#FFFFFF" }]}>
+                <Text style={[styles.availChipText, { color: c.text }, selected && { color: Colors.white }]}>
                   {opt}
                 </Text>
               </Pressable>
@@ -255,7 +256,7 @@ export default function VolunteerSignupScreen() {
           disabled={submitting}
         >
           {submitting ? (
-            <ActivityIndicator color="#FFFFFF" />
+            <ActivityIndicator color={Colors.white} />
           ) : (
             <Text style={styles.submitBtnText}>Submit Application</Text>
           )}
@@ -293,7 +294,7 @@ const styles = StyleSheet.create({
   orgInitials: {
     fontFamily: "SpaceGrotesk_700Bold",
     fontSize: 16,
-    color: "#FFFFFF",
+    color: Colors.white,
   },
   orgInfo: {
     flex: 1,
@@ -384,7 +385,7 @@ const styles = StyleSheet.create({
   submitBtnText: {
     fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 16,
-    color: "#FFFFFF",
+    color: Colors.white,
   },
   successContainer: {
     flex: 1,
@@ -423,6 +424,6 @@ const styles = StyleSheet.create({
   successBtnText: {
     fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 16,
-    color: "#FFFFFF",
+    color: Colors.white,
   },
 });

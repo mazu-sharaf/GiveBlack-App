@@ -116,7 +116,7 @@ export default function WelcomeScreen() {
             <SocialButton
               icon="logo-google"
               label="Continue with Google"
-              c={isDark ? { cardBg: "rgba(255,255,255,0.07)", border: "rgba(255,255,255,0.12)", text: "#FFFFFF" } : c}
+              c={isDark ? { cardBg: "rgba(255,255,255,0.07)", border: "rgba(255,255,255,0.12)", text: Colors.white } : c}
               disabled={!!oauthBusy}
               onPress={() => runOAuth("google", loginWithGoogle)}
             />
@@ -124,7 +124,7 @@ export default function WelcomeScreen() {
               <SocialButton
                 icon="logo-apple"
                 label="Continue with Apple"
-                c={isDark ? { cardBg: "rgba(255,255,255,0.07)", border: "rgba(255,255,255,0.12)", text: "#FFFFFF" } : c}
+                c={isDark ? { cardBg: "rgba(255,255,255,0.07)", border: "rgba(255,255,255,0.12)", text: Colors.white } : c}
                 disabled={!!oauthBusy}
                 onPress={() => runOAuth("apple", loginWithApple)}
               />
@@ -231,7 +231,7 @@ const styles = StyleSheet.create({
   cardTitle: {
     fontFamily: "SpaceGrotesk_700Bold",
     fontSize: 22,
-    color: "#FFFFFF",
+    color: Colors.white,
     textAlign: "center",
     marginBottom: 20,
   },

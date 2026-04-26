@@ -22,6 +22,7 @@ interface MenuItemProps {
   icon: string;
   label: string;
   iconBg: string;
+  iconColor: string;
   onPress?: () => void;
   isSwitch?: boolean;
   switchValue?: boolean;
@@ -29,44 +30,29 @@ interface MenuItemProps {
   textColor?: string;
   chevronColor?: string;
   greenColor?: string;
+  dangerLabel?: boolean;
 }
 
-function MenuItem({ icon, label, iconBg, onPress, isSwitch, switchValue, onSwitchChange, textColor, chevronColor, greenColor }: MenuItemProps) {
+function MenuItem({ icon, label, iconBg, iconColor, onPress, isSwitch, switchValue, onSwitchChange, textColor, chevronColor, greenColor, dangerLabel }: MenuItemProps) {
   const tc = useThemeColors();
   return (
     <Pressable style={styles.menuItem} onPress={isSwitch ? undefined : onPress}>
       <View style={[styles.menuIconCircle, { backgroundColor: iconBg }]}>
-        <Ionicons name={icon as any} size={20} color={iconBg === "#F5F5F5" || iconBg === "#2A2A2A" ? "#666" : iconBg === "#FFEBEE" || iconBg === "#3D1515" ? "#E53935" : darken(iconBg)} />
+        <Ionicons name={icon as any} size={20} color={iconColor} />
       </View>
-      <Text style={[styles.menuLabel, { color: textColor }, label === "Logout" && { color: "#E53935" }]}>{label}</Text>
+      <Text style={[styles.menuLabel, { color: textColor }, dangerLabel && { color: tc.danger }]}>{label}</Text>
       {isSwitch ? (
         <Switch
           value={switchValue}
           onValueChange={onSwitchChange}
           trackColor={{ false: tc.border, true: greenColor || tc.green }}
-          thumbColor="#FFFFFF"
+          thumbColor={Colors.white}
         />
       ) : (
         <Ionicons name="chevron-forward" size={18} color={chevronColor || tc.textLight} />
       )}
     </Pressable>
   );
-}
-
-function darken(hex: string): string {
-  const colors: Record<string, string> = {
-    "#E8F5E9": "#2E7D32",
-    "#E3F2FD": "#1565C0",
-    "#F3E5F5": "#7B1FA2",
-    "#FFF3E0": "#E65100",
-    "#FFEBEE": "#E53935",
-    "#1B2E1B": "#4CAF50",
-    "#1B2A3D": "#42A5F5",
-    "#2D1B3D": "#CE93D8",
-    "#3D2A1B": "#FFB74D",
-    "#3D1515": "#E53935",
-  };
-  return colors[hex] || Colors.primary;
 }
 
 type IoniconsName = React.ComponentProps<typeof Ionicons>["name"];
@@ -144,8 +130,8 @@ function GuestAccountScreen() {
 
         <Animated.View entering={FadeInDown.delay(220).duration(400)}>
           <Pressable style={styles.guestLogoutBtn} onPress={() => setShowLogoutModal(true)}>
-            <Ionicons name="log-out-outline" size={18} color="#E53935" />
-            <Text style={styles.guestLogoutText}>Leave guest mode</Text>
+            <Ionicons name="log-out-outline" size={18} color={c.danger} />
+            <Text style={[styles.guestLogoutText, { color: c.danger }]}>Leave guest mode</Text>
           </Pressable>
         </Animated.View>
       </ScrollView>
@@ -264,6 +250,7 @@ function AuthenticatedAccountScreen() {
             icon="receipt-outline"
             label="Transactions"
             iconBg={c.iconBgGreen}
+            iconColor={c.iconFgGreen}
             textColor={c.text}
             chevronColor={c.textLight}
             greenColor={c.green}
@@ -274,6 +261,7 @@ function AuthenticatedAccountScreen() {
             icon="heart-outline"
             label="Favorites"
             iconBg={c.iconBgRed}
+            iconColor={c.iconFgRed}
             textColor={c.text}
             chevronColor={c.textLight}
             greenColor={c.green}
@@ -284,6 +272,7 @@ function AuthenticatedAccountScreen() {
             icon="person-outline"
             label="Edit profile"
             iconBg={c.iconBgBlue}
+            iconColor={c.iconFgBlue}
             textColor={c.text}
             chevronColor={c.textLight}
             greenColor={c.green}
@@ -294,6 +283,7 @@ function AuthenticatedAccountScreen() {
             icon="eye-off-outline"
             label="Donate as anonymous"
             iconBg={c.iconBgPurple}
+            iconColor={c.iconFgPurple}
             textColor={c.text}
             chevronColor={c.textLight}
             greenColor={c.green}
@@ -306,6 +296,7 @@ function AuthenticatedAccountScreen() {
             icon="people-outline"
             label="Invite friends"
             iconBg={c.iconBgOrange}
+            iconColor={c.iconFgOrange}
             textColor={c.text}
             chevronColor={c.textLight}
             greenColor={c.green}
@@ -316,6 +307,7 @@ function AuthenticatedAccountScreen() {
             icon="notifications-outline"
             label="Notifications"
             iconBg={c.iconBgBlue}
+            iconColor={c.iconFgBlue}
             textColor={c.text}
             chevronColor={c.textLight}
             greenColor={c.green}
@@ -326,6 +318,7 @@ function AuthenticatedAccountScreen() {
             icon="settings-outline"
             label="Settings & Appearance"
             iconBg={c.iconBgGrey}
+            iconColor={c.iconFgGrey}
             textColor={c.text}
             chevronColor={c.textLight}
             greenColor={c.green}
@@ -336,9 +329,11 @@ function AuthenticatedAccountScreen() {
             icon="log-out-outline"
             label="Logout"
             iconBg={c.iconBgRed}
+            iconColor={c.iconFgRed}
             textColor={c.text}
             chevronColor={c.textLight}
             greenColor={c.green}
+            dangerLabel
             onPress={() => setShowLogoutModal(true)}
           />
         </Animated.View>
@@ -407,7 +402,7 @@ const styles = StyleSheet.create({
   avatarInitial: {
     fontFamily: "SpaceGrotesk_700Bold",
     fontSize: 18,
-    color: "#FFFFFF",
+    color: Colors.white,
   },
   profileName: {
     fontFamily: "SpaceGrotesk_600SemiBold",
@@ -484,7 +479,7 @@ const styles = StyleSheet.create({
   walletBalance: {
     fontFamily: "SpaceGrotesk_700Bold",
     fontSize: 26,
-    color: "#FFFFFF",
+    color: Colors.white,
     marginTop: -2,
   },
   topUpBtn: {
@@ -495,7 +490,7 @@ const styles = StyleSheet.create({
   topUpText: {
     fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 14,
-    color: "#FFFFFF",
+    color: Colors.white,
   },
   menuCard: {
     borderRadius: 20,
@@ -573,7 +568,7 @@ const styles = StyleSheet.create({
   okBtnText: {
     fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 15,
-    color: "#FFFFFF",
+    color: Colors.white,
   },
   guestHeroWrap: {
     alignItems: "center",
@@ -645,7 +640,7 @@ const styles = StyleSheet.create({
   guestCtaPrimaryText: {
     fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 16,
-    color: "#FFFFFF",
+    color: Colors.white,
   },
   guestCtaSecondary: {
     borderRadius: 16,
@@ -666,6 +661,5 @@ const styles = StyleSheet.create({
   guestLogoutText: {
     fontFamily: "SpaceGrotesk_500Medium",
     fontSize: 14,
-    color: "#E53935",
   },
 });

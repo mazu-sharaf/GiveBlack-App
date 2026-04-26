@@ -224,7 +224,7 @@ export default function OrgDashboardHome() {
               style={styles.upgradeBtn}
               onPress={() => router.push("/(org)/subscriptions")}
             >
-              <Text style={styles.upgradeBtnText}>Upgrade Plan</Text>
+              <Text style={[styles.upgradeBtnText, { color: c.green }]}>Upgrade Plan</Text>
               <Ionicons name="arrow-forward" size={14} color={c.green} />
             </Pressable>
           )}
@@ -244,8 +244,8 @@ export default function OrgDashboardHome() {
             style={[styles.quickAction, { backgroundColor: c.cardBg, borderColor: c.border }]}
             onPress={() => router.push("/(org)/donations")}
           >
-            <View style={[styles.quickActionIcon, { backgroundColor: "#6366f115" }]}>
-              <Ionicons name="analytics" size={22} color="#6366f1" />
+            <View style={[styles.quickActionIcon, { backgroundColor: c.indigoAccent + "15" }]}>
+              <Ionicons name="analytics" size={22} color={c.indigoAccent} />
             </View>
             <Text style={[styles.quickActionText, { color: c.text }]}>View Analytics</Text>
           </Pressable>
@@ -253,10 +253,10 @@ export default function OrgDashboardHome() {
 
         <View style={styles.statsGrid}>
           {[
-            { label: "Total Raised", value: `$${totalRaised.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`, icon: "trending-up" as const, color: "#10b981" },
-            { label: "This Month", value: `$${monthRaised.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`, icon: "calendar" as const, color: "#6366f1" },
-            { label: "Total Donors", value: totalDonors.toString(), icon: "people" as const, color: "#f59e0b" },
-            { label: "Active Campaigns", value: activeCampaigns.toString(), icon: "megaphone" as const, color: "#ec4899" },
+            { label: "Total Raised", value: `$${totalRaised.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`, icon: "trending-up" as const, color: c.statusActive },
+            { label: "This Month", value: `$${monthRaised.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`, icon: "calendar" as const, color: c.indigoAccent },
+            { label: "Total Donors", value: totalDonors.toString(), icon: "people" as const, color: c.warningAmber },
+            { label: "Active Campaigns", value: activeCampaigns.toString(), icon: "megaphone" as const, color: c.pinkAccent },
           ].map((stat, i) => (
             <View key={i} style={[styles.statCard, { backgroundColor: c.cardBg }]}>
               <View style={[styles.statIcon, { backgroundColor: stat.color + "12" }]}>
@@ -285,9 +285,9 @@ export default function OrgDashboardHome() {
           campaigns.slice(0, 4).map((camp) => {
             const progress = camp.goal > 0 ? Math.min((camp.raised / camp.goal) * 100, 100) : 0;
             const statusColor =
-              camp.status === "active" ? "#10b981" :
-              camp.status === "paused" ? "#f59e0b" :
-              camp.status === "completed" ? "#6366f1" : c.textMuted;
+              camp.status === "active" ? c.statusActive :
+              camp.status === "paused" ? c.statusPaused :
+              camp.status === "completed" ? c.statusCompleted : c.textMuted;
             return (
               <View key={camp.id} style={[styles.campaignCard, { backgroundColor: c.cardBg }]}>
                 <View style={styles.campaignHeader}>
@@ -388,7 +388,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     marginTop: 16,
   },
-  upgradeBtnText: { fontFamily: "SpaceGrotesk_600SemiBold", fontSize: 14, color: "#2D9E6B" },
+  upgradeBtnText: { fontFamily: "SpaceGrotesk_600SemiBold", fontSize: 14 },
   quickActions: { flexDirection: "row", gap: 12, marginBottom: 20 },
   quickAction: {
     flex: 1,

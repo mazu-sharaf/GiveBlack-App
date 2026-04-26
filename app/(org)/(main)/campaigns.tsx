@@ -403,11 +403,11 @@ export default function CampaignsTab() {
   }
 
   const statusColors: Record<string, string> = {
-    active: "#10b981",
-    draft: "#94a3b8",
-    paused: "#f59e0b",
-    completed: "#6366f1",
-    pending_review: "#a855f7",
+    active: c.statusActive,
+    draft: c.statusDraft,
+    paused: c.statusPaused,
+    completed: c.statusCompleted,
+    pending_review: c.statusPending,
   };
 
   if (loading) {
@@ -528,24 +528,24 @@ export default function CampaignsTab() {
                 <Text style={[styles.progressPercent, { color: c.textMuted }]}>{progress.toFixed(0)}% funded</Text>
                 <View style={styles.campActions}>
                   {camp.status === "active" && (
-                    <Pressable style={[styles.actionChip, { borderColor: "#f59e0b" }]} onPress={() => updateStatus(camp.id, "paused")}>
-                      <Ionicons name="pause" size={14} color="#f59e0b" />
-                      <Text style={[styles.actionChipText, { color: "#f59e0b" }]}>Pause</Text>
+                    <Pressable style={[styles.actionChip, { borderColor: c.statusPaused }]} onPress={() => updateStatus(camp.id, "paused")}>
+                      <Ionicons name="pause" size={14} color={c.statusPaused} />
+                      <Text style={[styles.actionChipText, { color: c.statusPaused }]}>Pause</Text>
                     </Pressable>
                   )}
                   {camp.status === "paused" && (
-                    <Pressable style={[styles.actionChip, { borderColor: "#10b981" }]} onPress={() => updateStatus(camp.id, "active")}>
-                      <Ionicons name="play" size={14} color="#10b981" />
-                      <Text style={[styles.actionChipText, { color: "#10b981" }]}>Resume</Text>
+                    <Pressable style={[styles.actionChip, { borderColor: c.statusActive }]} onPress={() => updateStatus(camp.id, "active")}>
+                      <Ionicons name="play" size={14} color={c.statusActive} />
+                      <Text style={[styles.actionChipText, { color: c.statusActive }]}>Resume</Text>
                     </Pressable>
                   )}
                   <Pressable style={[styles.actionChip, { borderColor: c.border }]} onPress={() => openEdit(camp)}>
                     <Ionicons name="create-outline" size={14} color={c.textMuted} />
                     <Text style={[styles.actionChipText, { color: c.textMuted }]}>Edit</Text>
                   </Pressable>
-                  <Pressable style={[styles.actionChip, { borderColor: "#ef4444" }]} onPress={() => deleteCampaign(camp.id)}>
-                    <Ionicons name="trash-outline" size={14} color="#ef4444" />
-                    <Text style={[styles.actionChipText, { color: "#ef4444" }]}>Delete</Text>
+                  <Pressable style={[styles.actionChip, { borderColor: c.danger }]} onPress={() => deleteCampaign(camp.id)}>
+                    <Ionicons name="trash-outline" size={14} color={c.danger} />
+                    <Text style={[styles.actionChipText, { color: c.danger }]}>Delete</Text>
                   </Pressable>
                 </View>
               </Pressable>
@@ -728,8 +728,8 @@ export default function CampaignsTab() {
                   style={styles.removeImageBtn}
                   onPress={() => setForm((f) => ({ ...f, image_url: "" }))}
                 >
-                  <Ionicons name="close-circle" size={16} color="#ef4444" />
-                  <Text style={[styles.removeImageText, { color: "#ef4444" }]}>Remove image</Text>
+                  <Ionicons name="close-circle" size={16} color={c.danger} />
+                  <Text style={[styles.removeImageText, { color: c.danger }]}>Remove image</Text>
                 </Pressable>
               ) : null}
             </View>
@@ -770,7 +770,7 @@ export default function CampaignsTab() {
                           style={styles.galleryRemoveBtn}
                           onPress={() => removeGalleryImage(img.id)}
                         >
-                          <Ionicons name="close-circle" size={22} color="#ef4444" />
+                          <Ionicons name="close-circle" size={22} color={c.danger} />
                         </Pressable>
                       </View>
                     ))}

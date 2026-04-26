@@ -22,9 +22,8 @@ import { useTheme, useThemeColors } from "@/context/ThemeContext";
 import { useApp, type Category } from "@/context/AppContext";
 import { useAuth } from "@/context/AuthContext";
 
-/** When API has no per-category colors, match admin default (#059669). */
-const DEFAULT_CATEGORY_THEME = "#059669";
-const CATEGORY_ROW_BG_DARK = "#1C1C1E";
+/** When API has no per-category colors, match admin default. */
+const DEFAULT_CATEGORY_THEME = Colors.categoryDefaultAccent;
 
 function CategoryRow({ cat, index }: { cat: Category; index: number }) {
   const c = useThemeColors();
@@ -33,7 +32,7 @@ function CategoryRow({ cat, index }: { cat: Category; index: number }) {
   const animStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
 
   const iconLetter = (cat.name ? String(cat.name).trim().charAt(0) : "?").toUpperCase();
-  const rowBg = isDark ? CATEGORY_ROW_BG_DARK : c.cardBg;
+  const rowBg = c.cardBg;
   const rowBorder = isDark ? "rgba(255,255,255,0.06)" : c.border;
   const count = cat.count ?? 0;
   const iconBg = cat.iconBgColor || DEFAULT_CATEGORY_THEME;

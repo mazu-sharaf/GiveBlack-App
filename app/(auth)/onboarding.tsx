@@ -181,7 +181,7 @@ const styles = StyleSheet.create({
   slideTitle: {
     fontFamily: "SpaceGrotesk_700Bold",
     fontSize: 36,
-    color: "#FFFFFF",
+    color: Colors.white,
     lineHeight: 46,
     letterSpacing: -0.5,
   },

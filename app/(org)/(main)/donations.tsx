@@ -282,12 +282,12 @@ export default function DonationsTab() {
             <Text style={[styles.statLabel, { color: c.textMuted }]}>Total Raised</Text>
           </View>
           <View style={[styles.statCard, { backgroundColor: c.cardBg }]}>
-            <Ionicons name="people" size={20} color="#6366f1" />
+            <Ionicons name="people" size={20} color={c.indigoAccent} />
             <Text style={[styles.statValue, { color: c.text }]}>{donorCount}</Text>
             <Text style={[styles.statLabel, { color: c.textMuted }]}>Donors</Text>
           </View>
           <View style={[styles.statCard, { backgroundColor: c.cardBg }]}>
-            <Ionicons name="wallet" size={20} color="#f59e0b" />
+            <Ionicons name="wallet" size={20} color={c.warningAmber} />
             <Text style={[styles.statValue, { color: c.text }]}>
               ${avgDonation.toFixed(0)}
             </Text>

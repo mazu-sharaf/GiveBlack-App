@@ -12,6 +12,7 @@ import { router, useLocalSearchParams, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
+import Colors from "@/constants/colors";
 import { useThemeColors } from "@/context/ThemeContext";
 import { useApp, Organization } from "@/context/AppContext";
 import OrgAvatar from "@/components/OrgAvatar";
@@ -169,7 +170,7 @@ const styles = StyleSheet.create({
   orgInitials: {
     fontFamily: "SpaceGrotesk_700Bold",
     fontSize: 14,
-    color: "#FFFFFF",
+    color: Colors.white,
   },
   orgName: {
     flex: 1,

@@ -32,6 +32,38 @@ export interface ThemeColors {
   iconBgOrange: string;
   iconBgRed: string;
   iconBgGrey: string;
+  iconFgGreen: string;
+  iconFgBlue: string;
+  iconFgPurple: string;
+  iconFgOrange: string;
+  iconFgRed: string;
+  iconFgGrey: string;
+  danger: string;
+  warningAmber: string;
+  warningBg: string;
+  warningBorder: string;
+  warningText: string;
+  progressBarBg: string;
+  cancelPillBg: string;
+  cancelPillBorder: string;
+  cancelPillText: string;
+  statusActive: string;
+  statusDraft: string;
+  statusCompleted: string;
+  statusPaused: string;
+  statusPending: string;
+  indigoAccent: string;
+  pinkAccent: string;
+  heroBannerSubtext: string;
+  institutionalCardBg: string;
+  institutionalCardBorder: string;
+  institutionalCardDivider: string;
+  institutionalCardText: string;
+  institutionalCardTextMuted: string;
+  institutionalCardTextFaint: string;
+  planFreeAccent: string;
+  linkAccent: string;
+  categoryDefaultAccent: string;
 }
 
 export const lightTheme: ThemeColors = {
@@ -62,6 +94,38 @@ export const lightTheme: ThemeColors = {
   iconBgOrange: "#FFF3E0",
   iconBgRed: "#FFEBEE",
   iconBgGrey: "#F5F5F5",
+  iconFgGreen: "#2E7D32",
+  iconFgBlue: "#1565C0",
+  iconFgPurple: "#7B1FA2",
+  iconFgOrange: "#E65100",
+  iconFgRed: "#E53935",
+  iconFgGrey: "#666666",
+  danger: "#E53935",
+  warningAmber: "#F59E0B",
+  warningBg: "#FFF8E1",
+  warningBorder: "#FFE082",
+  warningText: "#7B6100",
+  progressBarBg: "#E8E8E8",
+  cancelPillBg: "#fef3c7",
+  cancelPillBorder: "#fde68a",
+  cancelPillText: "#92400e",
+  statusActive: "#10b981",
+  statusDraft: "#94a3b8",
+  statusCompleted: "#6366f1",
+  statusPaused: "#F59E0B",
+  statusPending: "#a855f7",
+  indigoAccent: "#6366f1",
+  pinkAccent: "#ec4899",
+  heroBannerSubtext: "#E3FCEF",
+  institutionalCardBg: "#111827",
+  institutionalCardBorder: "#1f2937",
+  institutionalCardDivider: "#374151",
+  institutionalCardText: "#ffffff",
+  institutionalCardTextMuted: "#9ca3af",
+  institutionalCardTextFaint: "#d1d5db",
+  planFreeAccent: "#64748b",
+  linkAccent: "#2563eb",
+  categoryDefaultAccent: "#059669",
 };
 
 export const darkTheme: ThemeColors = {
@@ -92,6 +156,38 @@ export const darkTheme: ThemeColors = {
   iconBgOrange: "#3D2A1B",
   iconBgRed: "#3D1515",
   iconBgGrey: "#2A2A2A",
+  iconFgGreen: "#4CAF50",
+  iconFgBlue: "#42A5F5",
+  iconFgPurple: "#CE93D8",
+  iconFgOrange: "#FFB74D",
+  iconFgRed: "#E53935",
+  iconFgGrey: "#666666",
+  danger: "#E53935",
+  warningAmber: "#F59E0B",
+  warningBg: "#2A2000",
+  warningBorder: "#5A4500",
+  warningText: "#F5C518",
+  progressBarBg: "#333333",
+  cancelPillBg: "#2D2500",
+  cancelPillBorder: "#5C4A00",
+  cancelPillText: "#FFC947",
+  statusActive: "#10b981",
+  statusDraft: "#94a3b8",
+  statusCompleted: "#6366f1",
+  statusPaused: "#F59E0B",
+  statusPending: "#a855f7",
+  indigoAccent: "#6366f1",
+  pinkAccent: "#ec4899",
+  heroBannerSubtext: "#E3FCEF",
+  institutionalCardBg: "#111827",
+  institutionalCardBorder: "#1f2937",
+  institutionalCardDivider: "#374151",
+  institutionalCardText: "#ffffff",
+  institutionalCardTextMuted: "#9ca3af",
+  institutionalCardTextFaint: "#d1d5db",
+  planFreeAccent: "#64748b",
+  linkAccent: "#60a5fa",
+  categoryDefaultAccent: "#059669",
 };
 
 const Colors = {
@@ -116,6 +212,11 @@ const Colors = {
   successBg: "#E8F5E9",
   errorBg: "#FFEBEE",
   sliderInactive: "#8C8C8C",
+  danger: "#E53935",
+  planFreeAccent: "#64748b",
+  planInstitutionalAccent: "#1a1a2e",
+  linkAccent: "#60a5fa",
+  categoryDefaultAccent: "#059669",
   light: {
     text: BLACK,
     background: CREAM,
