@@ -170,13 +170,25 @@ export const oauthRoutes: FastifyPluginAsync = async (app) => {
 
       // Decode header/claims first so we can log useful context on failure
       const decoded = jose.decodeJwt(body.identityToken);
-      app.log.info({ aud: decoded.aud, iss: decoded.iss, sub: decoded.sub, exp: decoded.exp }, "apple token claims");
+      const tokenAud = Array.isArray(decoded.aud) ? decoded.aud[0] : decoded.aud;
+      app.log.info({ aud: tokenAud, iss: decoded.iss, sub: decoded.sub, exp: decoded.exp }, "apple token claims");
 
-      // Accept both the bundle ID and the Services ID (web) if configured.
-      // clockTolerance handles minor clock skew between client and server.
+      // Accepted audiences:
+      // 1. The configured bundle ID (com.giveblack.app) — production / EAS native builds
+      // 2. host.exp.Exponent — Expo Go development testing (different Apple sub from native build)
+      const acceptedAudiences = [env.APPLE_CLIENT_ID, "host.exp.Exponent"].filter(Boolean) as string[];
+      const matchingAudience = acceptedAudiences.find((aud) => aud === tokenAud);
+      if (!matchingAudience) {
+        app.log.error({ tokenAud, acceptedAudiences }, "apple aud mismatch");
+        return reply.code(401).send({
+          error: `Apple token audience mismatch — token has "${tokenAud}", server accepts: ${acceptedAudiences.join(", ")}`,
+        });
+      }
+
+      // Verify with the actual audience from the token so jose doesn't reject it
       const { payload } = await jose.jwtVerify(body.identityToken, JWKS, {
         issuer: "https://appleid.apple.com",
-        audience: env.APPLE_CLIENT_ID,
+        audience: matchingAudience,
         clockTolerance: "5m",
       });
       const sub = typeof payload.sub === "string" ? payload.sub : "";
@@ -188,10 +200,6 @@ export const oauthRoutes: FastifyPluginAsync = async (app) => {
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
       app.log.error({ err: e, clientId: env.APPLE_CLIENT_ID }, `apple oauth verify failed: ${msg}`);
-      // Surface a more specific message for audience mismatch to aid debugging
-      if (msg.includes("audience") || msg.includes("aud")) {
-        return reply.code(401).send({ error: `Apple token audience mismatch — server expects: ${env.APPLE_CLIENT_ID}` });
-      }
       return reply.code(401).send({ error: "Invalid or expired Apple token" });
     }
   });
