@@ -242,19 +242,6 @@ export default function DonateScreen() {
         <AppHeader showBack title="Donate" showSearch={false} />
         <View style={styles.authGateWrap}>
           <View style={[styles.authGateCard, { backgroundColor: c.cardBg }]}>
-            <Text style={[styles.authGateHeading, { color: c.text }]}>
-              Create a free account to donate
-            </Text>
-            <Text style={[styles.authGateBody, { color: c.textMuted }]}>
-              {suggestedAmount
-                ? `Give $${suggestedAmount.toFixed(2)} to `
-                : "You're one step away from supporting "}
-              <Text style={{ color: c.text, fontFamily: "SpaceGrotesk_600SemiBold" }}>{org.name}</Text>
-              {suggestedAmount
-                ? " — create a free account to complete your donation."
-                : ". It's free and takes 30 seconds."}
-            </Text>
-
             {!showGuestEmailForm ? (
               <>
                 <Text style={[styles.authGateHeading, { color: c.text }]}>
@@ -276,6 +263,8 @@ export default function DonateScreen() {
                     const qp = new URLSearchParams();
                     if (campaignId) qp.set("campaignId", campaignId);
                     if (suggestedAmount) qp.set("amount", String(suggestedAmount));
+                    const rawPartner = Array.isArray(partnerParam) ? partnerParam[0] : partnerParam;
+                    if (rawPartner) qp.set("partner", rawPartner);
                     const qs = qp.toString();
                     const returnTo = `/donate/${orgId}${qs ? `?${qs}` : ""}`;
                     await saveDonationIntent({ orgId, campaignId, amount: suggestedAmount ?? undefined });
@@ -291,6 +280,8 @@ export default function DonateScreen() {
                     const qp = new URLSearchParams();
                     if (campaignId) qp.set("campaignId", campaignId);
                     if (suggestedAmount) qp.set("amount", String(suggestedAmount));
+                    const rawPartner = Array.isArray(partnerParam) ? partnerParam[0] : partnerParam;
+                    if (rawPartner) qp.set("partner", rawPartner);
                     const qs = qp.toString();
                     const returnTo = `/donate/${orgId}${qs ? `?${qs}` : ""}`;
                     await saveDonationIntent({ orgId, campaignId, amount: suggestedAmount ?? undefined });
