@@ -1,5 +1,4 @@
 import React, { useState, useCallback } from "react";
-import { useFocusEffect } from "@react-navigation/native";
 import {
   View,
   Text,
@@ -15,7 +14,7 @@ import { useThemeColors } from "@/context/ThemeContext";
 import { useAuth } from "@/context/AuthContext";
 import { donorDisplayName } from "@/lib/donor-display";
 import { Ionicons } from "@expo/vector-icons";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 
 interface SubData {
   org_id: string | null;
@@ -225,7 +224,7 @@ export default function OrgDashboardHome() {
               style={styles.upgradeBtn}
               onPress={() => router.push("/(org)/subscriptions")}
             >
-              <Text style={styles.upgradeBtnText}>Upgrade Plan</Text>
+              <Text style={[styles.upgradeBtnText, { color: c.green }]}>Upgrade Plan</Text>
               <Ionicons name="arrow-forward" size={14} color={c.green} />
             </Pressable>
           )}
@@ -245,8 +244,8 @@ export default function OrgDashboardHome() {
             style={[styles.quickAction, { backgroundColor: c.cardBg, borderColor: c.border }]}
             onPress={() => router.push("/(org)/donations")}
           >
-            <View style={[styles.quickActionIcon, { backgroundColor: "#6366f115" }]}>
-              <Ionicons name="analytics" size={22} color="#6366f1" />
+            <View style={[styles.quickActionIcon, { backgroundColor: c.indigoAccent + "15" }]}>
+              <Ionicons name="analytics" size={22} color={c.indigoAccent} />
             </View>
             <Text style={[styles.quickActionText, { color: c.text }]}>View Analytics</Text>
           </Pressable>
@@ -254,10 +253,10 @@ export default function OrgDashboardHome() {
 
         <View style={styles.statsGrid}>
           {[
-            { label: "Total Raised", value: `$${totalRaised.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`, icon: "trending-up" as const, color: "#10b981" },
-            { label: "This Month", value: `$${monthRaised.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`, icon: "calendar" as const, color: "#6366f1" },
-            { label: "Total Donors", value: totalDonors.toString(), icon: "people" as const, color: "#f59e0b" },
-            { label: "Active Campaigns", value: activeCampaigns.toString(), icon: "megaphone" as const, color: "#ec4899" },
+            { label: "Total Raised", value: `$${totalRaised.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`, icon: "trending-up" as const, color: c.statusActive },
+            { label: "This Month", value: `$${monthRaised.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`, icon: "calendar" as const, color: c.indigoAccent },
+            { label: "Total Donors", value: totalDonors.toString(), icon: "people" as const, color: c.warningAmber },
+            { label: "Active Campaigns", value: activeCampaigns.toString(), icon: "megaphone" as const, color: c.pinkAccent },
           ].map((stat, i) => (
             <View key={i} style={[styles.statCard, { backgroundColor: c.cardBg }]}>
               <View style={[styles.statIcon, { backgroundColor: stat.color + "12" }]}>
@@ -286,9 +285,9 @@ export default function OrgDashboardHome() {
           campaigns.slice(0, 4).map((camp) => {
             const progress = camp.goal > 0 ? Math.min((camp.raised / camp.goal) * 100, 100) : 0;
             const statusColor =
-              camp.status === "active" ? "#10b981" :
-              camp.status === "paused" ? "#f59e0b" :
-              camp.status === "completed" ? "#6366f1" : c.textMuted;
+              camp.status === "active" ? c.statusActive :
+              camp.status === "paused" ? c.statusPaused :
+              camp.status === "completed" ? c.statusCompleted : c.textMuted;
             return (
               <View key={camp.id} style={[styles.campaignCard, { backgroundColor: c.cardBg }]}>
                 <View style={styles.campaignHeader}>
@@ -346,8 +345,8 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   content: { paddingHorizontal: 20 },
   welcomeSection: { marginTop: 12, marginBottom: 20 },
-  welcomeText: { fontFamily: "Poppins_400Regular", fontSize: 14 },
-  orgName: { fontFamily: "Poppins_700Bold", fontSize: 26, marginTop: 2 },
+  welcomeText: { fontFamily: "SpaceGrotesk_400Regular", fontSize: 14 },
+  orgName: { fontFamily: "SpaceGrotesk_700Bold", fontSize: 26, marginTop: 2 },
   planCard: {
     borderRadius: 20,
     padding: 20,
@@ -358,8 +357,8 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "flex-start",
   },
-  planLabel: { fontFamily: "Poppins_400Regular", fontSize: 13, color: "rgba(255,255,255,0.7)" },
-  planTier: { fontFamily: "Poppins_700Bold", fontSize: 24, color: "#fff", marginTop: 2 },
+  planLabel: { fontFamily: "SpaceGrotesk_400Regular", fontSize: 13, color: "rgba(255,255,255,0.7)" },
+  planTier: { fontFamily: "SpaceGrotesk_700Bold", fontSize: 24, color: "#fff", marginTop: 2 },
   planBadge: {
     flexDirection: "row",
     alignItems: "center",
@@ -369,15 +368,15 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 12,
   },
-  planBadgeText: { fontFamily: "Poppins_500Medium", fontSize: 12, color: "#fff", textTransform: "capitalize" },
+  planBadgeText: { fontFamily: "SpaceGrotesk_500Medium", fontSize: 12, color: "#fff", textTransform: "capitalize" },
   planStats: {
     flexDirection: "row",
     marginTop: 20,
     gap: 0,
   },
   planStat: { flex: 1, alignItems: "center" },
-  planStatValue: { fontFamily: "Poppins_700Bold", fontSize: 20, color: "#fff" },
-  planStatLabel: { fontFamily: "Poppins_400Regular", fontSize: 11, color: "rgba(255,255,255,0.7)", marginTop: 2 },
+  planStatValue: { fontFamily: "SpaceGrotesk_700Bold", fontSize: 20, color: "#fff" },
+  planStatLabel: { fontFamily: "SpaceGrotesk_400Regular", fontSize: 11, color: "rgba(255,255,255,0.7)", marginTop: 2 },
   planDivider: { width: 1, height: 36, alignSelf: "center" },
   upgradeBtn: {
     flexDirection: "row",
@@ -389,7 +388,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     marginTop: 16,
   },
-  upgradeBtnText: { fontFamily: "Poppins_600SemiBold", fontSize: 14, color: "#2D9E6B" },
+  upgradeBtnText: { fontFamily: "SpaceGrotesk_600SemiBold", fontSize: 14 },
   quickActions: { flexDirection: "row", gap: 12, marginBottom: 20 },
   quickAction: {
     flex: 1,
@@ -407,7 +406,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  quickActionText: { fontFamily: "Poppins_600SemiBold", fontSize: 13, flex: 1 },
+  quickActionText: { fontFamily: "SpaceGrotesk_600SemiBold", fontSize: 13, flex: 1 },
   statsGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -428,24 +427,24 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginBottom: 10,
   },
-  statValue: { fontFamily: "Poppins_700Bold", fontSize: 22 },
-  statLabel: { fontFamily: "Poppins_400Regular", fontSize: 12, marginTop: 2 },
+  statValue: { fontFamily: "SpaceGrotesk_700Bold", fontSize: 22 },
+  statLabel: { fontFamily: "SpaceGrotesk_400Regular", fontSize: 12, marginTop: 2 },
   sectionHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: 12,
   },
-  sectionTitle: { fontFamily: "Poppins_600SemiBold", fontSize: 18 },
-  seeAll: { fontFamily: "Poppins_500Medium", fontSize: 13 },
+  sectionTitle: { fontFamily: "SpaceGrotesk_600SemiBold", fontSize: 18 },
+  seeAll: { fontFamily: "SpaceGrotesk_500Medium", fontSize: 13 },
   emptyCard: {
     borderRadius: 16,
     padding: 32,
     alignItems: "center",
     marginBottom: 16,
   },
-  emptyText: { fontFamily: "Poppins_600SemiBold", fontSize: 15, marginTop: 12 },
-  emptySubtext: { fontFamily: "Poppins_400Regular", fontSize: 13, marginTop: 4, textAlign: "center" },
+  emptyText: { fontFamily: "SpaceGrotesk_600SemiBold", fontSize: 15, marginTop: 12 },
+  emptySubtext: { fontFamily: "SpaceGrotesk_400Regular", fontSize: 13, marginTop: 4, textAlign: "center" },
   campaignCard: {
     borderRadius: 16,
     padding: 16,
@@ -457,16 +456,16 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 8,
   },
-  campaignTitle: { fontFamily: "Poppins_600SemiBold", fontSize: 15, flex: 1, marginRight: 8 },
+  campaignTitle: { fontFamily: "SpaceGrotesk_600SemiBold", fontSize: 15, flex: 1, marginRight: 8 },
   statusBadge: {
     paddingHorizontal: 10,
     paddingVertical: 3,
     borderRadius: 8,
   },
-  statusText: { fontFamily: "Poppins_500Medium", fontSize: 11, textTransform: "capitalize" },
+  statusText: { fontFamily: "SpaceGrotesk_500Medium", fontSize: 11, textTransform: "capitalize" },
   campaignAmounts: { flexDirection: "row", alignItems: "baseline", marginBottom: 8 },
-  raisedAmount: { fontFamily: "Poppins_700Bold", fontSize: 18 },
-  goalAmount: { fontFamily: "Poppins_400Regular", fontSize: 13 },
+  raisedAmount: { fontFamily: "SpaceGrotesk_700Bold", fontSize: 18 },
+  goalAmount: { fontFamily: "SpaceGrotesk_400Regular", fontSize: 13 },
   progressTrack: {
     height: 6,
     borderRadius: 3,
@@ -491,7 +490,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  donorName: { fontFamily: "Poppins_500Medium", fontSize: 14 },
-  donationDate: { fontFamily: "Poppins_400Regular", fontSize: 12, marginTop: 1 },
-  donationAmount: { fontFamily: "Poppins_700Bold", fontSize: 16 },
+  donorName: { fontFamily: "SpaceGrotesk_500Medium", fontSize: 14 },
+  donationDate: { fontFamily: "SpaceGrotesk_400Regular", fontSize: 12, marginTop: 1 },
+  donationAmount: { fontFamily: "SpaceGrotesk_700Bold", fontSize: 16 },
 });

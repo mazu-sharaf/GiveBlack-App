@@ -3,29 +3,26 @@ import Constants from "expo-constants";
 import { registerDevicePushToken } from "@/lib/query-client";
 
 const isExpoGo = Constants.executionEnvironment === "storeClient";
-const isAndroidExpoGo = Platform.OS === "android" && isExpoGo;
 
 let Notifications: typeof import("expo-notifications") | null = null;
 let Device: typeof import("expo-device") | null = null;
 
-if (!isAndroidExpoGo) {
-  try {
-    Notifications = require("expo-notifications");
-    Device = require("expo-device");
+try {
+  Notifications = require("expo-notifications");
+  Device = require("expo-device");
 
-    if (Notifications) {
-      Notifications.setNotificationHandler({
-        handleNotification: async () =>
-          ({
-            shouldShowAlert: true,
-            shouldPlaySound: true,
-            shouldSetBadge: true,
-          }) as any,
-      });
-    }
-  } catch (e) {
-    console.log("expo-notifications not available:", e);
+  if (Notifications) {
+    Notifications.setNotificationHandler({
+      handleNotification: async () =>
+        ({
+          shouldShowAlert: true,
+          shouldPlaySound: true,
+          shouldSetBadge: true,
+        }) as any,
+    });
   }
+} catch (e) {
+  console.log("expo-notifications not available:", e);
 }
 
 /** Android notification channels (ids must match server push payload channelId when set). */
@@ -36,21 +33,25 @@ export async function ensureAndroidNotificationChannels(): Promise<void> {
     name: "General",
     importance: Notifications.AndroidImportance.MAX,
     vibrationPattern: [0, 250, 250, 250],
+    sound: "default",
   });
   await Notifications.setNotificationChannelAsync("donations", {
     name: "Donations",
     importance: ch,
     description: "Donation receipts and new gifts to your organization",
+    sound: "default",
   });
   await Notifications.setNotificationChannelAsync("campaigns", {
     name: "Campaigns",
     importance: ch,
     description: "New campaigns and when your campaign goes live",
+    sound: "default",
   });
   await Notifications.setNotificationChannelAsync("volunteers", {
     name: "Volunteers",
     importance: ch,
     description: "Volunteer signups for your organization",
+    sound: "default",
   });
 }
 
@@ -62,6 +63,12 @@ export async function registerPushTokenWithAuth(accessToken: string): Promise<st
   if (Platform.OS === "web" || !Notifications || !Device) return null;
 
   if (!Device.isDevice) {
+    console.log("[push] Skipping push registration — not a physical device");
+    return null;
+  }
+
+  if (isExpoGo) {
+    console.log("[push] Skipping remote push registration — Expo Go does not support remote/background push notifications (SDK 53+). Build a development build via EAS to enable push.");
     return null;
   }
 
@@ -75,12 +82,17 @@ export async function registerPushTokenWithAuth(accessToken: string): Promise<st
     }
 
     if (finalStatus !== "granted") {
+      console.log("[push] Permission not granted");
       return null;
     }
 
     await ensureAndroidNotificationChannels();
 
-    const tokenData = await Notifications.getExpoPushTokenAsync();
+    const projectId =
+      Constants.expoConfig?.extra?.eas?.projectId as string | undefined;
+    const tokenData = await Notifications.getExpoPushTokenAsync(
+      projectId ? { projectId } : undefined
+    );
     const token = tokenData.data;
     if (!token) return null;
 

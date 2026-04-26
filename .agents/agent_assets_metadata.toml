@@ -1,5 +1,22 @@
 uploads = []
-generated = []
+
+[[generated]]
+id = "B0B5NPvBk9Pq270PHSFB2"
+uri = "file://assets/images/onboarding-slide-1.png"
+type = "image"
+title = "community giving"
+
+[[generated]]
+id = "_cvS5LG2vqdc7urjEYMRs"
+uri = "file://assets/images/onboarding-slide-2.png"
+type = "image"
+title = "education impact"
+
+[[generated]]
+id = "75B8WbPtRsDFCJ5Yd78Ph"
+uri = "file://assets/images/onboarding-slide-3.png"
+type = "image"
+title = "empowerment"
 
 [[outputs]]
 id = "qeXUmi93-xiUfGBcxDoGZ"

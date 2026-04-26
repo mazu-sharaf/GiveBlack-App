@@ -10,9 +10,8 @@ import {
   RefreshControl,
   useWindowDimensions,
 } from "react-native";
-import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { Image } from "expo-image";
-import { router } from "expo-router";
+import { router, useNavigation, useFocusEffect } from "expo-router";
 import { useSafeInsets } from "@/lib/safe-area";
 import { Ionicons } from "@expo/vector-icons";
 import Animated from "react-native-reanimated";
@@ -22,16 +21,16 @@ import { useApp } from "@/context/AppContext";
 import { useAuth } from "@/context/AuthContext";
 import { getPreferredDisplayName } from "@/lib/user-display";
 
-const PADDING_H = 20;
-
 import { getCampaignImage } from "@/constants/images";
 import HeroSection from "@/components/ui/HeroSection";
 import SummaryCard from "@/components/ui/SummaryCard";
 import SearchBar from "@/components/ui/SearchBar";
 import CampaignCard from "@/components/ui/CampaignCard";
 
+const PADDING_H = 20;
+
 export default function HomeScreen() {
-  const navigation = useNavigation<any>();
+  const navigation = useNavigation();
   const {
     totalDonated,
     organizations,
@@ -44,7 +43,7 @@ export default function HomeScreen() {
     refresh,
     userProfile,
   } = useApp();
-  const { user, isGuest, logout, guestLogin, avatarUrl, donationSummary } = useAuth();
+  const { user, logout, guestLogin, avatarUrl, donationSummary } = useAuth();
   const insets = useSafeInsets();
   const c = useThemeColors();
   const { width: screenWidth } = useWindowDimensions();
@@ -182,11 +181,11 @@ export default function HomeScreen() {
         <HeroSection>
           <View style={styles.heroHeaderRow}>
             <View>
-              <Text style={[styles.heroGreeting, { color: "#FFFFFF" }]}>
-                Good {new Date().getHours() < 12 ? "morning" : "evening"},{" "}
+              <Text style={[styles.heroGreeting, { color: Colors.white }]}>
+                {(() => { const h = new Date().getHours(); return h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : h < 21 ? "Good evening" : "Good night"; })()},{" "}
                 {firstName}
               </Text>
-              <Text style={[styles.heroSub, { color: "#E3FCEF" }]}>
+              <Text style={[styles.heroSub, { color: c.heroBannerSubtext }]}>
                 Thank you for supporting Black philanthropy
               </Text>
             </View>
@@ -212,28 +211,12 @@ export default function HomeScreen() {
         </HeroSection>
 
         {isOffline && (
-          <View style={styles.offlineBanner}>
-            <Ionicons name="cloud-offline-outline" size={14} color="#7B6100" />
-            <Text style={styles.offlineText}>Offline - Showing saved data</Text>
+          <View style={[styles.offlineBanner, { backgroundColor: c.warningBg, borderColor: c.warningBorder }]}>
+            <Ionicons name="cloud-offline-outline" size={14} color={c.warningText} />
+            <Text style={[styles.offlineText, { color: c.warningText }]}>Offline - Showing saved data</Text>
           </View>
         )}
 
-        {isGuest && (
-          <Pressable
-            style={[styles.guestBanner, { backgroundColor: c.green + "15", borderColor: c.green + "40" }]}
-            onPress={async () => {
-              await logout();
-              router.replace('/(auth)/welcome');
-            }}
-          >
-            <Ionicons name="person-add-outline" size={20} color={c.green} />
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.guestBannerTitle, { color: c.text }]}>Create Your Account</Text>
-              <Text style={[styles.guestBannerDesc, { color: c.textMuted }]}>Sign up to donate, save favorites, and track your impact</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={18} color={c.green} />
-          </Pressable>
-        )}
 
         {isEmpty && !isOffline && (
           <View style={[styles.emptyState, { backgroundColor: c.cardBg }]}>
@@ -273,7 +256,7 @@ export default function HomeScreen() {
 
         <View style={styles.sectionHeader}>
           <Text style={[styles.sectionTitle, { color: c.text }]}>Categories</Text>
-          <Pressable onPress={() => router.push("/(tabs)/categories")}>
+          <Pressable onPress={() => router.push("/categories")}>
             <Text style={[styles.seeAll, { color: c.green }]}>See all</Text>
           </Pressable>
         </View>
@@ -338,7 +321,7 @@ export default function HomeScreen() {
                     <Ionicons
                       name={isFavorite(camp.id) ? "heart" : "heart-outline"}
                       size={14}
-                      color={isFavorite(camp.id) ? c.green : "#FFFFFF"}
+                      color={isFavorite(camp.id) ? c.green : Colors.white}
                     />
                   </Pressable>
                 </View>
@@ -402,7 +385,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   avatarText: {
-    fontFamily: "Poppins_700Bold",
+    fontFamily: "SpaceGrotesk_700Bold",
     fontSize: 18,
     color: Colors.white,
   },
@@ -412,16 +395,16 @@ const styles = StyleSheet.create({
     borderRadius: 22,
   },
   profileName: {
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 16,
   },
   profileEmail: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 12,
     marginTop: 2,
   },
   profileRank: {
-    fontFamily: "Poppins_500Medium",
+    fontFamily: "SpaceGrotesk_500Medium",
     fontSize: 12,
     marginTop: 2,
   },
@@ -432,7 +415,7 @@ const styles = StyleSheet.create({
     marginLeft: 12,
   },
   profileImpactText: {
-    fontFamily: "Poppins_500Medium",
+    fontFamily: "SpaceGrotesk_500Medium",
     fontSize: 13,
   },
   heroHeaderRow: {
@@ -441,26 +424,26 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   heroGreeting: {
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 18,
   },
   heroSub: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 12,
     marginTop: 4,
   },
   greeting: {
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 16,
     color: Colors.primary,
   },
   donatedLabel: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 12,
     color: Colors.textMuted,
   },
   donatedAmount: {
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     color: Colors.green,
   },
   headerRight: {
@@ -488,7 +471,7 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: "#FF3B30",
+    backgroundColor: Colors.danger,
     borderWidth: 1.5,
     borderColor: Colors.white,
   },
@@ -506,13 +489,13 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   walletLabel: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 13,
     color: "rgba(255,255,255,0.8)",
     marginBottom: 4,
   },
   walletBalance: {
-    fontFamily: "Poppins_700Bold",
+    fontFamily: "SpaceGrotesk_700Bold",
     fontSize: 36,
     color: Colors.white,
     lineHeight: 42,
@@ -539,7 +522,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   topUpText: {
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 12,
     color: Colors.green,
   },
@@ -551,12 +534,12 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   sectionTitle: {
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 18,
     color: Colors.primary,
   },
   seeAll: {
-    fontFamily: "Poppins_500Medium",
+    fontFamily: "SpaceGrotesk_500Medium",
     fontSize: 13,
     color: Colors.green,
   },
@@ -599,20 +582,19 @@ const styles = StyleSheet.create({
     padding: 14,
   },
   featuredName: {
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 14,
     color: Colors.primary,
     marginBottom: 2,
   },
   featuredOrg: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 12,
     color: Colors.textMuted,
     marginBottom: 10,
   },
   progressBar: {
     height: 6,
-    backgroundColor: "#E8E8E8",
     borderRadius: 3,
     marginBottom: 8,
     overflow: "hidden",
@@ -627,12 +609,12 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   featuredPct: {
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 12,
     color: Colors.green,
   },
   featuredDonors: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 12,
     color: Colors.textMuted,
   },
@@ -649,7 +631,7 @@ const styles = StyleSheet.create({
     borderColor: Colors.border,
   },
   categoryPillText: {
-    fontFamily: "Poppins_500Medium",
+    fontFamily: "SpaceGrotesk_500Medium",
     fontSize: 13,
     color: Colors.primary,
   },
@@ -689,7 +671,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   latestName: {
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 12,
     color: Colors.primary,
     paddingHorizontal: 10,
@@ -698,7 +680,6 @@ const styles = StyleSheet.create({
   },
   progressBarSmall: {
     height: 4,
-    backgroundColor: "#E8E8E8",
     borderRadius: 2,
     marginHorizontal: 10,
     marginTop: 8,
@@ -711,7 +692,7 @@ const styles = StyleSheet.create({
     borderRadius: 2,
   },
   latestPct: {
-    fontFamily: "Poppins_500Medium",
+    fontFamily: "SpaceGrotesk_500Medium",
     fontSize: 11,
     color: Colors.green,
     paddingHorizontal: 10,
@@ -728,46 +709,24 @@ const styles = StyleSheet.create({
     flex: 1,
     marginLeft: 8,
     paddingRight: 12,
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
   },
   offlineBanner: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 6,
-    backgroundColor: "#FFF8E1",
     borderRadius: 10,
     paddingVertical: 8,
     paddingHorizontal: 14,
     marginBottom: 4,
     borderWidth: 1,
-    borderColor: "#FFE082",
   },
   offlineText: {
-    fontFamily: "Poppins_500Medium",
+    fontFamily: "SpaceGrotesk_500Medium",
     fontSize: 12,
-    color: "#7B6100",
   },
-  guestBanner: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    marginHorizontal: 20,
-    marginBottom: 12,
-    padding: 16,
-    borderRadius: 14,
-    borderWidth: 1,
-  },
-  guestBannerTitle: {
-    fontFamily: "Poppins_600SemiBold",
-    fontSize: 14,
-  },
-  guestBannerDesc: {
-    fontFamily: "Poppins_400Regular",
-    fontSize: 12,
-    lineHeight: 17,
-    marginTop: 2,
-  },
+
   emptyState: {
     alignItems: "center",
     margin: 20,
@@ -776,11 +735,11 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   emptyStateTitle: {
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 18,
   },
   emptyStateDesc: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 14,
     textAlign: "center",
     lineHeight: 20,

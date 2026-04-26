@@ -14,7 +14,7 @@ import {
   FlatList,
 } from "react-native";
 import * as WebBrowser from "expo-web-browser";
-import { useFocusEffect } from "@react-navigation/native";
+import * as Linking from "expo-linking";
 import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
 import { useSafeInsets } from "@/lib/safe-area";
@@ -22,7 +22,7 @@ import { useTheme, useThemeColors } from "@/context/ThemeContext";
 import { useAuth } from "@/context/AuthContext";
 import { getApiUrl } from "@/lib/query-client";
 import { Ionicons } from "@expo/vector-icons";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import Colors from "@/constants/colors";
 
 type CategoryOption = { id: string; name: string };
@@ -38,7 +38,9 @@ export default function SettingsTab() {
   const [orgUrl, setOrgUrl] = useState(user?.charityUrl || "");
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [orgImageUrl, setOrgImageUrl] = useState<string | null>(null);
+  const [orgCoverUrl, setOrgCoverUrl] = useState<string | null>(null);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [uploadingCover, setUploadingCover] = useState(false);
   const [categories, setCategories] = useState<CategoryOption[]>([]);
   const [categoriesLoading, setCategoriesLoading] = useState(true);
   const [categoryModalVisible, setCategoryModalVisible] = useState(false);
@@ -56,6 +58,7 @@ export default function SettingsTab() {
   const [connectBusy, setConnectBusy] = useState(false);
 
   const base = getApiUrl().replace(/\/$/, "");
+  const stripeRedirectUri = Linking.createURL("org-stripe");
 
   const loadOrgProfile = useCallback(async () => {
     if (!session) return;
@@ -74,6 +77,7 @@ export default function SettingsTab() {
           setRoutingNumber(String(data.org.routing_number ?? ""));
           setAccountLast4(String(data.org.account_last4 ?? ""));
           setTaxId(String(data.org.tax_id ?? ""));
+          setOrgCoverUrl(data.org.cover_image_url ? String(data.org.cover_image_url) : null);
         }
         if (data.org?.image_url) {
           setOrgImageUrl(data.org.image_url);
@@ -146,8 +150,14 @@ export default function SettingsTab() {
         Alert.alert("Stripe", json.error || "Could not start Stripe onboarding.");
         return;
       }
-      if (json.url) await WebBrowser.openBrowserAsync(json.url);
-      await loadConnectStatus();
+      if (json.url) {
+        const r = await WebBrowser.openAuthSessionAsync(json.url, stripeRedirectUri);
+        if (r.type === "success") {
+          // Sync immediately (webhooks may lag), then refresh status UI
+          await fetchWithAuth("/api/org/connect/sync", { method: "POST" }).catch(() => {});
+          await loadConnectStatus();
+        }
+      }
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Something went wrong";
       Alert.alert("Stripe", msg);
@@ -254,6 +264,93 @@ export default function SettingsTab() {
   ];
 
   const resolvedOrgImage = resolveImageUrl(orgImageUrl);
+  const resolvedCoverImage = resolveImageUrl(orgCoverUrl);
+
+  async function pickCoverImage() {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [16, 9],
+      quality: 0.85,
+    });
+
+    if (result.canceled || !result.assets?.length) return;
+
+    if (!session) {
+      Alert.alert("Sign in required", "Please sign in to upload a cover image.");
+      return;
+    }
+
+    const asset = result.assets[0];
+    setUploadingCover(true);
+
+    try {
+      const formData = new FormData();
+
+      if (Platform.OS === "web") {
+        const response = await fetch(asset.uri);
+        const blob = await response.blob();
+        formData.append("file", blob, `cover.${asset.uri.split(".").pop() || "jpg"}`);
+      } else {
+        const uri = asset.uri;
+        const ext = uri.split(".").pop() || "jpg";
+        formData.append("file", {
+          uri,
+          name: `cover.${ext}`,
+          type: asset.mimeType || `image/${ext}`,
+        } as any);
+      }
+
+      const uploadRes = await fetchWithAuth("/api/upload/image", { method: "POST", body: formData });
+      if (!uploadRes.ok) {
+        const err = await uploadRes.json().catch(() => ({}));
+        Alert.alert("Upload Failed", (err as { error?: string }).error || "Could not upload image");
+        return;
+      }
+      const uploadJson = (await uploadRes.json()) as { url?: string };
+      const url = String(uploadJson.url || "").trim();
+      if (!url) {
+        Alert.alert("Upload Failed", "Upload did not return a valid URL.");
+        return;
+      }
+
+      const saveRes = await fetchWithAuth("/api/org/cover-image", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cover_image_url: url }),
+      });
+      if (!saveRes.ok) {
+        const err = await saveRes.json().catch(() => ({}));
+        Alert.alert("Error", (err as { error?: string }).error || "Image uploaded but failed to update cover image.");
+        return;
+      }
+      setOrgCoverUrl(url);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Something went wrong while uploading";
+      Alert.alert("Error", msg);
+    } finally {
+      setUploadingCover(false);
+    }
+  }
+
+  async function removeCoverImage() {
+    if (!session) return;
+    setUploadingCover(true);
+    try {
+      const res = await fetchWithAuth("/api/org/cover-image", { method: "DELETE" });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        Alert.alert("Error", (err as { error?: string }).error || "Could not remove cover image.");
+        return;
+      }
+      setOrgCoverUrl(null);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Could not remove cover image";
+      Alert.alert("Error", msg);
+    } finally {
+      setUploadingCover(false);
+    }
+  }
 
   async function handleSaveProfile() {
     if (!session) {
@@ -354,6 +451,54 @@ export default function SettingsTab() {
           </View>
         </View>
 
+        <Text style={[styles.sectionLabel, { color: c.textMuted }]}>COVER IMAGE (OPTIONAL)</Text>
+        <View style={[styles.card, { backgroundColor: c.cardBg }]}>
+          <Pressable
+            onPress={pickCoverImage}
+            disabled={uploadingCover}
+            style={[styles.coverUpload, { borderColor: c.border, backgroundColor: c.inputBg }]}
+          >
+            {resolvedCoverImage ? (
+              <Image
+                source={{ uri: resolvedCoverImage }}
+                style={styles.coverImage}
+                contentFit="cover"
+                cachePolicy="memory-disk"
+                transition={200}
+              />
+            ) : (
+              <View style={styles.coverPlaceholder}>
+                <Ionicons name="image-outline" size={22} color={c.textMuted} />
+                <Text style={[styles.coverHint, { color: c.textMuted }]}>
+                  {uploadingCover ? "Uploading…" : "Tap to upload cover image"}
+                </Text>
+              </View>
+            )}
+            {uploadingCover ? (
+              <View style={[styles.coverBusyPill, { backgroundColor: c.green }]}>
+                <ActivityIndicator size={12} color="#fff" />
+                <Text style={styles.coverBusyText}>Uploading</Text>
+              </View>
+            ) : null}
+          </Pressable>
+
+          {resolvedCoverImage ? (
+            <Pressable
+              onPress={() => {
+                Alert.alert("Remove cover image?", "This will remove your organization cover image.", [
+                  { text: "Cancel", style: "cancel" },
+                  { text: "Remove", style: "destructive", onPress: () => void removeCoverImage() },
+                ]);
+              }}
+              disabled={uploadingCover}
+              style={styles.coverRemoveBtn}
+            >
+              <Ionicons name="trash-outline" size={16} color={c.danger} />
+              <Text style={[styles.coverRemoveText, { color: c.danger }]}>Remove cover</Text>
+            </Pressable>
+          ) : null}
+        </View>
+
         <Text style={[styles.sectionLabel, { color: c.textMuted }]}>ORGANIZATION PROFILE</Text>
         <View style={[styles.card, { backgroundColor: c.cardBg }]}>
           {editMode ? (
@@ -379,7 +524,7 @@ export default function SettingsTab() {
                     }
                   }}
                 >
-                  <Text style={{ color: orgCategoryId ? c.text : c.textLight, fontFamily: "Poppins_400Regular", fontSize: 14 }}>
+                  <Text style={{ color: orgCategoryId ? c.text : c.textLight, fontFamily: "SpaceGrotesk_400Regular", fontSize: 14 }}>
                     {categoriesLoading
                       ? "Loading categories…"
                       : orgCategoryName || "Select category"}
@@ -699,9 +844,9 @@ export default function SettingsTab() {
           </Pressable>
         </View>
 
-        <Pressable style={[styles.logoutBtn, { borderColor: "#ef4444" }]} onPress={handleLogout}>
-          <Ionicons name="log-out-outline" size={20} color="#ef4444" />
-          <Text style={styles.logoutText}>Sign Out</Text>
+        <Pressable style={[styles.logoutBtn, { borderColor: c.danger }]} onPress={handleLogout}>
+          <Ionicons name="log-out-outline" size={20} color={c.danger} />
+          <Text style={[styles.logoutText, { color: c.danger }]}>Sign Out</Text>
         </Pressable>
       </ScrollView>
     </View>
@@ -711,7 +856,7 @@ export default function SettingsTab() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   content: { paddingHorizontal: 20 },
-  headerTitle: { fontFamily: "Poppins_700Bold", fontSize: 26, marginTop: 12, marginBottom: 20 },
+  headerTitle: { fontFamily: "SpaceGrotesk_700Bold", fontSize: 26, marginTop: 12, marginBottom: 20 },
   profileCard: {
     flexDirection: "row",
     alignItems: "center",
@@ -735,7 +880,7 @@ const styles = StyleSheet.create({
     height: 52,
     borderRadius: 16,
   },
-  avatarText: { fontFamily: "Poppins_700Bold", fontSize: 22, color: "#fff" },
+  avatarText: { fontFamily: "SpaceGrotesk_700Bold", fontSize: 22, color: "#fff" },
   cameraOverlay: {
     position: "absolute",
     bottom: -2,
@@ -748,10 +893,10 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: "#fff",
   },
-  profileName: { fontFamily: "Poppins_600SemiBold", fontSize: 16 },
-  profileEmail: { fontFamily: "Poppins_400Regular", fontSize: 13, marginTop: 2 },
+  profileName: { fontFamily: "SpaceGrotesk_600SemiBold", fontSize: 16 },
+  profileEmail: { fontFamily: "SpaceGrotesk_400Regular", fontSize: 13, marginTop: 2 },
   sectionLabel: {
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 12,
     letterSpacing: 0.8,
     marginBottom: 10,
@@ -762,6 +907,56 @@ const styles = StyleSheet.create({
     padding: 16,
     marginBottom: 24,
   },
+  coverUpload: {
+    borderWidth: 1,
+    borderRadius: 16,
+    overflow: "hidden",
+    width: "100%",
+    aspectRatio: 16 / 9,
+    justifyContent: "center",
+  },
+  coverImage: {
+    width: "100%",
+    height: "100%",
+  },
+  coverPlaceholder: {
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    padding: 12,
+  },
+  coverHint: {
+    fontFamily: "SpaceGrotesk_400Regular",
+    fontSize: 13,
+  },
+  coverRemoveBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingTop: 12,
+    paddingBottom: 2,
+    justifyContent: "center",
+  },
+  coverRemoveText: {
+    fontFamily: "SpaceGrotesk_500Medium",
+    fontSize: 13,
+  },
+  coverBusyPill: {
+    position: "absolute",
+    right: 12,
+    bottom: 12,
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  coverBusyText: {
+    fontFamily: "SpaceGrotesk_600SemiBold",
+    fontSize: 12,
+    color: "#fff",
+  },
   infoRow: {
     flexDirection: "row",
     alignItems: "flex-start",
@@ -769,9 +964,9 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  infoLabel: { fontFamily: "Poppins_400Regular", fontSize: 12 },
-  infoValue: { fontFamily: "Poppins_500Medium", fontSize: 14, marginTop: 1 },
-  infoSub: { fontFamily: "Poppins_400Regular", fontSize: 12, marginTop: 4 },
+  infoLabel: { fontFamily: "SpaceGrotesk_400Regular", fontSize: 12 },
+  infoValue: { fontFamily: "SpaceGrotesk_500Medium", fontSize: 14, marginTop: 1 },
+  infoSub: { fontFamily: "SpaceGrotesk_400Regular", fontSize: 12, marginTop: 4 },
   stripeRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -788,7 +983,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  stripeBtnText: { fontFamily: "Poppins_600SemiBold", fontSize: 13, color: "#fff" },
+  stripeBtnText: { fontFamily: "SpaceGrotesk_600SemiBold", fontSize: 13, color: "#fff" },
   categoryPickerBtn: {
     flexDirection: "row",
     alignItems: "center",
@@ -818,7 +1013,7 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  modalTitle: { fontFamily: "Poppins_600SemiBold", fontSize: 17 },
+  modalTitle: { fontFamily: "SpaceGrotesk_600SemiBold", fontSize: 17 },
   modalList: { paddingBottom: 16 },
   categoryRow: {
     flexDirection: "row",
@@ -828,7 +1023,7 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  categoryRowText: { fontFamily: "Poppins_500Medium", fontSize: 16, flex: 1, paddingRight: 12 },
+  categoryRowText: { fontFamily: "SpaceGrotesk_500Medium", fontSize: 16, flex: 1, paddingRight: 12 },
   editBtn: {
     flexDirection: "row",
     alignItems: "center",
@@ -839,14 +1034,14 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
   },
-  editBtnText: { fontFamily: "Poppins_500Medium", fontSize: 14 },
+  editBtnText: { fontFamily: "SpaceGrotesk_500Medium", fontSize: 14 },
   editField: { marginBottom: 16 },
-  editLabel: { fontFamily: "Poppins_500Medium", fontSize: 13, marginBottom: 6 },
+  editLabel: { fontFamily: "SpaceGrotesk_500Medium", fontSize: 13, marginBottom: 6 },
   editInput: {
     borderRadius: 12,
     paddingHorizontal: 14,
     paddingVertical: 12,
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 14,
   },
   editActions: { flexDirection: "row", gap: 10, marginTop: 4 },
@@ -857,14 +1052,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
     borderWidth: 1,
   },
-  editActionText: { fontFamily: "Poppins_600SemiBold", fontSize: 14 },
+  editActionText: { fontFamily: "SpaceGrotesk_600SemiBold", fontSize: 14 },
   settingRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
     paddingVertical: 4,
   },
-  settingText: { fontFamily: "Poppins_500Medium", fontSize: 15, flex: 1 },
+  settingText: { fontFamily: "SpaceGrotesk_500Medium", fontSize: 15, flex: 1 },
   themeRow: {
     flexDirection: "row",
     gap: 8,
@@ -878,7 +1073,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     borderWidth: 1,
   },
-  themeLabel: { fontFamily: "Poppins_500Medium", fontSize: 12 },
+  themeLabel: { fontFamily: "SpaceGrotesk_500Medium", fontSize: 12 },
   aboutRow: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -887,8 +1082,8 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: "rgba(0,0,0,0.04)",
   },
-  aboutLabel: { fontFamily: "Poppins_500Medium", fontSize: 14 },
-  aboutValue: { fontFamily: "Poppins_400Regular", fontSize: 14 },
+  aboutLabel: { fontFamily: "SpaceGrotesk_500Medium", fontSize: 14 },
+  aboutValue: { fontFamily: "SpaceGrotesk_400Regular", fontSize: 14 },
   logoutBtn: {
     flexDirection: "row",
     alignItems: "center",
@@ -899,5 +1094,5 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     marginTop: 8,
   },
-  logoutText: { fontFamily: "Poppins_600SemiBold", fontSize: 15, color: "#ef4444" },
+  logoutText: { fontFamily: "SpaceGrotesk_600SemiBold", fontSize: 15 },
 });

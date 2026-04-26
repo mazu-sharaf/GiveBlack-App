@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useCallback } from "react";
 import {
   View,
   Text,
@@ -8,10 +8,11 @@ import {
   TextInput,
 } from "react-native";
 import { useSafeInsets } from "@/lib/safe-area";
-import { router, useLocalSearchParams } from "expo-router";
+import { router, useLocalSearchParams, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
+import Colors from "@/constants/colors";
 import { useThemeColors } from "@/context/ThemeContext";
 import { useApp, Organization } from "@/context/AppContext";
 import OrgAvatar from "@/components/OrgAvatar";
@@ -50,9 +51,17 @@ export default function CategoryScreen() {
   const c = useThemeColors();
   const [search, setSearch] = useState("");
 
-  const { categories, organizations } = useApp();
+  const { categories, organizations, setLastMeaningfulRoute } = useApp();
+
+  useFocusEffect(
+    useCallback(() => {
+      if (id) setLastMeaningfulRoute(`/category/${id}`);
+    }, [id, setLastMeaningfulRoute])
+  );
   const category = categories.find((ct) => ct.id === id);
-  const orgs = organizations.filter((o) => o.categoryId === id);
+  const orgs = organizations
+    .filter((o) => o.categoryId === id)
+    .sort((a, b) => a.name.localeCompare(b.name));
   const filtered = search.trim()
     ? orgs.filter((o) => o.name.toLowerCase().includes(search.toLowerCase()))
     : orgs;
@@ -119,7 +128,7 @@ const styles = StyleSheet.create({
   },
   searchInput: {
     flex: 1,
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 14,
   },
   titleSection: {
@@ -127,11 +136,11 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   pageTitle: {
-    fontFamily: "Poppins_700Bold",
+    fontFamily: "SpaceGrotesk_700Bold",
     fontSize: 19,
   },
   pageSubtitle: {
-    fontFamily: "Poppins_500Medium",
+    fontFamily: "SpaceGrotesk_500Medium",
     fontSize: 13,
     marginTop: 2,
   },
@@ -159,13 +168,13 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   orgInitials: {
-    fontFamily: "Poppins_700Bold",
+    fontFamily: "SpaceGrotesk_700Bold",
     fontSize: 14,
-    color: "#FFFFFF",
+    color: Colors.white,
   },
   orgName: {
     flex: 1,
-    fontFamily: "Poppins_500Medium",
+    fontFamily: "SpaceGrotesk_500Medium",
     fontSize: 14,
     lineHeight: 20,
   },
@@ -197,12 +206,12 @@ const styles = StyleSheet.create({
   },
   expandedName: {
     flex: 1,
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 15,
     lineHeight: 22,
   },
   expandedDesc: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 13,
     lineHeight: 21,
     marginBottom: 8,
@@ -212,7 +221,7 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   expandedStat: {
-    fontFamily: "Poppins_500Medium",
+    fontFamily: "SpaceGrotesk_500Medium",
     fontSize: 12,
   },
   emptyState: {
@@ -221,7 +230,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   emptyText: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 15,
   },
   bottomButtons: {
@@ -235,7 +244,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   nextBtnText: {
-    fontFamily: "Poppins_700Bold",
+    fontFamily: "SpaceGrotesk_700Bold",
     fontSize: 16,
   },
   historyBtn: {
@@ -245,7 +254,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   historyBtnText: {
-    fontFamily: "Poppins_700Bold",
+    fontFamily: "SpaceGrotesk_700Bold",
     fontSize: 15,
   },
 });

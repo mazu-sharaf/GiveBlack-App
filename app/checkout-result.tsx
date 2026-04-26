@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { View, Text, StyleSheet, ActivityIndicator, Pressable, Animated, Platform, Alert, ScrollView } from "react-native";
 import { useLocalSearchParams, router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import Colors from "@/constants/colors";
 import { useThemeColors } from "@/context/ThemeContext";
 import { useAuth } from "@/context/AuthContext";
 import AppHeader from "@/components/AppHeader";
@@ -10,8 +11,14 @@ import { getApiUrl } from "@/lib/query-client";
 import * as Print from "expo-print";
 import * as LegacyFileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+
+import { buildReceiptHtml } from "@/lib/receipt-html";
+import RatingModal from "@/components/RatingModal";
 
 type Status = "loading" | "success" | "failed";
+
+const HAS_DONATED_KEY = "@gb_has_donated";
 
 function generateReference() {
   const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
@@ -22,18 +29,17 @@ function generateReference() {
   return result;
 }
 
-import { buildReceiptHtml } from "@/lib/receipt-html";
-
 export default function CheckoutResultScreen() {
   const { session_id } = useLocalSearchParams<{ session_id?: string }>();
   const c = useThemeColors();
-  const { user } = useAuth();
+  const { user, refreshPendingDonationCount } = useAuth();
   const [status, setStatus] = useState<Status>("loading");
   const [amount, setAmount] = useState<number | null>(null);
   const [currency, setCurrency] = useState<string>("usd");
   const [orgName, setOrgName] = useState<string>("Organization");
   const [errorMsg, setErrorMsg] = useState<string>("");
   const [donationRef] = useState(generateReference());
+  const [showRating, setShowRating] = useState(false);
 
   const checkmarkScale = useRef(new Animated.Value(0)).current;
   const checkmarkOpacity = useRef(new Animated.Value(0)).current;
@@ -84,13 +90,38 @@ export default function CheckoutResultScreen() {
         if (!paid) {
           setErrorMsg("Your payment was not completed. You can safely try again.");
         }
+        void refreshPendingDonationCount();
       } catch (e: any) {
         setStatus("failed");
         setErrorMsg(e?.message || "Could not verify payment status. Please check your email receipt.");
+        void refreshPendingDonationCount();
       }
     }
     loadStatus();
-  }, [session_id]);
+  }, [session_id, refreshPendingDonationCount]);
+
+  useEffect(() => {
+    if (status !== "success") return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const raw = await AsyncStorage.getItem(HAS_DONATED_KEY);
+        if (cancelled) return;
+        if (raw === "1") {
+          setShowRating(false);
+          return;
+        }
+        await AsyncStorage.setItem(HAS_DONATED_KEY, "1");
+        if (!cancelled) setShowRating(true);
+      } catch {
+        // If storage fails, we still prefer showing the prompt over skipping it.
+        if (!cancelled) setShowRating(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [status]);
 
   useEffect(() => {
     if (status === "success") {
@@ -271,6 +302,7 @@ export default function CheckoutResultScreen() {
     return (
       <View style={[styles.container, { backgroundColor: c.background }]}>
         <Confetti />
+        {showRating ? <RatingModal delayMs={3000} /> : null}
         <ScrollView contentContainerStyle={styles.receiptContainer}>
           <Animated.View
             style={[
@@ -365,8 +397,8 @@ export default function CheckoutResultScreen() {
     <View style={[styles.container, { backgroundColor: c.background }]}>
       <AppHeader showBack title="Donation status" showSearch={false} />
       <View style={styles.centerContent}>
-        <View style={[styles.iconCircle, { borderColor: "#FF4444" }]}>
-          <Ionicons name="close" size={42} color="#FF4444" />
+        <View style={[styles.iconCircle, { borderColor: c.danger }]}>
+          <Ionicons name="close" size={42} color={c.danger} />
         </View>
         <Text style={[styles.title, { color: c.text }]}>Payment Failed</Text>
         <Text style={[styles.message, { color: c.textMuted }]}>
@@ -404,12 +436,12 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   title: {
-    fontFamily: "Poppins_700Bold",
+    fontFamily: "SpaceGrotesk_700Bold",
     fontSize: 24,
     textAlign: "center",
   },
   message: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 14,
     textAlign: "center",
     lineHeight: 20,
@@ -440,9 +472,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  gbBadgeText: { fontFamily: "Poppins_700Bold", fontSize: 14, color: "#fff" },
-  receiptBrand: { fontFamily: "Poppins_700Bold", fontSize: 16 },
-  receiptLabel: { fontFamily: "Poppins_400Regular", fontSize: 11, letterSpacing: 1 },
+  gbBadgeText: { fontFamily: "SpaceGrotesk_700Bold", fontSize: 14, color: "#fff" },
+  receiptBrand: { fontFamily: "SpaceGrotesk_700Bold", fontSize: 16 },
+  receiptLabel: { fontFamily: "SpaceGrotesk_400Regular", fontSize: 11, letterSpacing: 1 },
   divider: { height: 1, marginVertical: 12 },
   row: {
     flexDirection: "row",
@@ -450,10 +482,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingVertical: 6,
   },
-  rowLabel: { fontFamily: "Poppins_400Regular", fontSize: 14, flex: 1 },
-  rowValue: { fontFamily: "Poppins_600SemiBold", fontSize: 14 },
-  totalLabel: { fontFamily: "Poppins_700Bold", fontSize: 15 },
-  totalValue: { fontFamily: "Poppins_700Bold", fontSize: 20 },
+  rowLabel: { fontFamily: "SpaceGrotesk_400Regular", fontSize: 14, flex: 1 },
+  rowValue: { fontFamily: "SpaceGrotesk_600SemiBold", fontSize: 14 },
+  totalLabel: { fontFamily: "SpaceGrotesk_700Bold", fontSize: 15 },
+  totalValue: { fontFamily: "SpaceGrotesk_700Bold", fontSize: 20 },
   receiptActions: {
     flexDirection: "row",
     gap: 12,
@@ -469,7 +501,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingVertical: 14,
   },
-  actionBtnText: { fontFamily: "Poppins_600SemiBold", fontSize: 15, color: "#fff" },
+  actionBtnText: { fontFamily: "SpaceGrotesk_600SemiBold", fontSize: 15, color: "#fff" },
   actionBtnOutline: {
     flex: 1,
     flexDirection: "row",
@@ -480,7 +512,7 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderWidth: 2,
   },
-  actionBtnOutlineText: { fontFamily: "Poppins_600SemiBold", fontSize: 15 },
+  actionBtnOutlineText: { fontFamily: "SpaceGrotesk_600SemiBold", fontSize: 15 },
   primaryBtn: {
     width: "100%",
     borderRadius: 14,
@@ -488,8 +520,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   primaryText: {
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 18,
-    color: "#FFFFFF",
+    color: Colors.white,
   },
 });

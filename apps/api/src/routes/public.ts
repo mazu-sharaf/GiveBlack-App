@@ -23,7 +23,7 @@ export const publicRoutes: FastifyPluginAsync = async (app) => {
         `select id, name, description, raised, goal, donor_count, image_url, category_id
          from organizations
          where archived_at is null
-         order by featured desc nulls last, created_at desc
+         order by name asc
          limit 200`
       );
       return result.rows;
@@ -48,6 +48,7 @@ export const publicRoutes: FastifyPluginAsync = async (app) => {
          ) oc on oc.category_id = c.id
          order by c.name asc`
       );
+      reply.header("Cache-Control", "public, max-age=60, stale-while-revalidate=300");
       return { categories: result.rows };
     } catch (e: unknown) {
       app.log.error(e);
@@ -215,7 +216,7 @@ export const publicRoutes: FastifyPluginAsync = async (app) => {
         `select id, name, description, raised, goal, donor_count, image_url, category_id
          from organizations
          where archived_at is null and category_id = $1
-         order by featured desc nulls last, created_at desc
+         order by name asc
          limit 100`,
         [categoryId]
       );

@@ -12,6 +12,13 @@
       "distribution": "internal"
     },
     "production": {
+      "env": {
+        "EXPO_PUBLIC_DOMAIN": "giveblackapp.com",
+        "EXPO_PUBLIC_API_URL": "https://giveblackapp.com/app",
+        "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "686496134866-k5a914jeu1b3si5gl4ratimoaphll6f3.apps.googleusercontent.com",
+        "EXPO_PUBLIC_GOOGLE_IOS_URL_SCHEME": "com.googleusercontent.apps.686496134866-k5a914jeu1b3si5gl4ratimoaphll6f3",
+        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "686496134866-ffpjjko0fr870aomrnvmqp881if51i2h.apps.googleusercontent.com"
+      },
       "android": {
         "buildType": "app-bundle"
       },
@@ -22,6 +29,11 @@
     }
   },
   "submit": {
-    "production": {}
+    "production": {
+      "ios": {
+        "ascAppId": "1474463975",
+        "appleTeamId": "W5NB3UT9SS"
+      }
+    }
   }
 }

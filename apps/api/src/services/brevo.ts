@@ -10,12 +10,14 @@ interface SendEmailInput {
 }
 
 export async function sendBrevoEmail(input: SendEmailInput): Promise<void> {
-  if (!env.BREVO_API_KEY || !env.BREVO_SENDER_EMAIL) {
+  const apiKey = env.BREVO_API_KEY || (env as { SENDINBLUE_API_KEY?: string }).SENDINBLUE_API_KEY;
+  const fromEmail = env.BREVO_SENDER_EMAIL || (env as { BREVO_FROM_EMAIL?: string }).BREVO_FROM_EMAIL;
+  if (!apiKey || !fromEmail) {
     throw new Error("Brevo is not configured");
   }
 
   const payload: Record<string, unknown> = {
-    sender: { email: env.BREVO_SENDER_EMAIL, name: env.BREVO_SENDER_NAME },
+    sender: { email: fromEmail, name: env.BREVO_SENDER_NAME },
     to: [{ email: input.to }],
     subject: input.subject,
     htmlContent: input.html,
@@ -29,7 +31,7 @@ export async function sendBrevoEmail(input: SendEmailInput): Promise<void> {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "api-key": env.BREVO_API_KEY
+      "api-key": apiKey
     },
     body: JSON.stringify(payload)
   });

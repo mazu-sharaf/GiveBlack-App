@@ -38,3 +38,13 @@ The same step runs automatically when executing `apps/api/scripts/seed-demo-camp
 - `POST /api/webhooks/stripe` — production URL behind Nginx: `https://giveblackapp.com/app/api/webhooks/stripe`
 - `POST /api/notifications/push-token`
 - `POST /api/admin/notifications/broadcast`
+
+## Push notification setup
+
+Push delivery requires two things to be configured:
+
+1. **`EXPO_ACCESS_TOKEN`** (required for delivery) — Create an access token at [expo.dev](https://expo.dev) under **Account → Access Tokens**. Set it as a server secret. Without this, the backend logs `[push] EXPO_ACCESS_TOKEN not set; push delivery skipped` and silently drops all pushes.
+
+2. **EAS project ID** — Already set in `app.json` under `extra.eas.projectId`. The mobile app reads this at runtime to obtain a valid Expo push token. No extra server config needed.
+
+Once `EXPO_ACCESS_TOKEN` is set and the mobile app is built with EAS (not Expo Go on Android), push notifications will be delivered to all registered devices.

@@ -21,15 +21,42 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import Colors from "@/constants/colors";
 import { useAuth } from "@/context/AuthContext";
 import { useThemeColors } from "@/context/ThemeContext";
+import { useApp } from "@/context/AppContext";
 import { getApiUrl } from "@/lib/query-client";
 import { navigateAfterAuth } from "@/lib/auth-navigation";
 import { alertDonorOAuthFailure } from "@/lib/donor-oauth-ui";
+
+function parseDonationContext(returnTo?: string): { orgId: string; amount: number } | null {
+  if (!returnTo) return null;
+  const match = returnTo.match(/^\/donate\/([^?/]+)/);
+  if (!match) return null;
+  const orgId = match[1];
+  const search = returnTo.includes("?") ? returnTo.split("?")[1] : "";
+  const urlParams = new URLSearchParams(search);
+  const amountStr = urlParams.get("amount");
+  if (!amountStr) return null;
+  const amount = parseFloat(amountStr);
+  if (!Number.isFinite(amount) || amount <= 0) return null;
+  return { orgId, amount };
+}
 
 export default function DonorSignupScreen() {
   const insets = useSafeInsets();
   const c = useThemeColors();
   const { signUpDonor, loginWithGoogle, loginWithApple } = useAuth();
-  const params = useLocalSearchParams<{ email?: string }>();
+  const { organizations } = useApp();
+  const params = useLocalSearchParams<{ email?: string; returnTo?: string; feature?: string }>();
+  const returnTo = params.returnTo ? String(params.returnTo) : undefined;
+  const feature = params.feature ? String(params.feature) : undefined;
+
+  const donationCtx = parseDonationContext(returnTo);
+  const donationOrg = donationCtx ? organizations.find((o) => o.id === donationCtx.orgId) : null;
+
+  const featureLabels: Record<string, string> = {
+    impact: "Create an account to view your giving impact and global rank.",
+    transactions: "Create an account to access your full donation history.",
+    "edit-profile": "Create an account to set up and manage your profile.",
+  };
 
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -147,7 +174,10 @@ export default function DonorSignupScreen() {
 
     setLoading(false);
     if (success) {
-      navigateAfterAuth("donor");
+      router.replace({
+        pathname: "/(auth)/signup-success",
+        params: { name: firstName, email: email.trim().toLowerCase(), ...(returnTo ? { returnTo } : {}) },
+      });
     }
   }
 
@@ -159,7 +189,7 @@ export default function DonorSignupScreen() {
     setOauthBusy(provider);
     try {
       const r = await fn();
-      if (r.success) navigateAfterAuth("donor");
+      if (r.success) navigateAfterAuth("donor", returnTo);
       else alertDonorOAuthFailure(r, "donor-auth");
     } finally {
       setOauthBusy(null);
@@ -186,6 +216,25 @@ export default function DonorSignupScreen() {
         keyboardDismissMode="interactive"
       >
         <Text style={[styles.title, { color: c.text }]}>Create your{"\n"}Account</Text>
+
+        {donationCtx && donationOrg && (
+          <View style={[styles.donateBanner, { backgroundColor: c.green + "14", borderColor: c.green + "40" }]}>
+            <Ionicons name="heart" size={16} color={c.green} style={{ marginRight: 10, flexShrink: 0 }} />
+            <Text style={[styles.donateBannerText, { color: c.text }]}>
+              {"You're donating "}
+              <Text style={{ fontFamily: "SpaceGrotesk_700Bold", color: c.green }}>${donationCtx.amount % 1 === 0 ? donationCtx.amount.toFixed(0) : donationCtx.amount.toFixed(2)}</Text>
+              {" to "}
+              <Text style={{ fontFamily: "SpaceGrotesk_600SemiBold" }}>{donationOrg.name}</Text>
+            </Text>
+          </View>
+        )}
+
+        {feature && featureLabels[feature] && (
+          <View style={[styles.featureBanner, { backgroundColor: c.green + "18", borderColor: c.green + "44" }]}>
+            <Ionicons name="lock-open-outline" size={18} color={c.green} style={{ marginRight: 10, flexShrink: 0 }} />
+            <Text style={[styles.featureBannerText, { color: c.text }]}>{featureLabels[feature]}</Text>
+          </View>
+        )}
 
         {/* Avatar picker */}
         <Pressable style={styles.avatarWrap} onPress={pickAvatar}>
@@ -373,7 +422,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   title: {
-    fontFamily: "Poppins_700Bold",
+    fontFamily: "SpaceGrotesk_700Bold",
     fontSize: 36,
     color: Colors.primary,
     lineHeight: 44,
@@ -409,7 +458,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   avatarHint: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 13,
     textAlign: "center",
     marginBottom: 20,
@@ -426,7 +475,7 @@ const styles = StyleSheet.create({
   inputWrap: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#F1F1F1",
+    backgroundColor: Colors.inputBg,
     borderRadius: 14,
     paddingHorizontal: 16,
     paddingVertical: 15,
@@ -437,7 +486,7 @@ const styles = StyleSheet.create({
   },
   input: {
     flex: 1,
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 15,
     color: Colors.primary,
   },
@@ -461,7 +510,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.green,
   },
   rememberText: {
-    fontFamily: "Poppins_500Medium",
+    fontFamily: "SpaceGrotesk_500Medium",
     fontSize: 14,
     color: Colors.primary,
     flexShrink: 1,
@@ -474,7 +523,7 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   signUpBtnText: {
-    fontFamily: "Poppins_700Bold",
+    fontFamily: "SpaceGrotesk_700Bold",
     fontSize: 16,
     color: Colors.white,
   },
@@ -490,7 +539,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.border,
   },
   dividerLabel: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 13,
     color: Colors.textMuted,
   },
@@ -518,7 +567,7 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   oauthHint: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 13,
   },
   bottomRow: {
@@ -527,12 +576,12 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   bottomLabel: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 14,
     color: Colors.textMuted,
   },
   bottomLink: {
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 14,
     color: Colors.green,
   },
@@ -544,8 +593,38 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   footerText: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 13,
     color: Colors.textMuted,
+  },
+  featureBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginBottom: 20,
+  },
+  featureBannerText: {
+    fontFamily: "SpaceGrotesk_500Medium",
+    fontSize: 14,
+    flex: 1,
+    lineHeight: 20,
+  },
+  donateBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginBottom: 16,
+  },
+  donateBannerText: {
+    fontFamily: "SpaceGrotesk_500Medium",
+    fontSize: 14,
+    flex: 1,
+    lineHeight: 20,
   },
 });

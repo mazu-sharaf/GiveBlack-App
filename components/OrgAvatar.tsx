@@ -56,7 +56,7 @@ export default function OrgAvatar({
     >
       <Text
         style={{
-          fontFamily: "Poppins_700Bold",
+          fontFamily: "SpaceGrotesk_700Bold",
           fontSize: autoFontSize,
           color: "#FFFFFF",
           letterSpacing: 0.5,

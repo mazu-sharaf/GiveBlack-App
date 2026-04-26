@@ -11,7 +11,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { useSafeInsets } from "@/lib/safe-area";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";
@@ -19,11 +19,33 @@ import { useAuth } from "@/context/AuthContext";
 import { navigateAfterAuth } from "@/lib/auth-navigation";
 import { alertDonorOAuthFailure } from "@/lib/donor-oauth-ui";
 import { useThemeColors } from "@/context/ThemeContext";
+import { useApp } from "@/context/AppContext";
+
+function parseDonationContext(returnTo?: string): { orgId: string; amount: number } | null {
+  if (!returnTo) return null;
+  const match = returnTo.match(/^\/donate\/([^?/]+)/);
+  if (!match) return null;
+  const orgId = match[1];
+  const search = returnTo.includes("?") ? returnTo.split("?")[1] : "";
+  const urlParams = new URLSearchParams(search);
+  const amountStr = urlParams.get("amount");
+  if (!amountStr) return null;
+  const amount = parseFloat(amountStr);
+  if (!Number.isFinite(amount) || amount <= 0) return null;
+  return { orgId, amount };
+}
 
 export default function DonorLoginScreen() {
   const insets = useSafeInsets();
   const { login, loginWithGoogle, loginWithApple } = useAuth();
   const c = useThemeColors();
+  const { organizations } = useApp();
+  const params = useLocalSearchParams<{ returnTo?: string }>();
+  const returnTo = params.returnTo ? String(params.returnTo) : undefined;
+
+  const donationCtx = parseDonationContext(returnTo);
+  const donationOrg = donationCtx ? organizations.find((o) => o.id === donationCtx.orgId) : null;
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -53,7 +75,7 @@ export default function DonorLoginScreen() {
     const result = await login(email.trim(), password, "donor");
     setLoading(false);
     if (result.success) {
-      navigateAfterAuth("donor");
+      navigateAfterAuth("donor", returnTo);
     } else if (result.error) {
       setErrorMessage(result.error);
       if (result.errorType === "invalid_credentials") {
@@ -75,7 +97,7 @@ export default function DonorLoginScreen() {
     setOauthBusy(provider);
     try {
       const r = await fn();
-      if (r.success) navigateAfterAuth("donor");
+      if (r.success) navigateAfterAuth("donor", returnTo);
       else alertDonorOAuthFailure(r, "donor-auth");
     } finally {
       setOauthBusy(null);
@@ -103,6 +125,18 @@ export default function DonorLoginScreen() {
       >
         <Text style={[styles.title, { color: c.text }]}>Login to your{"\n"}Account</Text>
 
+        {donationCtx && donationOrg && (
+          <View style={[styles.donateBanner, { backgroundColor: c.green + "14", borderColor: c.green + "40" }]}>
+            <Ionicons name="heart" size={16} color={c.green} style={{ marginRight: 10, flexShrink: 0 }} />
+            <Text style={[styles.donateBannerText, { color: c.text }]}>
+              {"You're donating "}
+              <Text style={{ fontFamily: "SpaceGrotesk_700Bold", color: c.green }}>${donationCtx.amount % 1 === 0 ? donationCtx.amount.toFixed(0) : donationCtx.amount.toFixed(2)}</Text>
+              {" to "}
+              <Text style={{ fontFamily: "SpaceGrotesk_600SemiBold" }}>{donationOrg.name}</Text>
+            </Text>
+          </View>
+        )}
+
         {!!errorMessage && (
           <View style={styles.errorBar}>
             <Ionicons name="alert-circle" size={20} color={Colors.white} style={{ marginRight: 10, marginTop: 1 }} />
@@ -111,7 +145,7 @@ export default function DonorLoginScreen() {
               {showSignUp && (
                 <Pressable
                   style={styles.errorSignUpBtn}
-                  onPress={() => router.push("/(auth)/donor-signup")}
+                  onPress={() => router.push({ pathname: "/(auth)/donor-signup", params: returnTo ? { returnTo } : {} })}
                 >
                   <Text style={styles.errorSignUpText}>Sign Up</Text>
                   <Ionicons name="arrow-forward" size={14} color={Colors.green} />
@@ -120,7 +154,7 @@ export default function DonorLoginScreen() {
               {showDonorCreateFromCharity && (
                 <Pressable
                   style={[styles.errorSignUpBtn, { marginTop: 8 }]}
-                  onPress={() => router.push({ pathname: "/(auth)/donor-signup", params: { email: email.trim() } })}
+                  onPress={() => router.push({ pathname: "/(auth)/donor-signup", params: { email: email.trim(), ...(returnTo ? { returnTo } : {}) } })}
                 >
                   <Text style={styles.errorSignUpText}>Create donor account with this email</Text>
                   <Ionicons name="arrow-forward" size={14} color={Colors.green} />
@@ -195,36 +229,40 @@ export default function DonorLoginScreen() {
           <View style={[styles.dividerLine, { backgroundColor: c.border }]} />
         </View>
 
-        <View style={styles.socialRow}>
+        <View style={styles.socialGroup}>
           <Pressable
-            style={[styles.socialIcon, { borderColor: c.border, backgroundColor: c.cardBg }, !!oauthBusy && { opacity: 0.55 }]}
+            style={[styles.socialBtn, { borderColor: c.border, backgroundColor: c.cardBg }, (!!oauthBusy || loading) && { opacity: 0.55 }]}
             disabled={!!oauthBusy || loading}
             onPress={() => runDonorOAuth("google", loginWithGoogle)}
             accessibilityLabel="Continue with Google"
           >
-            <Ionicons name="logo-google" size={22} color="#DB4437" />
+            {oauthBusy === "google" ? (
+              <ActivityIndicator size="small" color={c.textMuted} style={{ marginRight: 12 }} />
+            ) : (
+              <Ionicons name="logo-google" size={20} color="#DB4437" style={{ marginRight: 12 }} />
+            )}
+            <Text style={[styles.socialBtnText, { color: c.text }]}>Continue with Google</Text>
           </Pressable>
           {Platform.OS === "ios" && (
             <Pressable
-              style={[styles.socialIcon, { borderColor: c.border, backgroundColor: c.cardBg }, !!oauthBusy && { opacity: 0.55 }]}
+              style={[styles.socialBtn, { borderColor: c.border, backgroundColor: c.cardBg }, (!!oauthBusy || loading) && { opacity: 0.55 }]}
               disabled={!!oauthBusy || loading}
               onPress={() => runDonorOAuth("apple", loginWithApple)}
               accessibilityLabel="Continue with Apple"
             >
-              <Ionicons name="logo-apple" size={22} color={c.text} />
+              {oauthBusy === "apple" ? (
+                <ActivityIndicator size="small" color={c.textMuted} style={{ marginRight: 12 }} />
+              ) : (
+                <Ionicons name="logo-apple" size={20} color={c.text} style={{ marginRight: 12 }} />
+              )}
+              <Text style={[styles.socialBtnText, { color: c.text }]}>Continue with Apple</Text>
             </Pressable>
           )}
         </View>
-        {oauthBusy ? (
-          <View style={styles.oauthRow}>
-            <ActivityIndicator color={c.textMuted} />
-            <Text style={[styles.oauthHint, { color: c.textMuted }]}>Signing in…</Text>
-          </View>
-        ) : null}
 
         <View style={styles.bottomRow}>
           <Text style={[styles.bottomLabel, { color: c.textMuted }]}>{"Don't have an account? "}</Text>
-          <Pressable onPress={() => router.push("/(auth)/donor-signup")}>
+          <Pressable onPress={() => router.push({ pathname: "/(auth)/donor-signup", params: returnTo ? { returnTo } : {} })}>
             <Text style={styles.bottomLink}>Sign up</Text>
           </Pressable>
         </View>
@@ -276,7 +314,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   title: {
-    fontFamily: "Poppins_700Bold",
+    fontFamily: "SpaceGrotesk_700Bold",
     fontSize: 36,
     color: Colors.primary,
     lineHeight: 44,
@@ -285,14 +323,14 @@ const styles = StyleSheet.create({
   errorBar: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#991B1B",
+    backgroundColor: Colors.danger,
     borderRadius: 14,
     paddingVertical: 14,
     paddingHorizontal: 16,
     marginBottom: 16,
   },
   errorText: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 13,
     color: Colors.white,
     lineHeight: 19,
@@ -309,14 +347,14 @@ const styles = StyleSheet.create({
     borderRadius: 20,
   },
   errorSignUpText: {
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 13,
     color: Colors.green,
   },
   inputWrap: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#F1F1F1",
+    backgroundColor: Colors.inputBg,
     borderRadius: 14,
     paddingHorizontal: 16,
     paddingVertical: 15,
@@ -327,7 +365,7 @@ const styles = StyleSheet.create({
   },
   input: {
     flex: 1,
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 15,
     color: Colors.primary,
   },
@@ -351,7 +389,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.green,
   },
   rememberText: {
-    fontFamily: "Poppins_500Medium",
+    fontFamily: "SpaceGrotesk_500Medium",
     fontSize: 14,
     color: Colors.primary,
   },
@@ -363,7 +401,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   signInBtnText: {
-    fontFamily: "Poppins_700Bold",
+    fontFamily: "SpaceGrotesk_700Bold",
     fontSize: 16,
     color: Colors.white,
   },
@@ -376,7 +414,7 @@ const styles = StyleSheet.create({
     borderColor: Colors.green,
   },
   demoBtnText: {
-    fontFamily: "Poppins_700Bold",
+    fontFamily: "SpaceGrotesk_700Bold",
     fontSize: 16,
   },
   forgotBtn: {
@@ -384,7 +422,7 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   forgotText: {
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 14,
     color: Colors.green,
   },
@@ -400,36 +438,25 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.border,
   },
   dividerLabel: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 13,
     color: Colors.textMuted,
   },
-  socialRow: {
-    flexDirection: "row",
-    justifyContent: "center",
-    gap: 16,
+  socialGroup: {
+    gap: 12,
     marginBottom: 24,
   },
-  socialIcon: {
-    width: 56,
-    height: 56,
-    borderRadius: 14,
-    borderWidth: 1.5,
-    borderColor: Colors.border,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: Colors.white,
-  },
-  oauthRow: {
+  socialBtn: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 10,
-    marginBottom: 20,
+    borderWidth: 1.5,
+    borderRadius: 14,
+    paddingVertical: 15,
   },
-  oauthHint: {
-    fontFamily: "Poppins_400Regular",
-    fontSize: 13,
+  socialBtnText: {
+    fontFamily: "SpaceGrotesk_600SemiBold",
+    fontSize: 15,
   },
   bottomRow: {
     flexDirection: "row",
@@ -437,12 +464,12 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   bottomLabel: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 14,
     color: Colors.textMuted,
   },
   bottomLink: {
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 14,
     color: Colors.green,
   },
@@ -459,7 +486,7 @@ const styles = StyleSheet.create({
     alignSelf: "center",
   },
   businessLinkText: {
-    fontFamily: "Poppins_500Medium",
+    fontFamily: "SpaceGrotesk_500Medium",
     fontSize: 13,
     color: Colors.green,
   },
@@ -471,8 +498,23 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   footerText: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 13,
     color: Colors.textMuted,
+  },
+  donateBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginBottom: 16,
+  },
+  donateBannerText: {
+    fontFamily: "SpaceGrotesk_500Medium",
+    fontSize: 14,
+    flex: 1,
+    lineHeight: 20,
   },
 });

@@ -1,5 +1,4 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { useFocusEffect } from "@react-navigation/native";
 import {
   View,
   Text,
@@ -13,9 +12,11 @@ import {
   TextInput,
   Alert,
   KeyboardAvoidingView,
+  ActivityIndicator,
 } from "react-native";
 import { Image } from "expo-image";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import * as ImagePicker from "expo-image-picker";
+import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
 import { useSafeInsets } from "@/lib/safe-area";
 import { Ionicons } from "@expo/vector-icons";
 import Colors from "@/constants/colors";
@@ -25,6 +26,7 @@ import { useTheme, useThemeColors } from "@/context/ThemeContext";
 import { useAuth } from "@/context/AuthContext";
 import { useApp } from "@/context/AppContext";
 import AppHeader from "@/components/AppHeader";
+import GuestLockSheet from "@/components/GuestLockSheet";
 
 
 function SettingRow({
@@ -71,6 +73,7 @@ type NotifPrefs = {
   org_volunteers: boolean;
   org_campaign_status: boolean;
   donor_new_campaigns_from_orgs_i_supported: boolean;
+  new_campaigns: boolean;
 };
 
 function NotificationsPage() {
@@ -80,6 +83,35 @@ function NotificationsPage() {
   const [loading, setLoading] = useState(true);
   const [emailEnabled, setEmailEnabled] = useState(true);
   const [weeklyDigest, setWeeklyDigest] = useState(true);
+  const [permissionStatus, setPermissionStatus] = useState<"granted" | "denied" | "undetermined" | null>(null);
+
+  const checkPermission = useCallback(async () => {
+    if (Platform.OS === "web") return;
+    try {
+      const Notif = require("expo-notifications") as typeof import("expo-notifications");
+      const { status } = await Notif.getPermissionsAsync();
+      setPermissionStatus(status);
+    } catch {
+      // expo-notifications unavailable in this environment
+    }
+  }, []);
+
+  const requestPermission = useCallback(async () => {
+    if (Platform.OS === "web") return;
+    try {
+      const Notif = require("expo-notifications") as typeof import("expo-notifications");
+      const { status } = await Notif.requestPermissionsAsync();
+      setPermissionStatus(status);
+    } catch {
+      // expo-notifications unavailable in this environment
+    }
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      void checkPermission();
+    }, [checkPermission])
+  );
 
   useEffect(() => {
     if (!session?.accessToken) {
@@ -116,6 +148,10 @@ function NotificationsPage() {
         session.accessToken
       );
       if (res.preferences) setPrefs(res.preferences);
+      if (value && permissionStatus === "granted") {
+        const { registerPushTokenWithAuth } = await import("@/lib/notifications");
+        void registerPushTokenWithAuth(session.accessToken);
+      }
     } catch {
       setPrefs(prefs);
     }
@@ -126,6 +162,36 @@ function NotificationsPage() {
   return (
     <>
       <InfoSection title="Push notifications">
+        {permissionStatus === "undetermined" && (
+          <Pressable
+            onPress={() => void requestPermission()}
+            style={{ flexDirection: "row", alignItems: "center", padding: 14, gap: 12, borderBottomWidth: 1, borderBottomColor: c.border }}
+          >
+            <Ionicons name="notifications-outline" size={20} color={Colors.green} />
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.rowLabel, { color: c.text }]}>Enable push notifications</Text>
+              <Text style={[styles.rowDesc, { color: c.textMuted }]}>
+                Tap to allow GiveBlack to send you push notifications
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={16} color={c.textLight} />
+          </Pressable>
+        )}
+        {permissionStatus === "denied" && (
+          <Pressable
+            onPress={() => Linking.openSettings()}
+            style={{ flexDirection: "row", alignItems: "center", padding: 14, gap: 12, borderBottomWidth: 1, borderBottomColor: c.border }}
+          >
+            <Ionicons name="warning-outline" size={20} color={c.warningAmber} />
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.rowLabel, { color: c.text }]}>Notifications are blocked</Text>
+              <Text style={[styles.rowDesc, { color: c.textMuted }]}>
+                Tap to open System Settings and allow notifications for GiveBlack
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={16} color={c.textLight} />
+          </Pressable>
+        )}
         {loading || !prefs ? (
           <Text style={[styles.legalText, { color: c.textMuted, padding: 16 }]}>
             {session?.accessToken ? "Loading…" : "Sign in to manage notification preferences."}
@@ -155,6 +221,19 @@ function NotificationsPage() {
                     <Switch
                       value={prefs.donor_new_campaigns_from_orgs_i_supported}
                       onValueChange={(v) => void patchPref("donor_new_campaigns_from_orgs_i_supported", v)}
+                      trackColor={{ true: Colors.green }}
+                    />
+                  }
+                />
+                <View style={[styles.sep, { backgroundColor: c.border }]} />
+                <SettingRow
+                  icon="notifications-outline"
+                  label="All new campaigns on GiveBlack"
+                  description="Be the first to know whenever any new campaign launches"
+                  right={
+                    <Switch
+                      value={prefs.new_campaigns ?? true}
+                      onValueChange={(v) => void patchPref("new_campaigns", v)}
                       trackColor={{ true: Colors.green }}
                     />
                   }
@@ -974,12 +1053,12 @@ function SharePage() {
 function EditProfilePage() {
   const c = useThemeColors();
   const { userProfile, updateProfile } = useApp();
-  const { avatarUrl, session } = useAuth();
+  const { avatarUrl, session, fetchWithAuth, setAvatarUrl } = useAuth();
   const [fullName, setFullName] = useState(String(userProfile.fullName ?? ""));
   const [nickname, setNickname] = useState(String(userProfile.nickname ?? ""));
   const [phone, setPhone] = useState(String(userProfile.phone ?? ""));
-  const [avatarInput, setAvatarInput] = useState<string>(avatarUrl || "");
-  const [savingAvatar, setSavingAvatar] = useState(false);
+  const [localAvatarUrl, setLocalAvatarUrl] = useState<string | null>(avatarUrl || null);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [saved, setSaved] = useState(false);
 
   const handleSave = () => {
@@ -993,6 +1072,74 @@ function EditProfilePage() {
     Alert.alert("Profile Updated", "Your profile has been updated successfully.");
   };
 
+  async function pickDonorAvatar() {
+    if (Platform.OS !== "web") {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert("Permission needed", "Please allow access to your photo library in Settings.");
+        return;
+      }
+    }
+
+    if (!session) {
+      Alert.alert("Sign in required", "Please sign in to upload a profile image.");
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["images"],
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+    });
+
+    if (result.canceled || !result.assets?.length) return;
+
+    const asset = result.assets[0];
+    setUploadingAvatar(true);
+
+    try {
+      const formData = new FormData();
+      if (Platform.OS === "web") {
+        const response = await fetch(asset.uri);
+        const blob = await response.blob();
+        const mimeType = asset.mimeType || blob.type || "image/jpeg";
+        const extFromMime = mimeType.split("/")[1]?.replace("jpeg", "jpg") || "jpg";
+        formData.append("file", new Blob([blob], { type: mimeType }), `avatar.${extFromMime}`);
+      } else {
+        const uri = asset.uri;
+        const ext = (uri.split(".").pop()?.split("?")[0] || "jpg").toLowerCase();
+        const mime = asset.mimeType || `image/${ext === "jpg" ? "jpeg" : ext}`;
+        formData.append("file", { uri, name: `avatar.${ext}`, type: mime } as any);
+      }
+
+      const uploadRes = await fetchWithAuth("/api/upload/image", { method: "POST", body: formData });
+      if (!uploadRes.ok) {
+        const err = await uploadRes.json().catch(() => ({}));
+        Alert.alert("Upload Failed", (err as { error?: string }).error || "Could not upload image");
+        return;
+      }
+      const uploadJson = await uploadRes.json() as { url: string };
+
+      const saveRes = await fetchWithAuth("/api/profile/avatar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ avatar_url: uploadJson.url }),
+      });
+      if (saveRes.ok) {
+        setLocalAvatarUrl(uploadJson.url);
+        await setAvatarUrl(uploadJson.url);
+      } else {
+        Alert.alert("Error", "Image uploaded but failed to update profile.");
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Something went wrong while uploading";
+      Alert.alert("Error", msg);
+    } finally {
+      setUploadingAvatar(false);
+    }
+  }
+
   const initials = fullName
     ? fullName
         .split(" ")
@@ -1002,19 +1149,36 @@ function EditProfilePage() {
         .slice(0, 2)
     : "U";
 
+  function resolveAvatarUrl(url: string | null | undefined): string | null {
+    if (!url) return null;
+    if (url.startsWith("http://") || url.startsWith("https://")) return url;
+    const base = getApiUrl().replace(/\/$/, "");
+    return `${base}${url.startsWith("/") ? "" : "/"}${url}`;
+  }
+  const displayAvatarUrl = resolveAvatarUrl(localAvatarUrl) || resolveAvatarUrl(avatarUrl) || null;
+
   return (
     <>
       <View style={s2.avatarSection}>
-        <View style={s2.avatarCircle}>
-          {avatarUrl ? (
-            <Image source={{ uri: avatarUrl }} style={s2.avatarImage} cachePolicy="memory-disk" transition={200} />
-          ) : (
-            <Text style={s2.avatarText}>{initials || "U"}</Text>
-          )}
-          <View style={s2.cameraOverlay}>
-            <Ionicons name="camera" size={14} color="#FFFFFF" />
+        <Pressable onPress={pickDonorAvatar} disabled={uploadingAvatar} style={s2.avatarWrapper}>
+          <View style={[s2.avatarCircle, { backgroundColor: c.green }]}>
+            {displayAvatarUrl ? (
+              <Image source={{ uri: displayAvatarUrl }} style={s2.avatarImage} cachePolicy="memory-disk" transition={200} />
+            ) : (
+              <Text style={s2.avatarText}>{initials || "U"}</Text>
+            )}
           </View>
-        </View>
+          <View style={s2.cameraOverlay}>
+            {uploadingAvatar ? (
+              <ActivityIndicator size={12} color={Colors.white} />
+            ) : (
+              <Ionicons name="camera" size={14} color={Colors.white} />
+            )}
+          </View>
+        </Pressable>
+        <Text style={[{ fontSize: 12, fontFamily: "SpaceGrotesk_400Regular", color: c.textMuted, marginTop: 8 }]}>
+          Tap to change photo
+        </Text>
       </View>
       <InfoSection title="Personal Information">
         <View style={styles.fieldGroup}>
@@ -1063,73 +1227,6 @@ function EditProfilePage() {
           />
         </View>
       </InfoSection>
-      <InfoSection title="Profile Photo (optional)">
-        <View style={styles.fieldGroup}>
-          <Text style={[styles.fieldLabel, { color: c.textMuted }]}>Avatar URL</Text>
-          <TextInput
-            style={[styles.fieldInput, { color: c.text, borderColor: c.border, backgroundColor: c.inputBg }]}
-            value={avatarInput}
-            onChangeText={setAvatarInput}
-            placeholder="https://example.com/avatar.jpg"
-            placeholderTextColor={c.textLight}
-            autoCapitalize="none"
-            autoCorrect={false}
-          />
-          <View style={{ flexDirection: "row", gap: 8, marginTop: 8 }}>
-            <Pressable
-              style={[s2.avatarBtn, { borderColor: c.green }]}
-              onPress={async () => {
-                if (!session?.accessToken || !avatarInput.trim()) return;
-                setSavingAvatar(true);
-                try {
-                  const base = getApiUrl().replace(/\/$/, "");
-                  await fetch(`${base}/api/profile/avatar`, {
-                    method: "POST",
-                    headers: {
-                      "Content-Type": "application/json",
-                      Authorization: `Bearer ${session.accessToken}`,
-                    },
-                    body: JSON.stringify({ avatar_url: avatarInput.trim() }),
-                  });
-                  Alert.alert("Updated", "Profile photo updated.");
-                } catch {
-                  Alert.alert("Error", "Could not update profile photo.");
-                } finally {
-                  setSavingAvatar(false);
-                }
-              }}
-            >
-              <Text style={[s2.avatarBtnText, { color: c.green }]}>
-                {savingAvatar ? "Saving..." : "Save avatar"}
-              </Text>
-            </Pressable>
-            <Pressable
-              style={[s2.avatarBtn, { borderColor: c.border }]}
-              onPress={async () => {
-                if (!session?.accessToken) return;
-                setSavingAvatar(true);
-                try {
-                  const base = getApiUrl().replace(/\/$/, "");
-                  await fetch(`${base}/api/profile/avatar`, {
-                    method: "DELETE",
-                    headers: {
-                      Authorization: `Bearer ${session.accessToken}`,
-                    },
-                  });
-                  setAvatarInput("");
-                  Alert.alert("Removed", "Profile photo removed.");
-                } catch {
-                  Alert.alert("Error", "Could not remove profile photo.");
-                } finally {
-                  setSavingAvatar(false);
-                }
-              }}
-            >
-              <Text style={[s2.avatarBtnText, { color: c.text }]}>Remove</Text>
-            </Pressable>
-          </View>
-        </View>
-      </InfoSection>
       <Pressable style={s2.greenBtn} onPress={handleSave} testID="save-profile-btn">
         <Text style={s2.greenBtnText}>{saved ? "Saved!" : "Save"}</Text>
       </Pressable>
@@ -1160,7 +1257,7 @@ function TransactionRow({ t, onPress, expanded }: { t: any; onPress: () => void;
           <Ionicons
             name={isTopup ? "arrow-up" : "arrow-down"}
             size={18}
-            color={isTopup ? c.green : "#E53935"}
+            color={isTopup ? c.green : c.danger}
           />
         </View>
         <View style={{ flex: 1 }}>
@@ -1170,7 +1267,7 @@ function TransactionRow({ t, onPress, expanded }: { t: any; onPress: () => void;
         <Text
           style={[
             s2.txAmount,
-            { color: isTopup ? c.green : "#E53935" },
+            { color: isTopup ? c.green : c.danger },
           ]}
         >
           {isTopup ? "+" : "-"}${Number(t.amount || 0).toFixed(2)}
@@ -1184,7 +1281,7 @@ function TransactionRow({ t, onPress, expanded }: { t: any; onPress: () => void;
           </View>
           <View style={s2.txDetailRow}>
             <Text style={[s2.txDetailLabel, { color: c.textMuted }]}>Amount</Text>
-            <Text style={[s2.txDetailValue, { color: isTopup ? c.green : "#E53935" }]}>{isTopup ? "+" : "-"}${Number(t.amount || 0).toFixed(2)}</Text>
+            <Text style={[s2.txDetailValue, { color: isTopup ? c.green : c.danger }]}>{isTopup ? "+" : "-"}${Number(t.amount || 0).toFixed(2)}</Text>
           </View>
           <View style={s2.txDetailRow}>
             <Text style={[s2.txDetailLabel, { color: c.textMuted }]}>Date</Text>
@@ -1192,8 +1289,8 @@ function TransactionRow({ t, onPress, expanded }: { t: any; onPress: () => void;
           </View>
           <View style={s2.txDetailRow}>
             <Text style={[s2.txDetailLabel, { color: c.textMuted }]}>Status</Text>
-            <View style={[s2.txStatusBadge, { backgroundColor: isFailed ? "#fdecea" : isPending ? "#fff8e1" : c.successBg }]}>
-              <Text style={[s2.txStatusText, { color: isFailed ? "#E53935" : isPending ? "#f59e0b" : "#059669" }]}>
+            <View style={[s2.txStatusBadge, { backgroundColor: isFailed ? c.errorBg : isPending ? c.warningBg : c.successBg }]}>
+              <Text style={[s2.txStatusText, { color: isFailed ? c.danger : isPending ? c.warningAmber : c.green }]}>
                 {isFailed ? "Failed" : isPending ? "Pending" : "Completed"}
               </Text>
             </View>
@@ -1437,22 +1534,56 @@ function SubscriptionSettingsPage() {
 
 function SettingsMainPage() {
   const c = useThemeColors();
-  const { isDark } = useTheme();
+  const { isDark, theme, setTheme } = useTheme();
   const router = useRouter();
   const { user } = useAuth();
   const menuItems = [
     ...(user?.type === "charity"
-      ? [{ icon: "card-outline" as const, label: "Subscription", color: isDark ? "#132737" : "#E3F2FD", route: "/settings/subscription" }]
+      ? [{ icon: "card-outline" as const, label: "Subscription", color: c.iconBgBlue, route: "/settings/subscription" }]
       : []),
-    { icon: "call-outline", label: "Contact", color: isDark ? "#1B2A3D" : "#E3F2FD", route: "/settings/help" },
-    { icon: "help-circle-outline", label: "How to Donate", color: isDark ? "#1B2E1B" : "#E8F5E9", route: "/settings/how-to-donate" },
-    { icon: "shield-checkmark-outline", label: "Privacy", color: isDark ? "#2D1B3D" : "#F3E5F5", route: "/settings/privacy-settings" },
-    { icon: "settings-outline", label: "Advanced Settings", color: isDark ? "#2A2A2A" : "#F5F5F5", route: "/settings/notifications" },
+    { icon: "call-outline", label: "Contact", color: c.iconBgBlue, route: "/settings/help" },
+    { icon: "help-circle-outline", label: "How to Donate", color: c.iconBgGreen, route: "/settings/how-to-donate" },
+    { icon: "shield-checkmark-outline", label: "Privacy", color: c.iconBgPurple, route: "/settings/privacy-settings" },
+    { icon: "settings-outline", label: "Advanced Settings", color: c.iconBgGrey, route: "/settings/notifications" },
+  ];
+
+  const themeOptions: { mode: "light" | "dark" | "system"; icon: string; label: string }[] = [
+    { mode: "light", icon: "sunny-outline", label: "Light" },
+    { mode: "dark", icon: "moon-outline", label: "Dark" },
+    { mode: "system", icon: "phone-portrait-outline", label: "System" },
   ];
 
   return (
     <>
       <View style={[styles.sectionCard, { backgroundColor: c.cardBg, shadowColor: c.cardShadow }]}>
+        <View style={sMain.appearanceSection}>
+          <Text style={[sMain.appearanceLabel, { color: c.textMuted }]}>Appearance</Text>
+          <View style={[sMain.themeSelector, { backgroundColor: isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.05)" }]}>
+            {themeOptions.map((opt) => {
+              const active = theme === opt.mode;
+              return (
+                <Pressable
+                  key={opt.mode}
+                  style={[
+                    sMain.themePill,
+                    active && { backgroundColor: Colors.green },
+                  ]}
+                  onPress={() => setTheme(opt.mode)}
+                >
+                  <Ionicons
+                    name={opt.icon as any}
+                    size={15}
+                    color={active ? Colors.white : c.textMuted}
+                  />
+                  <Text style={[sMain.themePillText, { color: active ? Colors.white : c.textMuted }]}>
+                    {opt.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
+        <View style={[styles.sep, { backgroundColor: c.border }]} />
         {menuItems.map((item, i) => (
           <React.Fragment key={item.label}>
             {i > 0 && <View style={[styles.sep, { backgroundColor: c.border }]} />}
@@ -1473,13 +1604,46 @@ function SettingsMainPage() {
   );
 }
 
+const sMain = StyleSheet.create({
+  appearanceSection: {
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 14,
+    gap: 10,
+  },
+  appearanceLabel: {
+    fontFamily: "SpaceGrotesk_500Medium",
+    fontSize: 12,
+    textTransform: "uppercase",
+    letterSpacing: 0.8,
+  },
+  themeSelector: {
+    flexDirection: "row",
+    borderRadius: 12,
+    padding: 4,
+    gap: 4,
+  },
+  themePill: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 5,
+    paddingVertical: 9,
+    borderRadius: 9,
+  },
+  themePillText: {
+    fontFamily: "SpaceGrotesk_500Medium",
+    fontSize: 13,
+  },
+});
+
 function HowToDonatePage() {
   const c = useThemeColors();
-  const { isDark } = useTheme();
   const router = useRouter();
   const [expandedId, setExpandedId] = useState<string>("how-it-works");
 
-  const navItems: Array<{ id: string; label: string; icon: any }> = [
+  const navItems: { id: string; label: string; icon: any }[] = [
     { id: "how-it-works", label: "What happens", icon: "sparkles-outline" },
     { id: "safe-payments", label: "Safe payments", icon: "shield-checkmark-outline" },
     { id: "verification", label: "Verification", icon: "people-checkmark-outline" },
@@ -1509,8 +1673,8 @@ function HowToDonatePage() {
     <>
       <View style={[styles.sectionCard, { backgroundColor: c.cardBg, shadowColor: c.cardShadow }]}>
         <View style={{ padding: 16, gap: 12 }}>
-          <Text style={{ fontFamily: "Poppins_700Bold", fontSize: 18, color: c.text }}>How to Donate</Text>
-          <Text style={{ fontFamily: "Poppins_400Regular", fontSize: 13, color: c.textMuted, lineHeight: 20 }}>
+          <Text style={{ fontFamily: "SpaceGrotesk_700Bold", fontSize: 18, color: c.text }}>How to Donate</Text>
+          <Text style={{ fontFamily: "SpaceGrotesk_400Regular", fontSize: 13, color: c.textMuted, lineHeight: 20 }}>
             Not legal advice. Donation eligibility and tax deductibility depend on the receiving organization and your personal situation.
           </Text>
 
@@ -1534,7 +1698,7 @@ function HowToDonatePage() {
                 <Ionicons name={item.icon} size={16} color={expandedId === item.id ? "#fff" : c.textMuted} />
                 <Text
                   style={{
-                    fontFamily: "Poppins_600SemiBold",
+                    fontFamily: "SpaceGrotesk_600SemiBold",
                     fontSize: 12,
                     color: expandedId === item.id ? "#fff" : c.text,
                   }}
@@ -1627,7 +1791,6 @@ function HelpCenterPage() {
 
 function PrivacySettingsPage() {
   const c = useThemeColors();
-  const { isDark } = useTheme();
   return (
     <>
       <View style={[styles.sectionCard, { backgroundColor: c.cardBg, shadowColor: c.cardShadow }]}>
@@ -1635,8 +1798,8 @@ function PrivacySettingsPage() {
           style={s2.menuRow}
           onPress={() => Alert.alert("Privacy Policy", "Our privacy policy details how we collect, use, and protect your personal data. Visit giveblack.org/privacy for the full document.")}
         >
-          <View style={[s2.menuIconCircle, { backgroundColor: isDark ? "#1B2A3D" : "#E3F2FD" }]}>
-            <Ionicons name="shield-checkmark" size={20} color="#1976D2" />
+          <View style={[s2.menuIconCircle, { backgroundColor: c.iconBgBlue }]}>
+            <Ionicons name="shield-checkmark" size={20} color={c.iconFgBlue} />
           </View>
           <Text style={[s2.menuLabel, { color: c.text }]}>Privacy Policy</Text>
           <Ionicons name="chevron-forward" size={16} color={c.textLight} />
@@ -1660,10 +1823,10 @@ function PrivacySettingsPage() {
             )
           }
         >
-          <View style={[s2.menuIconCircle, { backgroundColor: isDark ? "#3D1515" : "#FFEBEE" }]}>
-            <Ionicons name="trash" size={20} color="#E53935" />
+          <View style={[s2.menuIconCircle, { backgroundColor: c.iconBgRed }]}>
+            <Ionicons name="trash" size={20} color={c.danger} />
           </View>
-          <Text style={[s2.menuLabel, { color: "#E53935" }]}>Delete all private data</Text>
+          <Text style={[s2.menuLabel, { color: c.danger }]}>Delete all private data</Text>
           <Ionicons name="chevron-forward" size={16} color={c.textLight} />
         </Pressable>
       </View>
@@ -1671,99 +1834,90 @@ function PrivacySettingsPage() {
   );
 }
 
+const INVITE_SHARE_MESSAGE =
+  "I just joined GiveBlack — a platform that connects donors with Black-led causes and community programs. Come support with me! https://giveblackapp.com";
+
 function InviteFriendsPage() {
   const c = useThemeColors();
-  const [search, setSearch] = useState("");
-  const [invited, setInvited] = useState<string[]>([]);
 
-  const contacts = [
-    { id: "c1", name: "Aisha Johnson", phone: "(555) 123-4567", color: "#E91E63" },
-    { id: "c2", name: "Brandon Williams", phone: "(555) 234-5678", color: "#9C27B0" },
-    { id: "c3", name: "Crystal Brown", phone: "(555) 345-6789", color: "#2196F3" },
-    { id: "c4", name: "David Thompson", phone: "(555) 456-7890", color: "#4CAF50" },
-    { id: "c5", name: "Ebony Davis", phone: "(555) 567-8901", color: "#FF9800" },
-    { id: "c6", name: "Franklin Moore", phone: "(555) 678-9012", color: "#00BCD4" },
-    { id: "c7", name: "Grace Taylor", phone: "(555) 789-0123", color: "#795548" },
-    { id: "c8", name: "Howard Jackson", phone: "(555) 890-1234", color: "#607D8B" },
-    { id: "c9", name: "Imani Harris", phone: "(555) 901-2345", color: "#F44336" },
-    { id: "c10", name: "Jamal Clark", phone: "(555) 012-3456", color: "#3F51B5" },
-  ];
-
-  const filtered = contacts.filter((ct) =>
-    ct.name.toLowerCase().includes(search.toLowerCase())
-  );
-
-  const toggleInvite = (id: string) => {
-    setInvited((prev) =>
-      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
-    );
-  };
+  async function handleShare() {
+    try {
+      await Share.share({ message: INVITE_SHARE_MESSAGE });
+    } catch {
+      // user cancelled or share unavailable
+    }
+  }
 
   return (
     <>
-      <View style={[s2.searchBar, { backgroundColor: c.cardBg, borderColor: c.border }]}>
-        <Ionicons name="search" size={18} color={c.textLight} />
-        <TextInput
-          style={[s2.searchInput, { color: c.text }]}
-          placeholder="Search contacts..."
-          placeholderTextColor={c.textLight}
-          value={search}
-          onChangeText={setSearch}
-        />
-        {search.length > 0 && (
-          <Pressable onPress={() => setSearch("")}>
-            <Ionicons name="close-circle" size={18} color={c.textLight} />
-          </Pressable>
-        )}
+      <View style={[s2.inviteHeroCard, { backgroundColor: c.cardBg }]}>
+        <View style={[s2.inviteIconCircle, { backgroundColor: c.background }]}>
+          <Ionicons name="people" size={32} color={Colors.green} />
+        </View>
+        <Text style={[s2.inviteHeroTitle, { color: c.text }]}>Spread the word</Text>
+        <Text style={[s2.inviteHeroSubtitle, { color: c.textMuted }]}>
+          Invite friends to join GiveBlack and support Black-led causes together. Share via Messages, WhatsApp, email, or any app you like.
+        </Text>
       </View>
-      <View style={[styles.sectionCard, { backgroundColor: c.cardBg, shadowColor: c.cardShadow }]}>
-        {filtered.map((contact, i) => {
-          const isInvited = invited.includes(contact.id);
-          const initials = contact.name
-            .split(" ")
-            .map((w) => w[0])
-            .join("");
-          return (
-            <React.Fragment key={contact.id}>
-              {i > 0 && <View style={[styles.sep, { backgroundColor: c.border }]} />}
-              <View style={s2.contactRow}>
-                <View style={[s2.contactAvatar, { backgroundColor: contact.color }]}>
-                  <Text style={s2.contactInitials}>{initials}</Text>
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={[s2.contactName, { color: c.text }]}>{contact.name}</Text>
-                  <Text style={[s2.contactPhone, { color: c.textLight }]}>{contact.phone}</Text>
-                </View>
-                <Pressable
-                  style={[
-                    s2.inviteBtn,
-                    isInvited && s2.invitedBtn,
-                  ]}
-                  onPress={() => toggleInvite(contact.id)}
-                >
-                  <Text
-                    style={[
-                      s2.inviteBtnText,
-                      isInvited && s2.invitedBtnText,
-                    ]}
-                  >
-                    {isInvited ? "Invited" : "Invite"}
-                  </Text>
-                </Pressable>
-              </View>
-            </React.Fragment>
-          );
-        })}
+
+      <View style={[s2.invitePreviewCard, { backgroundColor: c.cardBg, borderColor: c.border }]}>
+        <Text style={[s2.invitePreviewLabel, { color: c.textMuted }]}>Your invite message</Text>
+        <Text style={[s2.invitePreviewText, { color: c.text }]}>{INVITE_SHARE_MESSAGE}</Text>
       </View>
+
+      <Pressable style={s2.inviteShareBtn} onPress={handleShare}>
+        <Ionicons name="share-social-outline" size={20} color={Colors.white} />
+        <Text style={s2.inviteShareBtnText}>Share GiveBlack</Text>
+      </Pressable>
     </>
   );
 }
+
+const GUEST_LOCKED_PAGES = ["transactions", "edit-profile", "privacy", "subscription", "notifications"];
+
+const GUEST_LOCK_CONFIG: Record<string, { icon: React.ComponentProps<typeof Ionicons>["name"]; title: string; message: string }> = {
+  transactions: {
+    icon: "receipt-outline",
+    title: "View your transactions",
+    message: "Create a free account to see your full donation and transaction history all in one place.",
+  },
+  "edit-profile": {
+    icon: "person-outline",
+    title: "Edit your profile",
+    message: "Create a free account to set up your profile, upload a photo, and personalize your GiveBlack experience.",
+  },
+  privacy: {
+    icon: "lock-closed-outline",
+    title: "Privacy & Security",
+    message: "Create a free account to manage your password, biometric login, and account data settings.",
+  },
+  subscription: {
+    icon: "star-outline",
+    title: "Manage your subscription",
+    message: "Create a free account to view and manage your GiveBlack subscription and billing details.",
+  },
+  notifications: {
+    icon: "notifications-outline",
+    title: "Notification preferences",
+    message: "Create a free account to personalise which push notifications you receive from GiveBlack.",
+  },
+};
 
 export default function SettingsDetailScreen() {
   const { page } = useLocalSearchParams<{ page: string }>();
   const router = useRouter();
   const insets = useSafeInsets();
   const bottomPad = insets.bottom;
+  const { isGuest } = useAuth();
+  const c = useThemeColors();
+
+  const isLockedForGuest = isGuest && GUEST_LOCKED_PAGES.includes(page || "");
+  const lockConfig = isLockedForGuest ? GUEST_LOCK_CONFIG[page || ""] : null;
+  const [showGuestSheet, setShowGuestSheet] = useState(true);
+
+  useEffect(() => {
+    if (isLockedForGuest) setShowGuestSheet(true);
+  }, [page, isLockedForGuest]);
 
   const titles: Record<string, string> = {
     notifications: "Notifications",
@@ -1820,7 +1974,36 @@ export default function SettingsDetailScreen() {
     }
   };
 
-  const c = useThemeColors();
+  if (isLockedForGuest && lockConfig) {
+    return (
+      <View style={[styles.container, { backgroundColor: c.background }]}>
+        <AppHeader showBack title={titles[page || ""] || "Settings"} showSearch={false} />
+        <View style={styles.lockedEmptyState}>
+          <Ionicons name={lockConfig.icon} size={52} color={c.textLight} />
+          <Text style={[styles.lockedEmptyTitle, { color: c.text }]}>{lockConfig.title}</Text>
+          <Text style={[styles.lockedEmptyMsg, { color: c.textMuted }]}>
+            Sign in or create a free account to access this feature.
+          </Text>
+          <Pressable style={[styles.lockedEmptyBtn, { backgroundColor: c.green }]} onPress={() => setShowGuestSheet(true)}>
+            <Text style={styles.lockedEmptyBtnText}>Create Account</Text>
+          </Pressable>
+        </View>
+        <GuestLockSheet
+          visible={showGuestSheet}
+          icon={lockConfig.icon}
+          title={lockConfig.title}
+          message={lockConfig.message}
+          onCreateAccount={() =>
+            router.push({
+              pathname: "/(auth)/donor-signup",
+              params: { returnTo: `/settings/${page}`, feature: page || "" },
+            })
+          }
+          onDismiss={() => setShowGuestSheet(false)}
+        />
+      </View>
+    );
+  }
 
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
@@ -1843,6 +2026,36 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.cream,
   },
+  lockedEmptyState: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 36,
+    gap: 12,
+  },
+  lockedEmptyTitle: {
+    fontFamily: "SpaceGrotesk_600SemiBold",
+    fontSize: 18,
+    textAlign: "center",
+    marginTop: 8,
+  },
+  lockedEmptyMsg: {
+    fontFamily: "SpaceGrotesk_400Regular",
+    fontSize: 14,
+    textAlign: "center",
+    lineHeight: 22,
+  },
+  lockedEmptyBtn: {
+    marginTop: 8,
+    borderRadius: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 32,
+  },
+  lockedEmptyBtnText: {
+    fontFamily: "SpaceGrotesk_600SemiBold",
+    fontSize: 15,
+    color: Colors.white,
+  },
   backBtn: {
     width: 40,
     height: 40,
@@ -1859,7 +2072,7 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   sectionTitle: {
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 14,
     color: Colors.textMuted,
     textTransform: "uppercase",
@@ -1896,12 +2109,12 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   rowLabel: {
-    fontFamily: "Poppins_500Medium",
+    fontFamily: "SpaceGrotesk_500Medium",
     fontSize: 14,
     color: Colors.primary,
   },
   rowDesc: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 12,
     color: Colors.textMuted,
     marginTop: 2,
@@ -1921,14 +2134,14 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   faqQuestion: {
-    fontFamily: "Poppins_500Medium",
+    fontFamily: "SpaceGrotesk_500Medium",
     fontSize: 14,
     color: Colors.primary,
     flex: 1,
     paddingRight: 10,
   },
   faqAnswer: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 13,
     color: Colors.textMuted,
     lineHeight: 20,
@@ -1938,27 +2151,27 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   legalDate: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 12,
     color: Colors.textLight,
     marginBottom: 16,
   },
   legalHeading: {
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 14,
     color: Colors.primary,
     marginTop: 16,
     marginBottom: 6,
   },
   legalSubheading: {
-    fontFamily: "Poppins_500Medium",
+    fontFamily: "SpaceGrotesk_500Medium",
     fontSize: 13,
     color: Colors.primary,
     marginTop: 10,
     marginBottom: 4,
   },
   legalText: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 13,
     color: Colors.textMuted,
     lineHeight: 20,
@@ -1978,12 +2191,12 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   shareTitle: {
-    fontFamily: "Poppins_700Bold",
+    fontFamily: "SpaceGrotesk_700Bold",
     fontSize: 24,
     color: Colors.primary,
   },
   shareSubtitle: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 14,
     color: Colors.textMuted,
     textAlign: "center",
@@ -2003,12 +2216,12 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
   },
   impactValue: {
-    fontFamily: "Poppins_700Bold",
+    fontFamily: "SpaceGrotesk_700Bold",
     fontSize: 20,
     color: Colors.green,
   },
   impactLabel: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 11,
     color: Colors.textMuted,
     marginTop: 4,
@@ -2018,7 +2231,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   fieldLabel: {
-    fontFamily: "Poppins_500Medium",
+    fontFamily: "SpaceGrotesk_500Medium",
     fontSize: 12,
     color: Colors.textMuted,
     marginBottom: 6,
@@ -2026,7 +2239,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   fieldInput: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 15,
     color: Colors.primary,
     borderWidth: 1,
@@ -2037,7 +2250,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.cream,
   },
   fieldHint: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 11,
     color: Colors.textLight,
     marginTop: 4,
@@ -2050,7 +2263,7 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   saveBtnText: {
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 16,
     color: Colors.white,
   },
@@ -2061,16 +2274,25 @@ const s2 = StyleSheet.create({
     alignItems: "center",
     paddingVertical: 24,
   },
+  avatarWrapper: {
+    width: 90,
+    height: 90,
+  },
   avatarCircle: {
     width: 90,
     height: 90,
     borderRadius: 45,
-    backgroundColor: Colors.green,
     alignItems: "center",
     justifyContent: "center",
+    overflow: "hidden",
+  },
+  avatarImage: {
+    width: 90,
+    height: 90,
+    borderRadius: 45,
   },
   avatarText: {
-    fontFamily: "Poppins_700Bold",
+    fontFamily: "SpaceGrotesk_700Bold",
     fontSize: 28,
     color: Colors.white,
   },
@@ -2095,7 +2317,7 @@ const s2 = StyleSheet.create({
     marginBottom: 24,
   },
   greenBtnText: {
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 16,
     color: Colors.white,
   },
@@ -2113,7 +2335,7 @@ const s2 = StyleSheet.create({
   },
   searchInput: {
     flex: 1,
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 14,
     color: Colors.primary,
     padding: 0,
@@ -2124,12 +2346,12 @@ const s2 = StyleSheet.create({
     gap: 12,
   },
   emptyText: {
-    fontFamily: "Poppins_500Medium",
+    fontFamily: "SpaceGrotesk_500Medium",
     fontSize: 15,
     color: Colors.textLight,
   },
   monthLabel: {
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 14,
     color: Colors.textMuted,
     marginBottom: 10,
@@ -2150,18 +2372,18 @@ const s2 = StyleSheet.create({
     justifyContent: "center",
   },
   txTitle: {
-    fontFamily: "Poppins_500Medium",
+    fontFamily: "SpaceGrotesk_500Medium",
     fontSize: 14,
     color: Colors.primary,
   },
   txDate: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 12,
     color: Colors.textLight,
     marginTop: 2,
   },
   txAmount: {
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 15,
   },
   menuRow: {
@@ -2180,7 +2402,7 @@ const s2 = StyleSheet.create({
   },
   menuLabel: {
     flex: 1,
-    fontFamily: "Poppins_500Medium",
+    fontFamily: "SpaceGrotesk_500Medium",
     fontSize: 14,
     color: Colors.primary,
   },
@@ -2199,42 +2421,85 @@ const s2 = StyleSheet.create({
     justifyContent: "center",
   },
   contactInitials: {
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 14,
     color: Colors.white,
   },
   contactName: {
-    fontFamily: "Poppins_500Medium",
+    fontFamily: "SpaceGrotesk_500Medium",
     fontSize: 14,
     color: Colors.primary,
   },
   contactPhone: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 12,
     color: Colors.textLight,
     marginTop: 2,
   },
-  inviteBtn: {
-    borderWidth: 1.5,
-    borderColor: Colors.green,
-    borderRadius: 20,
-    paddingHorizontal: 18,
-    paddingVertical: 6,
+  inviteHeroCard: {
+    borderRadius: 16,
+    padding: 24,
+    alignItems: "center",
+    marginBottom: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 1,
   },
-  inviteBtnText: {
-    fontFamily: "Poppins_500Medium",
-    fontSize: 13,
-    color: Colors.green,
+  inviteIconCircle: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 16,
   },
-  invitedBtn: {
+  inviteHeroTitle: {
+    fontFamily: "SpaceGrotesk_700Bold",
+    fontSize: 20,
+    marginBottom: 10,
+    textAlign: "center",
+  },
+  inviteHeroSubtitle: {
+    fontFamily: "SpaceGrotesk_400Regular",
+    fontSize: 14,
+    lineHeight: 22,
+    textAlign: "center",
+  },
+  invitePreviewCard: {
+    borderRadius: 14,
+    padding: 16,
+    borderWidth: 1,
+    marginBottom: 20,
+  },
+  invitePreviewLabel: {
+    fontFamily: "SpaceGrotesk_500Medium",
+    fontSize: 12,
+    marginBottom: 8,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  invitePreviewText: {
+    fontFamily: "SpaceGrotesk_400Regular",
+    fontSize: 14,
+    lineHeight: 22,
+  },
+  inviteShareBtn: {
     backgroundColor: Colors.green,
-    borderColor: Colors.green,
+    borderRadius: 30,
+    paddingVertical: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
   },
-  invitedBtnText: {
+  inviteShareBtnText: {
+    fontFamily: "SpaceGrotesk_700Bold",
+    fontSize: 16,
     color: Colors.white,
   },
   txDetail: {
-    backgroundColor: "#F9F9F9",
     marginHorizontal: 16,
     marginBottom: 12,
     borderRadius: 12,
@@ -2247,23 +2512,22 @@ const s2 = StyleSheet.create({
     alignItems: "center",
   },
   txDetailLabel: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 13,
     color: Colors.textMuted,
   },
   txDetailValue: {
-    fontFamily: "Poppins_500Medium",
+    fontFamily: "SpaceGrotesk_500Medium",
     fontSize: 13,
     color: Colors.primary,
   },
   txStatusBadge: {
-    backgroundColor: "#E8F5E9",
     borderRadius: 8,
     paddingHorizontal: 10,
     paddingVertical: 3,
   },
   txStatusText: {
-    fontFamily: "Poppins_500Medium",
+    fontFamily: "SpaceGrotesk_500Medium",
     fontSize: 12,
     color: Colors.green,
   },
@@ -2273,7 +2537,7 @@ const s2 = StyleSheet.create({
     gap: 10,
   },
   pinInput: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 15,
     color: Colors.primary,
     borderWidth: 1,
@@ -2292,7 +2556,7 @@ const s2 = StyleSheet.create({
     alignItems: "center",
   },
   pinSaveBtnText: {
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 14,
     color: Colors.white,
   },

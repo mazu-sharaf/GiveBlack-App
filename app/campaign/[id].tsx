@@ -1,5 +1,4 @@
 import React, { useCallback, useState } from "react";
-import { useFocusEffect } from "@react-navigation/native";
 import {
   View,
   Text,
@@ -13,9 +12,10 @@ import {
 } from "react-native";
 import { Image } from "expo-image";
 import { useSafeInsets } from "@/lib/safe-area";
-import { router, useLocalSearchParams } from "expo-router";
+import { router, useLocalSearchParams, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useApp, type Campaign } from "@/context/AppContext";
+import Colors from "@/constants/colors";
 import { useThemeColors } from "@/context/ThemeContext";
 import OrgAvatar from "@/components/OrgAvatar";
 import { getApiUrl } from "@/lib/query-client";
@@ -25,7 +25,7 @@ import AppHeader from "@/components/AppHeader";
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 interface CampaignDetail extends Campaign {
-  gallery?: Array<{ id: string; image_url: string; caption?: string }>;
+  gallery?: { id: string; image_url: string; caption?: string }[];
   orgDescription?: string;
   orgTier?: string;
 }
@@ -37,9 +37,16 @@ function resolveImgUrl(base: string, url?: string | null): string | undefined {
 }
 
 export default function CampaignDetailScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, quick_amount } = useLocalSearchParams<{ id: string; quick_amount?: string }>();
+
+  const prefilledAmount = (() => {
+    const raw = Array.isArray(quick_amount) ? quick_amount[0] : quick_amount;
+    if (!raw) return null;
+    const n = parseFloat(raw);
+    return Number.isFinite(n) && n > 0 ? n : null;
+  })();
   const insets = useSafeInsets();
-  const { campaigns, categories, isFavorite, toggleFavorite } = useApp();
+  const { campaigns, categories, isFavorite, toggleFavorite, setLastMeaningfulRoute } = useApp();
   const c = useThemeColors();
   const bottomPad = insets.bottom;
 
@@ -89,7 +96,8 @@ export default function CampaignDetailScreen() {
   useFocusEffect(
     useCallback(() => {
       fetchDetail();
-    }, [fetchDetail])
+      if (id) setLastMeaningfulRoute(`/campaign/${id}`);
+    }, [fetchDetail, id, setLastMeaningfulRoute])
   );
 
   const camp = campaign || (contextCampaign ? { ...contextCampaign, gallery: [], orgDescription: undefined, orgTier: undefined } : null);
@@ -236,7 +244,7 @@ export default function CampaignDetailScreen() {
                       { borderColor: c.background },
                     ]}
                   >
-                    <Ionicons name="person" size={12} color="#FFFFFF" />
+                    <Ionicons name="person" size={12} color={Colors.white} />
                   </View>
                 ))}
               </View>
@@ -357,7 +365,11 @@ export default function CampaignDetailScreen() {
               onPress={() =>
                 router.push({
                   pathname: "/donate/[orgId]",
-                  params: { orgId: camp.organizationId, campaignId: id },
+                  params: {
+                    orgId: camp.organizationId,
+                    campaignId: id,
+                    ...(prefilledAmount ? { amount: String(prefilledAmount) } : {}),
+                  },
                 })
               }
             >
@@ -373,16 +385,16 @@ export default function CampaignDetailScreen() {
           {
             paddingTop: insets.top + 8,
             backgroundColor: "transparent",
+            pointerEvents: "box-none",
           },
         ]}
-        pointerEvents="box-none"
       >
         <Pressable style={styles.heroBtn} onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={20} color="#0A0A0A" />
+          <Ionicons name="arrow-back" size={20} color={Colors.primary} />
         </Pressable>
         <View style={styles.heroRight}>
           <Pressable style={styles.heroBtn} onPress={handleShare}>
-            <Ionicons name="share-outline" size={20} color="#0A0A0A" />
+            <Ionicons name="share-outline" size={20} color={Colors.primary} />
           </Pressable>
           <Pressable
             style={styles.heroBtn}
@@ -391,7 +403,7 @@ export default function CampaignDetailScreen() {
             <Ionicons
               name={isFavorite(camp.id) ? "heart" : "heart-outline"}
               size={20}
-              color={isFavorite(camp.id) ? c.green : "#0A0A0A"}
+              color={isFavorite(camp.id) ? c.green : Colors.primary}
             />
           </Pressable>
         </View>
@@ -424,41 +436,41 @@ const styles = StyleSheet.create({
   },
   heroRight: { flexDirection: "row", gap: 8 },
   body: { paddingHorizontal: 20, paddingTop: 20 },
-  campaignTitle: { fontFamily: "Poppins_700Bold", fontSize: 20, lineHeight: 28, marginBottom: 12 },
+  campaignTitle: { fontFamily: "SpaceGrotesk_700Bold", fontSize: 20, lineHeight: 28, marginBottom: 12 },
   orgRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 20 },
-  orgName: { fontFamily: "Poppins_500Medium", fontSize: 14 },
+  orgName: { fontFamily: "SpaceGrotesk_500Medium", fontSize: 14 },
   statsRow: {
     flexDirection: "row", borderRadius: 14, paddingVertical: 16, paddingHorizontal: 12,
     marginBottom: 16,
   },
   statItem: { flex: 1, alignItems: "center" },
-  statValue: { fontFamily: "Poppins_700Bold", fontSize: 16, marginBottom: 4 },
-  statLabel: { fontFamily: "Poppins_400Regular", fontSize: 11 },
+  statValue: { fontFamily: "SpaceGrotesk_700Bold", fontSize: 16, marginBottom: 4 },
+  statLabel: { fontFamily: "SpaceGrotesk_400Regular", fontSize: 11 },
   statDivider: { width: 1, height: "100%" },
   progressSection: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 16 },
   progressBar: { flex: 1, height: 8, borderRadius: 4, overflow: "hidden" },
   progressFill: { height: 8, borderRadius: 4 },
-  progressPct: { fontFamily: "Poppins_600SemiBold", fontSize: 14 },
+  progressPct: { fontFamily: "SpaceGrotesk_600SemiBold", fontSize: 14 },
   donorsRow: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 16 },
   donorAvatars: { flexDirection: "row" },
   donorAvatar: {
     width: 28, height: 28, borderRadius: 14,
     alignItems: "center", justifyContent: "center", borderWidth: 2,
   },
-  donorCountText: { fontFamily: "Poppins_400Regular", fontSize: 13 },
+  donorCountText: { fontFamily: "SpaceGrotesk_400Regular", fontSize: 13 },
   tagsRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 24 },
   tag: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 },
-  tagText: { fontFamily: "Poppins_500Medium", fontSize: 12 },
-  sectionTitle: { fontFamily: "Poppins_600SemiBold", fontSize: 18, marginBottom: 12 },
-  storyText: { fontFamily: "Poppins_400Regular", fontSize: 14, lineHeight: 22, marginBottom: 20 },
+  tagText: { fontFamily: "SpaceGrotesk_500Medium", fontSize: 12 },
+  sectionTitle: { fontFamily: "SpaceGrotesk_600SemiBold", fontSize: 18, marginBottom: 12 },
+  storyText: { fontFamily: "SpaceGrotesk_400Regular", fontSize: 14, lineHeight: 22, marginBottom: 20 },
   storyImageWrap: { borderRadius: 14, overflow: "hidden", marginBottom: 24, height: 180 },
   storyImage: { width: "100%", height: "100%" },
   galleryRow: { marginBottom: 24 },
   galleryImage: { width: 240, height: 160, borderRadius: 14, marginRight: 12 },
   aboutStatsRow: { flexDirection: "row", gap: 12, marginBottom: 20 },
   aboutStatCard: { flex: 1, borderRadius: 14, paddingVertical: 16, alignItems: "center" },
-  aboutStatValue: { fontFamily: "Poppins_700Bold", fontSize: 18, marginBottom: 4 },
-  aboutStatLabel: { fontFamily: "Poppins_400Regular", fontSize: 12 },
+  aboutStatValue: { fontFamily: "SpaceGrotesk_700Bold", fontSize: 18, marginBottom: 4 },
+  aboutStatLabel: { fontFamily: "SpaceGrotesk_400Regular", fontSize: 12 },
   bottomBar: {
     position: "absolute", bottom: 0, left: 0, right: 0,
     paddingTop: 12, paddingHorizontal: 20, borderTopWidth: 1,
@@ -481,7 +493,7 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     minHeight: 52,
   },
-  volunteerBtnText: { fontFamily: "Poppins_600SemiBold", fontSize: 14 },
+  volunteerBtnText: { fontFamily: "SpaceGrotesk_600SemiBold", fontSize: 14 },
   donateBtn: {
     flex: 1,
     alignItems: "center",
@@ -491,23 +503,23 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     minHeight: 52,
   },
-  donateBtnText: { fontFamily: "Poppins_600SemiBold", fontSize: 16, color: "#FFFFFF", textAlign: "center" },
+  donateBtnText: { fontFamily: "SpaceGrotesk_600SemiBold", fontSize: 16, color: Colors.white, textAlign: "center" },
   notFound: { flex: 1, alignItems: "center", justifyContent: "center", gap: 12 },
-  notFoundText: { fontFamily: "Poppins_500Medium", fontSize: 16 },
+  notFoundText: { fontFamily: "SpaceGrotesk_500Medium", fontSize: 16 },
   backLink: { marginTop: 8 },
-  backLinkText: { fontFamily: "Poppins_500Medium", fontSize: 14 },
+  backLinkText: { fontFamily: "SpaceGrotesk_500Medium", fontSize: 14 },
   completedBanner: {
     flexDirection: "row", alignItems: "center", gap: 8,
     paddingVertical: 12, paddingHorizontal: 16, borderRadius: 12, marginBottom: 16,
   },
   completedText: {
-    fontFamily: "Poppins_600SemiBold", fontSize: 14,
+    fontFamily: "SpaceGrotesk_600SemiBold", fontSize: 14,
   },
   completedBottomBar: {
     flexDirection: "row", alignItems: "center", justifyContent: "center",
     gap: 8, paddingVertical: 16, borderRadius: 14,
   },
   completedBottomText: {
-    fontFamily: "Poppins_600SemiBold", fontSize: 14,
+    fontFamily: "SpaceGrotesk_600SemiBold", fontSize: 14,
   },
 });

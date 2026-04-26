@@ -1,29 +1,24 @@
 import React, { useEffect, useRef } from "react";
-import { Animated, StyleSheet, View, Platform } from "react-native";
+import { Animated, StyleSheet, Platform } from "react-native";
 import { Image } from "expo-image";
 import * as SplashScreen from "expo-splash-screen";
-/** Same asset as app.json `expo.splash.image` for a seamless handoff after native splash hides. */
-const splashImage = require("@/assets/images/splash-logo.png");
 
-/** Matches app.json splash.backgroundColor */
-const SPLASH_BG = "#FFFFFF";
+const splashImage = require("@/assets/images/splash-image.png");
+
+const SPLASH_BG = "#E9EFD6";
 
 type Props = {
   onComplete: () => void;
+  ready?: boolean;
 };
 
-/**
- * Full-screen splash after native splash: logo scale + fade in, brief hold, then fade out.
- * Call only while native splash is still visible; we hide it once this view is mounted.
- */
-export function SplashLogoAnimation({ onComplete }: Props) {
-  const containerOpacity = useRef(new Animated.Value(1)).current;
-  const logoScale = useRef(new Animated.Value(0.88)).current;
-  const logoOpacity = useRef(new Animated.Value(0)).current;
+export function SplashLogoAnimation({ onComplete, ready = true }: Props) {
+  const opacity = useRef(new Animated.Value(1)).current;
   const doneRef = useRef(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+    if (!ready) return;
 
     const finish = () => {
       if (doneRef.current) return;
@@ -38,61 +33,38 @@ export function SplashLogoAnimation({ onComplete }: Props) {
         /* ignore — web or double-call */
       }
 
-      Animated.parallel([
-        Animated.spring(logoScale, {
-          toValue: 1,
-          friction: 7,
-          tension: 80,
+      timerRef.current = setTimeout(() => {
+        Animated.timing(opacity, {
+          toValue: 0,
+          duration: Platform.OS === "web" ? 150 : 200,
           useNativeDriver: true,
-        }),
-        Animated.timing(logoOpacity, {
-          toValue: 1,
-          duration: Platform.OS === "web" ? 400 : 520,
-          useNativeDriver: true,
-        }),
-      ]).start(({ finished }) => {
-        if (!finished) return;
-        timeoutId = setTimeout(() => {
-          Animated.timing(containerOpacity, {
-            toValue: 0,
-            duration: 380,
-            useNativeDriver: true,
-          }).start(({ finished: f }) => {
-            if (f) finish();
-          });
-        }, 420);
-      });
+        }).start(({ finished }) => {
+          if (finished) finish();
+        });
+      }, 2000);
     };
 
     run();
 
     return () => {
-      if (timeoutId) clearTimeout(timeoutId);
+      if (timerRef.current) clearTimeout(timerRef.current);
     };
-  }, [containerOpacity, logoOpacity, logoScale, onComplete]);
+  }, [ready, opacity, onComplete]);
 
   return (
     <Animated.View
-      pointerEvents="none"
-      style={[styles.root, { opacity: containerOpacity }]}
+      style={[styles.root, { opacity, pointerEvents: "none" }]}
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants"
     >
-      <View style={styles.inner}>
-        <Animated.View
-          style={{
-            opacity: logoOpacity,
-            transform: [{ scale: logoScale }],
-          }}
-        >
-          <Image
-            source={splashImage}
-            style={styles.logo}
-            contentFit="contain"
-            cachePolicy="memory-disk"
-          />
-        </Animated.View>
-      </View>
+      <Image
+        source={splashImage}
+        style={styles.image}
+        contentFit="cover"
+        cachePolicy="memory-disk"
+        priority="high"
+        transition={0}
+      />
     </Animated.View>
   );
 }
@@ -104,14 +76,9 @@ const styles = StyleSheet.create({
     zIndex: 100000,
     elevation: 100000,
   },
-  inner: {
+  image: {
     flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 40,
-  },
-  logo: {
-    width: 220,
-    height: 72,
+    width: "100%",
+    height: "100%",
   },
 });

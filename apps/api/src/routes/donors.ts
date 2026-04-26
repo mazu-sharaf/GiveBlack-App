@@ -20,6 +20,23 @@ function splitNameParts(display: string): { first_name: string; last_name: strin
 
 export const donorsRoutes: FastifyPluginAsync = async (app) => {
   app.get(
+    "/api/me/donations/pending-count",
+    { preHandler: [app.authenticate] },
+    async (request) => {
+      const user = request.user as { sub: string };
+      const res = await db.query(
+        `SELECT COUNT(*)::int AS pending_count
+         FROM donations
+         WHERE user_id = $1::uuid
+           AND status = 'pending'`,
+        [user.sub]
+      );
+      const row = res.rows[0] as { pending_count: number } | undefined;
+      return { pending_count: row?.pending_count ?? 0 };
+    }
+  );
+
+  app.get(
     "/api/me/donations/summary",
     { preHandler: [app.authenticate] },
     async (request) => {
@@ -175,6 +192,26 @@ export const donorsRoutes: FastifyPluginAsync = async (app) => {
 
     return { donors };
   });
+
+  app.patch(
+    "/api/me/profile",
+    { preHandler: [app.authenticate] },
+    async (request, reply) => {
+      const user = request.user as { sub: string };
+      const body = request.body as { name?: string };
+      const name = typeof body.name === "string" ? body.name.trim() : undefined;
+      if (!name) return reply.code(400).send({ error: "name is required" });
+      if (name.length > 120) return reply.code(400).send({ error: "name is too long" });
+
+      await db.query("update users set full_name = $1 where id = $2", [name, user.sub]);
+      await db.query(
+        `update profiles set name = $1 where id = $2`,
+        [name, user.sub]
+      );
+
+      return { success: true, name };
+    }
+  );
 
   app.post(
     "/api/profile/avatar",

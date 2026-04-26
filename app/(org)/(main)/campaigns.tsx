@@ -1,5 +1,5 @@
-import React, { useState, useCallback } from "react";
-import { useFocusEffect } from "@react-navigation/native";
+import React, { useState, useCallback, useEffect } from "react";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import {
   View,
   Text,
@@ -66,6 +66,8 @@ export default function CampaignsTab() {
   const chipPadH = windowWidth < 360 ? 10 : windowWidth < 400 ? 12 : 14;
   const chipGap = windowWidth < 360 ? 6 : 8;
   const { session, user, fetchWithAuth } = useAuth();
+  const params = useLocalSearchParams<{ openCreate?: string }>();
+  const router = useRouter();
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [subData, setSubData] = useState<SubData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -136,6 +138,13 @@ export default function CampaignsTab() {
     setGalleryImages([]);
     setShowForm(true);
   }
+
+  useEffect(() => {
+    if (params.openCreate === "1" && !loading) {
+      openCreate();
+      router.setParams({ openCreate: undefined });
+    }
+  }, [params.openCreate, loading]);
 
   async function openEdit(camp: Campaign) {
     setForm({
@@ -219,8 +228,8 @@ export default function CampaignsTab() {
   }
 
   async function pickGalleryImage() {
-    if (!editingId) {
-      Alert.alert("Save First", "Please save the campaign first before adding gallery images.");
+    if (galleryImages.length >= 5) {
+      Alert.alert("Limit reached", "You can add up to 5 gallery images.");
       return;
     }
 
@@ -263,27 +272,48 @@ export default function CampaignsTab() {
         return;
       }
 
-      const uploadJson = await uploadRes.json();
+      const uploadJson = (await uploadRes.json()) as { url?: unknown };
+      const uploadedUrl = String(uploadJson.url ?? "").trim();
+      if (!uploadedUrl) {
+        Alert.alert("Upload Failed", "Upload did not return a valid URL.");
+        return;
+      }
 
-      const addRes = await fetchWithAuth(`/api/org/campaign-images/${editingId}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          image_url: uploadJson.url,
-          sort_order: galleryImages.length,
-        }),
-      });
+      // If campaign exists, persist immediately. Otherwise stage locally and send on create.
+      if (editingId) {
+        const addRes = await fetchWithAuth(`/api/org/campaign-images/${editingId}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            image_url: uploadedUrl,
+            sort_order: galleryImages.length,
+          }),
+        });
 
-      if (addRes.ok) {
-        const addJson = await addRes.json();
-        setGalleryImages((prev) => [...prev, {
-          id: addJson.id,
-          image_url: uploadJson.url,
-          caption: null,
-          sort_order: galleryImages.length,
-        }]);
+        if (addRes.ok) {
+          const addJson = (await addRes.json().catch(() => ({}))) as { id?: unknown };
+          setGalleryImages((prev) => [
+            ...prev,
+            {
+              id: String(addJson.id || `local:${Date.now()}`),
+              image_url: uploadedUrl,
+              caption: null,
+              sort_order: galleryImages.length,
+            },
+          ]);
+        } else {
+          Alert.alert("Error", "Image uploaded but failed to add to gallery");
+        }
       } else {
-        Alert.alert("Error", "Image uploaded but failed to add to gallery");
+        setGalleryImages((prev) => [
+          ...prev,
+          {
+            id: `local:${Date.now()}`,
+            image_url: uploadedUrl,
+            caption: null,
+            sort_order: prev.length,
+          },
+        ]);
       }
     } catch (_e) {
       Alert.alert("Error", "Something went wrong");
@@ -293,6 +323,10 @@ export default function CampaignsTab() {
   }
 
   async function removeGalleryImage(imageId: string) {
+    if (imageId.startsWith("local:")) {
+      setGalleryImages((prev) => prev.filter((img) => img.id !== imageId));
+      return;
+    }
     try {
       const res = await fetchWithAuth(`/api/org/campaign-images/${imageId}`, {
         method: "DELETE",
@@ -325,6 +359,11 @@ export default function CampaignsTab() {
         story: form.story.trim() || null,
         about: form.about.trim() || null,
       };
+      if (!editingId && galleryImages.length) {
+        campaignData.gallery = galleryImages
+          .slice(0, 5)
+          .map((g, i) => ({ image_url: g.image_url, caption: g.caption ?? null, sort_order: i }));
+      }
 
       const path = editingId ? `/api/org/campaigns/${editingId}` : "/api/org/campaigns";
       const method = editingId ? "PUT" : "POST";
@@ -394,11 +433,11 @@ export default function CampaignsTab() {
   }
 
   const statusColors: Record<string, string> = {
-    active: "#10b981",
-    draft: "#94a3b8",
-    paused: "#f59e0b",
-    completed: "#6366f1",
-    pending_review: "#a855f7",
+    active: c.statusActive,
+    draft: c.statusDraft,
+    paused: c.statusPaused,
+    completed: c.statusCompleted,
+    pending_review: c.statusPending,
   };
 
   if (loading) {
@@ -424,8 +463,8 @@ export default function CampaignsTab() {
       <View style={styles.usageAndFilters}>
         <View style={[styles.usageBar, { backgroundColor: c.cardBg }]}>
           <Text style={[styles.usageText, { color: c.textMuted }]}>
-            Using <Text style={{ color: c.text, fontFamily: "Poppins_600SemiBold" }}>{currentCount}/{maxCampaigns === 999999 ? "\u221e" : maxCampaigns}</Text> campaigns
-            {" \u00b7 "}Max goal: <Text style={{ color: c.text, fontFamily: "Poppins_600SemiBold" }}>${maxGoal >= 999999 ? "\u221e" : maxGoal.toLocaleString()}</Text>
+            Using <Text style={{ color: c.text, fontFamily: "SpaceGrotesk_600SemiBold" }}>{currentCount}/{maxCampaigns === 999999 ? "\u221e" : maxCampaigns}</Text> campaigns
+            {" \u00b7 "}Max goal: <Text style={{ color: c.text, fontFamily: "SpaceGrotesk_600SemiBold" }}>${maxGoal >= 999999 ? "\u221e" : maxGoal.toLocaleString()}</Text>
           </Text>
         </View>
 
@@ -519,24 +558,24 @@ export default function CampaignsTab() {
                 <Text style={[styles.progressPercent, { color: c.textMuted }]}>{progress.toFixed(0)}% funded</Text>
                 <View style={styles.campActions}>
                   {camp.status === "active" && (
-                    <Pressable style={[styles.actionChip, { borderColor: "#f59e0b" }]} onPress={() => updateStatus(camp.id, "paused")}>
-                      <Ionicons name="pause" size={14} color="#f59e0b" />
-                      <Text style={[styles.actionChipText, { color: "#f59e0b" }]}>Pause</Text>
+                    <Pressable style={[styles.actionChip, { borderColor: c.statusPaused }]} onPress={() => updateStatus(camp.id, "paused")}>
+                      <Ionicons name="pause" size={14} color={c.statusPaused} />
+                      <Text style={[styles.actionChipText, { color: c.statusPaused }]}>Pause</Text>
                     </Pressable>
                   )}
                   {camp.status === "paused" && (
-                    <Pressable style={[styles.actionChip, { borderColor: "#10b981" }]} onPress={() => updateStatus(camp.id, "active")}>
-                      <Ionicons name="play" size={14} color="#10b981" />
-                      <Text style={[styles.actionChipText, { color: "#10b981" }]}>Resume</Text>
+                    <Pressable style={[styles.actionChip, { borderColor: c.statusActive }]} onPress={() => updateStatus(camp.id, "active")}>
+                      <Ionicons name="play" size={14} color={c.statusActive} />
+                      <Text style={[styles.actionChipText, { color: c.statusActive }]}>Resume</Text>
                     </Pressable>
                   )}
                   <Pressable style={[styles.actionChip, { borderColor: c.border }]} onPress={() => openEdit(camp)}>
                     <Ionicons name="create-outline" size={14} color={c.textMuted} />
                     <Text style={[styles.actionChipText, { color: c.textMuted }]}>Edit</Text>
                   </Pressable>
-                  <Pressable style={[styles.actionChip, { borderColor: "#ef4444" }]} onPress={() => deleteCampaign(camp.id)}>
-                    <Ionicons name="trash-outline" size={14} color="#ef4444" />
-                    <Text style={[styles.actionChipText, { color: "#ef4444" }]}>Delete</Text>
+                  <Pressable style={[styles.actionChip, { borderColor: c.danger }]} onPress={() => deleteCampaign(camp.id)}>
+                    <Ionicons name="trash-outline" size={14} color={c.danger} />
+                    <Text style={[styles.actionChipText, { color: c.danger }]}>Delete</Text>
                   </Pressable>
                 </View>
               </Pressable>
@@ -719,8 +758,8 @@ export default function CampaignsTab() {
                   style={styles.removeImageBtn}
                   onPress={() => setForm((f) => ({ ...f, image_url: "" }))}
                 >
-                  <Ionicons name="close-circle" size={16} color="#ef4444" />
-                  <Text style={[styles.removeImageText, { color: "#ef4444" }]}>Remove image</Text>
+                  <Ionicons name="close-circle" size={16} color={c.danger} />
+                  <Text style={[styles.removeImageText, { color: c.danger }]}>Remove image</Text>
                 </Pressable>
               ) : null}
             </View>
@@ -732,61 +771,57 @@ export default function CampaignsTab() {
               <Text style={[styles.formSublabel, { color: c.textMuted }]}>
                 Additional photos shown in the campaign detail page
               </Text>
-              {!editingId && (
-                <View style={[styles.galleryHint, { backgroundColor: c.green + "10", borderColor: c.green + "30" }]}>
-                  <Ionicons name="information-circle-outline" size={16} color={c.green} />
-                  <Text style={[styles.galleryHintText, { color: c.green }]}>
-                    Save the campaign first to add gallery images
-                  </Text>
-                </View>
-              )}
-              {editingId && (
-                <>
-                  <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={styles.galleryScroll}
+              <>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.galleryScroll}
+                >
+                  {galleryImages.map((img) => (
+                    <View key={img.id} style={styles.galleryItem}>
+                      <Image
+                        source={{ uri: resolveImageUrl(img.image_url) }}
+                        style={styles.galleryThumb}
+                        contentFit="cover"
+                        cachePolicy="memory-disk"
+                        recyclingKey={img.id}
+                        transition={200}
+                      />
+                      <Pressable
+                        style={styles.galleryRemoveBtn}
+                        onPress={() => removeGalleryImage(img.id)}
+                      >
+                        <Ionicons name="close-circle" size={22} color={c.danger} />
+                      </Pressable>
+                    </View>
+                  ))}
+                  <Pressable
+                    style={[styles.galleryAddBtn, { borderColor: c.border, backgroundColor: c.inputBg }]}
+                    onPress={pickGalleryImage}
+                    disabled={galleryUploading || galleryImages.length >= 5}
                   >
-                    {galleryImages.map((img) => (
-                      <View key={img.id} style={styles.galleryItem}>
-                        <Image
-                          source={{ uri: resolveImageUrl(img.image_url) }}
-                          style={styles.galleryThumb}
-                          contentFit="cover"
-                          cachePolicy="memory-disk"
-                          recyclingKey={img.id}
-                          transition={200}
-                        />
-                        <Pressable
-                          style={styles.galleryRemoveBtn}
-                          onPress={() => removeGalleryImage(img.id)}
-                        >
-                          <Ionicons name="close-circle" size={22} color="#ef4444" />
-                        </Pressable>
-                      </View>
-                    ))}
-                    <Pressable
-                      style={[styles.galleryAddBtn, { borderColor: c.border, backgroundColor: c.inputBg }]}
-                      onPress={pickGalleryImage}
-                      disabled={galleryUploading}
-                    >
-                      {galleryUploading ? (
-                        <ActivityIndicator size="small" color={c.green} />
-                      ) : (
-                        <>
-                          <Ionicons name="add-circle-outline" size={28} color={c.green} />
-                          <Text style={[styles.galleryAddText, { color: c.textMuted }]}>Add</Text>
-                        </>
-                      )}
-                    </Pressable>
-                  </ScrollView>
-                  {galleryImages.length === 0 && !galleryUploading && (
-                    <Text style={[styles.galleryEmptyText, { color: c.textMuted }]}>
-                      No gallery images yet. Tap + to add photos.
-                    </Text>
-                  )}
-                </>
-              )}
+                    {galleryUploading ? (
+                      <ActivityIndicator size="small" color={c.green} />
+                    ) : (
+                      <>
+                        <Ionicons name="add-circle-outline" size={28} color={c.green} />
+                        <Text style={[styles.galleryAddText, { color: c.textMuted }]}>Add</Text>
+                      </>
+                    )}
+                  </Pressable>
+                </ScrollView>
+                {galleryImages.length === 0 && !galleryUploading && (
+                  <Text style={[styles.galleryEmptyText, { color: c.textMuted }]}>
+                    No gallery images yet. Tap + to add photos.
+                  </Text>
+                )}
+                {galleryImages.length >= 5 ? (
+                  <View style={[styles.galleryHint, { backgroundColor: c.green + "10", borderColor: c.green + "30" }]}>
+                    <Ionicons name="information-circle-outline" size={16} color={c.green} />
+                    <Text style={[styles.galleryHintText, { color: c.green }]}>Limit: 5 images</Text>
+                  </View>
+                ) : null}
+              </>
             </View>
 
             <View style={[styles.sectionDivider, { borderTopColor: c.border }]} />
@@ -832,7 +867,7 @@ const styles = StyleSheet.create({
     paddingTop: 12,
     paddingBottom: 10,
   },
-  headerTitle: { fontFamily: "Poppins_700Bold", fontSize: 26 },
+  headerTitle: { fontFamily: "SpaceGrotesk_700Bold", fontSize: 26 },
   createBtn: {
     flexDirection: "row",
     alignItems: "center",
@@ -841,7 +876,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 14,
   },
-  createBtnText: { fontFamily: "Poppins_600SemiBold", fontSize: 14, color: "#fff" },
+  createBtnText: { fontFamily: "SpaceGrotesk_600SemiBold", fontSize: 14, color: "#fff" },
   /** Shared horizontal inset with header + list so usage, filters, and cards share one column. */
   usageAndFilters: {
     marginHorizontal: SCREEN_H_PAD,
@@ -853,7 +888,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     marginBottom: 10,
   },
-  usageText: { fontFamily: "Poppins_400Regular", fontSize: 13 },
+  usageText: { fontFamily: "SpaceGrotesk_400Regular", fontSize: 13 },
   filterRowScroll: {
     alignSelf: "stretch",
   },
@@ -870,7 +905,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   filterChipText: {
-    fontFamily: "Poppins_500Medium",
+    fontFamily: "SpaceGrotesk_500Medium",
     fontSize: 13,
     lineHeight: 16,
     textAlign: "center",
@@ -884,7 +919,7 @@ const styles = StyleSheet.create({
     padding: 40,
     alignItems: "center",
   },
-  emptyText: { fontFamily: "Poppins_500Medium", fontSize: 15, marginTop: 12 },
+  emptyText: { fontFamily: "SpaceGrotesk_500Medium", fontSize: 15, marginTop: 12 },
   campCard: {
     borderRadius: 18,
     padding: 18,
@@ -901,7 +936,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     marginBottom: 12,
   },
-  campTitle: { fontFamily: "Poppins_600SemiBold", fontSize: 16, marginBottom: 6 },
+  campTitle: { fontFamily: "SpaceGrotesk_600SemiBold", fontSize: 16, marginBottom: 6 },
   statusBadge: {
     flexDirection: "row",
     alignItems: "center",
@@ -912,13 +947,13 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   statusDot: { width: 6, height: 6, borderRadius: 3 },
-  statusText: { fontFamily: "Poppins_500Medium", fontSize: 11, textTransform: "capitalize" },
+  statusText: { fontFamily: "SpaceGrotesk_500Medium", fontSize: 11, textTransform: "capitalize" },
   campAmounts: { flexDirection: "row", alignItems: "baseline", marginBottom: 8 },
-  campRaised: { fontFamily: "Poppins_700Bold", fontSize: 20 },
-  campGoal: { fontFamily: "Poppins_400Regular", fontSize: 13 },
+  campRaised: { fontFamily: "SpaceGrotesk_700Bold", fontSize: 20 },
+  campGoal: { fontFamily: "SpaceGrotesk_400Regular", fontSize: 13 },
   progressTrack: { height: 6, borderRadius: 3, overflow: "hidden" },
   progressFill: { height: "100%", borderRadius: 3 },
-  progressPercent: { fontFamily: "Poppins_400Regular", fontSize: 12, marginTop: 6 },
+  progressPercent: { fontFamily: "SpaceGrotesk_400Regular", fontSize: 12, marginTop: 6 },
   campActions: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -937,7 +972,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     borderWidth: 1,
   },
-  actionChipText: { fontFamily: "Poppins_500Medium", fontSize: 12 },
+  actionChipText: { fontFamily: "SpaceGrotesk_500Medium", fontSize: 12 },
   modalHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -946,19 +981,19 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  modalCancel: { fontFamily: "Poppins_500Medium", fontSize: 15 },
-  modalTitle: { fontFamily: "Poppins_600SemiBold", fontSize: 17 },
-  modalSave: { fontFamily: "Poppins_600SemiBold", fontSize: 15 },
+  modalCancel: { fontFamily: "SpaceGrotesk_500Medium", fontSize: 15 },
+  modalTitle: { fontFamily: "SpaceGrotesk_600SemiBold", fontSize: 17 },
+  modalSave: { fontFamily: "SpaceGrotesk_600SemiBold", fontSize: 15 },
   formContent: { padding: 20, paddingBottom: 40 },
   formField: { marginBottom: 20 },
-  formLabel: { fontFamily: "Poppins_600SemiBold", fontSize: 15, marginBottom: 2 },
-  formSublabel: { fontFamily: "Poppins_400Regular", fontSize: 12, marginBottom: 10 },
+  formLabel: { fontFamily: "SpaceGrotesk_600SemiBold", fontSize: 15, marginBottom: 2 },
+  formSublabel: { fontFamily: "SpaceGrotesk_400Regular", fontSize: 12, marginBottom: 10 },
   sectionDivider: { borderTopWidth: 1, marginBottom: 20, marginTop: 4 },
   formInput: {
     borderRadius: 14,
     paddingHorizontal: 16,
     paddingVertical: 12,
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 15,
   },
   imageModeTabs: {
@@ -975,7 +1010,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     borderWidth: 1,
   },
-  imageModeTabText: { fontFamily: "Poppins_500Medium", fontSize: 13 },
+  imageModeTabText: { fontFamily: "SpaceGrotesk_500Medium", fontSize: 13 },
   uploadArea: {
     borderRadius: 14,
     borderWidth: 1.5,
@@ -997,16 +1032,16 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   uploadTitle: {
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 15,
     marginBottom: 4,
   },
   uploadHint: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 12,
   },
   uploadText: {
-    fontFamily: "Poppins_500Medium",
+    fontFamily: "SpaceGrotesk_500Medium",
     fontSize: 14,
     marginTop: 8,
   },
@@ -1029,7 +1064,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
   },
   changeBtnText: {
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 12,
     color: "#fff",
   },
@@ -1047,7 +1082,7 @@ const styles = StyleSheet.create({
     alignSelf: "flex-start",
   },
   removeImageText: {
-    fontFamily: "Poppins_500Medium",
+    fontFamily: "SpaceGrotesk_500Medium",
     fontSize: 12,
   },
   galleryHint: {
@@ -1059,7 +1094,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   galleryHintText: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 13,
     flex: 1,
   },
@@ -1093,11 +1128,11 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   galleryAddText: {
-    fontFamily: "Poppins_500Medium",
+    fontFamily: "SpaceGrotesk_500Medium",
     fontSize: 12,
   },
   galleryEmptyText: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 13,
     textAlign: "center",
     marginTop: 8,

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useCallback } from "react";
 import {
   View,
   Text,
@@ -8,7 +8,7 @@ import {
   TextInput,
 } from "react-native";
 import { Image } from "expo-image";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import { useSafeInsets } from "@/lib/safe-area";
 import { Ionicons } from "@expo/vector-icons";
 import Animated, {
@@ -22,9 +22,8 @@ import { useTheme, useThemeColors } from "@/context/ThemeContext";
 import { useApp, type Category } from "@/context/AppContext";
 import { useAuth } from "@/context/AuthContext";
 
-/** When API has no per-category colors, match admin default (#059669). */
-const DEFAULT_CATEGORY_THEME = "#059669";
-const CATEGORY_ROW_BG_DARK = "#1C1C1E";
+/** When API has no per-category colors, match admin default. */
+const DEFAULT_CATEGORY_THEME = Colors.categoryDefaultAccent;
 
 function CategoryRow({ cat, index }: { cat: Category; index: number }) {
   const c = useThemeColors();
@@ -33,7 +32,7 @@ function CategoryRow({ cat, index }: { cat: Category; index: number }) {
   const animStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
 
   const iconLetter = (cat.name ? String(cat.name).trim().charAt(0) : "?").toUpperCase();
-  const rowBg = isDark ? CATEGORY_ROW_BG_DARK : c.cardBg;
+  const rowBg = c.cardBg;
   const rowBorder = isDark ? "rgba(255,255,255,0.06)" : c.border;
   const count = cat.count ?? 0;
   const iconBg = cat.iconBgColor || DEFAULT_CATEGORY_THEME;
@@ -55,7 +54,15 @@ function CategoryRow({ cat, index }: { cat: Category; index: number }) {
           ]}
         >
           {cat.imageUrl ? (
-            <Image source={{ uri: cat.imageUrl }} style={styles.catImage} contentFit="cover" cachePolicy="memory-disk" transition={200} />
+            <Image
+              source={{ uri: cat.imageUrl }}
+              style={styles.catImage}
+              contentFit="cover"
+              cachePolicy="memory-disk"
+              priority="high"
+              placeholder={{ color: iconBg }}
+              transition={0}
+            />
           ) : (
             <Text style={[styles.fallbackLetter, { color: letterColor }]}>{iconLetter}</Text>
           )}
@@ -71,11 +78,17 @@ function CategoryRow({ cat, index }: { cat: Category; index: number }) {
 }
 
 export default function CategoriesScreen() {
-  const { categories } = useApp();
+  const { categories, setLastMeaningfulRoute } = useApp();
   const c = useThemeColors();
   const insets = useSafeInsets();
   const { user } = useAuth();
   const [search, setSearch] = useState("");
+
+  useFocusEffect(
+    useCallback(() => {
+      setLastMeaningfulRoute("/categories");
+    }, [setLastMeaningfulRoute])
+  );
 
   const bottomPad = insets.bottom;
 
@@ -167,16 +180,16 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   avatarText: {
-    fontFamily: "Poppins_700Bold",
+    fontFamily: "SpaceGrotesk_700Bold",
     fontSize: 18,
     color: Colors.white,
   },
   greeting: {
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 15,
   },
   subGreeting: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 12,
     marginTop: 2,
   },
@@ -194,7 +207,7 @@ const styles = StyleSheet.create({
   },
   searchInput: {
     flex: 1,
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 15,
   },
   titleSection: {
@@ -202,11 +215,11 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   pageTitle: {
-    fontFamily: "Poppins_700Bold",
+    fontFamily: "SpaceGrotesk_700Bold",
     fontSize: 20,
   },
   pageSubtitle: {
-    fontFamily: "Poppins_500Medium",
+    fontFamily: "SpaceGrotesk_500Medium",
     fontSize: 14,
     marginTop: 2,
   },
@@ -249,12 +262,12 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   catName: {
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 15,
     lineHeight: 23,
   },
   catCount: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 12,
     marginTop: 1,
   },
@@ -265,7 +278,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   emptyText: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 16,
   },
 });

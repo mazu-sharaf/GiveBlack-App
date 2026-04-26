@@ -2,6 +2,14 @@ import React, { useState, useCallback } from "react";
 import { View, Platform } from "react-native";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
+import { useFonts } from "expo-font";
+import {
+  SpaceGrotesk_400Regular,
+  SpaceGrotesk_500Medium,
+  SpaceGrotesk_600SemiBold,
+  SpaceGrotesk_700Bold,
+} from "@expo-google-fonts/space-grotesk";
+import { Ionicons } from "@expo/vector-icons";
 import { ThemeProvider, useTheme } from "@/context/ThemeContext";
 import { AuthProvider } from "@/context/AuthContext";
 import { AppProvider } from "@/context/AppContext";
@@ -29,7 +37,6 @@ function InnerLayout() {
       {/* Dev-only overlay to catch bottom safe-area, kept transparent so it doesn't show a bar */}
       {__DEV__ && Platform.OS !== "web" && (
         <View
-          pointerEvents="none"
           style={{
             position: "absolute",
             bottom: 0,
@@ -38,6 +45,7 @@ function InnerLayout() {
             height: 26,
             backgroundColor: "transparent",
             zIndex: 9999,
+            pointerEvents: "none",
           }}
         />
       )}
@@ -49,14 +57,27 @@ export default function RootLayout() {
   const [splashDone, setSplashDone] = useState(false);
   const onSplashComplete = useCallback(() => setSplashDone(true), []);
 
+  const [fontsLoaded] = useFonts({
+    SpaceGrotesk_400Regular,
+    SpaceGrotesk_500Medium,
+    SpaceGrotesk_600SemiBold,
+    SpaceGrotesk_700Bold,
+    ...Ionicons.font,
+  });
+
   return (
     <ThemeProvider>
       <AuthProvider>
         <AppProvider>
           <StripeProviderWrapper>
             <SafeAreaProvider>
-              <InnerLayout />
-              {!splashDone ? <SplashLogoAnimation onComplete={onSplashComplete} /> : null}
+              {fontsLoaded && <InnerLayout />}
+              {!splashDone && (
+                <SplashLogoAnimation
+                  onComplete={onSplashComplete}
+                  ready={fontsLoaded}
+                />
+              )}
             </SafeAreaProvider>
           </StripeProviderWrapper>
         </AppProvider>

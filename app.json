@@ -7,21 +7,28 @@
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "giveblack",
-    "userInterfaceStyle": "dark",
+    "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/images/splash-logo.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#FFFFFF"
+      "image": "./assets/images/splash-image.png",
+      "resizeMode": "cover",
+      "backgroundColor": "#E9EFD6"
     },
     "ios": {
       "supportsTablet": false,
       "usesAppleSignIn": true,
       "appleTeamId": "W5NB3UT9SS",
-      "buildNumber": "3",
+      "buildNumber": "10",
       "bundleIdentifier": "com.giveblack.app",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "CFBundleURLTypes": [
+          {
+            "CFBundleURLSchemes": [
+              "com.googleusercontent.apps.686496134866-k5a914jeu1b3si5gl4ratimoaphll6f3"
+            ]
+          }
+        ]
       }
     },
     "android": {
@@ -37,6 +44,17 @@
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
+      "expo-dev-client",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/android-icon-monochrome.png",
+          "color": "#2D7A4F",
+          "defaultChannel": "default",
+          "sounds": [],
+          "enableBackgroundRemoteNotifications": true
+        }
+      ],
       [
         "expo-router",
         {

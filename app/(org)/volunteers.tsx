@@ -1,5 +1,4 @@
 import React, { useCallback, useState } from "react";
-import { useFocusEffect } from "@react-navigation/native";
 import {
   View,
   Text,
@@ -14,7 +13,7 @@ import { useSafeInsets } from "@/lib/safe-area";
 import { useThemeColors } from "@/context/ThemeContext";
 import { useAuth } from "@/context/AuthContext";
 import { Ionicons } from "@expo/vector-icons";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 
 interface VolunteerRow {
   id: string;
@@ -218,7 +217,7 @@ const styles = StyleSheet.create({
     paddingBottom: 8,
   },
   backBtn: { padding: 4, marginRight: 4 },
-  headerTitle: { fontFamily: "Poppins_700Bold", fontSize: 26, flex: 1 },
+  headerTitle: { fontFamily: "SpaceGrotesk_700Bold", fontSize: 26, flex: 1 },
   filterRow: { marginBottom: 12, maxHeight: 44 },
   chip: {
     paddingHorizontal: 14,
@@ -226,15 +225,15 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     borderWidth: StyleSheet.hairlineWidth,
   },
-  chipText: { fontFamily: "Poppins_500Medium", fontSize: 13 },
+  chipText: { fontFamily: "SpaceGrotesk_500Medium", fontSize: 13 },
   list: { paddingHorizontal: 20, gap: 12 },
   empty: { borderRadius: 16, padding: 40, alignItems: "center" },
-  emptyText: { fontFamily: "Poppins_500Medium", fontSize: 15, marginTop: 12 },
+  emptyText: { fontFamily: "SpaceGrotesk_500Medium", fontSize: 15, marginTop: 12 },
   card: { borderRadius: 16, padding: 16, borderWidth: StyleSheet.hairlineWidth },
-  name: { fontFamily: "Poppins_600SemiBold", fontSize: 16, marginBottom: 4 },
-  meta: { fontFamily: "Poppins_400Regular", fontSize: 13, marginBottom: 2 },
-  skills: { fontFamily: "Poppins_400Regular", fontSize: 13, marginTop: 8 },
-  msg: { fontFamily: "Poppins_400Regular", fontSize: 13, marginTop: 6, lineHeight: 18 },
+  name: { fontFamily: "SpaceGrotesk_600SemiBold", fontSize: 16, marginBottom: 4 },
+  meta: { fontFamily: "SpaceGrotesk_400Regular", fontSize: 13, marginBottom: 2 },
+  skills: { fontFamily: "SpaceGrotesk_400Regular", fontSize: 13, marginTop: 8 },
+  msg: { fontFamily: "SpaceGrotesk_400Regular", fontSize: 13, marginTop: 6, lineHeight: 18 },
   row: {
     flexDirection: "row",
     alignItems: "center",
@@ -244,10 +243,10 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   badge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
-  badgeText: { fontFamily: "Poppins_600SemiBold", fontSize: 11, textTransform: "capitalize" },
+  badgeText: { fontFamily: "SpaceGrotesk_600SemiBold", fontSize: 11, textTransform: "capitalize" },
   actions: { flexDirection: "row", gap: 8 },
   btn: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10 },
-  btnText: { color: "#fff", fontFamily: "Poppins_600SemiBold", fontSize: 13 },
+  btnText: { color: "#fff", fontFamily: "SpaceGrotesk_600SemiBold", fontSize: 13 },
   btnOutline: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10, borderWidth: 1 },
-  btnOutlineText: { fontFamily: "Poppins_600SemiBold", fontSize: 13 },
+  btnOutlineText: { fontFamily: "SpaceGrotesk_600SemiBold", fontSize: 13 },
 });

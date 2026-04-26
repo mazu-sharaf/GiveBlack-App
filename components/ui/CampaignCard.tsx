@@ -161,12 +161,12 @@ const styles = StyleSheet.create({
     padding: 14,
   },
   title: {
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 14,
     marginBottom: 4,
   },
   orgName: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 12,
     marginBottom: 8,
   },
@@ -186,15 +186,15 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   raisedText: {
-    fontFamily: "Poppins_500Medium",
+    fontFamily: "SpaceGrotesk_500Medium",
     fontSize: 12,
   },
   goalText: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 11,
   },
   donorsText: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 11,
   },
 });

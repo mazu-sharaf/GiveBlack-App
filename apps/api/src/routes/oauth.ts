@@ -63,8 +63,8 @@ async function buildAuthResponse(
       id: user.id,
       email: user.email,
       name: user.full_name,
-      avatar_url: user.avatar_url || null,
       role: user.role,
+      avatar_url: user.avatar_url ?? null,
       type: profileData.user_type || (user.role === "charity_owner" ? "charity" : "donor"),
       zipCode: profileData.zip_code,
       collegeAttended: profileData.college_attended,
@@ -83,7 +83,8 @@ async function findOrCreateOAuthDonor(
   provider: "google" | "apple",
   providerUserId: string,
   email: string | undefined,
-  fullName: string
+  fullName: string,
+  providerAvatarUrl?: string | null
 ) {
   const emailNorm = email?.toLowerCase().trim();
   if (!emailNorm) {
@@ -113,6 +114,20 @@ async function findOrCreateOAuthDonor(
         error: "This sign-in is for donor accounts only. Use the organization login for charity accounts.",
       });
     }
+
+    // Best-effort: if user has no avatar yet, store provider avatar.
+    if (!u.avatar_url && providerAvatarUrl) {
+      try {
+        await db.query("update users set avatar_url = $1, avatar_source = $2 where id = $3", [
+          providerAvatarUrl,
+          provider,
+          u.id,
+        ]);
+        u.avatar_url = providerAvatarUrl;
+      } catch {
+        /* ignore */
+      }
+    }
     return buildAuthResponse(app, request, u);
   }
 
@@ -129,12 +144,13 @@ async function findOrCreateOAuthDonor(
     });
   }
 
-  const avatarUrl = buildGeneratedAvatarUrl(fullName);
+  const avatarUrl = providerAvatarUrl || buildGeneratedAvatarUrl(fullName);
+  const avatarSource = providerAvatarUrl ? provider : "generated";
   const created = await db.query(
     `insert into users (email, full_name, password_hash, role, avatar_url, avatar_source)
-     values ($1, $2, null, 'donor', $3, 'generated')
+     values ($1, $2, null, 'donor', $3, $4)
      returning id, email, full_name, role, avatar_url`,
-    [emailNorm, fullName, avatarUrl]
+    [emailNorm, fullName, avatarUrl || null, avatarSource]
   );
   const user = created.rows[0] as { id: string; email: string; full_name: string; role: Role; avatar_url?: string | null };
   await db.query(`insert into oauth_identities (user_id, provider, provider_user_id) values ($1, $2, $3)`, [
@@ -179,7 +195,8 @@ export const oauthRoutes: FastifyPluginAsync = async (app) => {
       if (!payload?.sub) return reply.code(401).send({ error: "Invalid Google token" });
       const email = payload.email;
       const name = payload.name || getDefaultOAuthName("google", email);
-      return findOrCreateOAuthDonor(app, request, reply, "google", payload.sub, email, name);
+      const avatarUrl = typeof payload.picture === "string" ? payload.picture : null;
+      return findOrCreateOAuthDonor(app, request, reply, "google", payload.sub, email, name, avatarUrl);
     } catch (e: unknown) {
       app.log.error({ err: e }, "google oauth verify failed");
       return reply.code(401).send({ error: "Invalid or expired Google token" });
@@ -201,18 +218,39 @@ export const oauthRoutes: FastifyPluginAsync = async (app) => {
     }
     try {
       const JWKS = jose.createRemoteJWKSet(new URL("https://appleid.apple.com/auth/keys"));
+
+      // Decode header/claims first so we can log useful context on failure
+      const decoded = jose.decodeJwt(body.identityToken);
+      const tokenAud = Array.isArray(decoded.aud) ? decoded.aud[0] : decoded.aud;
+      app.log.info({ aud: tokenAud, iss: decoded.iss, sub: decoded.sub, exp: decoded.exp }, "apple token claims");
+
+      // Accepted audiences:
+      // 1. The configured bundle ID (com.giveblack.app) — production / EAS native builds
+      // 2. host.exp.Exponent — Expo Go development testing (different Apple sub from native build)
+      const acceptedAudiences = [env.APPLE_CLIENT_ID, "host.exp.Exponent"].filter(Boolean) as string[];
+      const matchingAudience = acceptedAudiences.find((aud) => aud === tokenAud);
+      if (!matchingAudience) {
+        app.log.error({ tokenAud, acceptedAudiences }, "apple aud mismatch");
+        return reply.code(401).send({
+          error: `Apple token audience mismatch — token has "${tokenAud}", server accepts: ${acceptedAudiences.join(", ")}`,
+        });
+      }
+
+      // Verify with the actual audience from the token so jose doesn't reject it
       const { payload } = await jose.jwtVerify(body.identityToken, JWKS, {
         issuer: "https://appleid.apple.com",
-        audience: env.APPLE_CLIENT_ID,
+        audience: matchingAudience,
+        clockTolerance: "5m",
       });
       const sub = typeof payload.sub === "string" ? payload.sub : "";
       if (!sub) return reply.code(401).send({ error: "Invalid Apple token" });
       const email = typeof payload.email === "string" ? payload.email : undefined;
       let fullName = body.fullName?.trim() || "";
       if (!fullName) fullName = getDefaultOAuthName("apple", email);
-      return findOrCreateOAuthDonor(app, request, reply, "apple", sub, email, fullName);
+      return findOrCreateOAuthDonor(app, request, reply, "apple", sub, email, fullName, null);
     } catch (e: unknown) {
-      app.log.error({ err: e }, "apple oauth verify failed");
+      const msg = e instanceof Error ? e.message : String(e);
+      app.log.error({ err: e, clientId: env.APPLE_CLIENT_ID }, `apple oauth verify failed: ${msg}`);
       return reply.code(401).send({ error: "Invalid or expired Apple token" });
     }
   });

@@ -1,15 +1,16 @@
-import React, { useEffect, useState } from "react";
-import { View, ActivityIndicator, StyleSheet } from "react-native";
+import React, { useEffect, useState, useRef } from "react";
+import { View, StyleSheet } from "react-native";
 import { Redirect } from "expo-router";
 import { useAuth } from "@/context/AuthContext";
 import { useThemeColors } from "@/context/ThemeContext";
 import { hasCompletedOnboarding } from "@/lib/onboarding-storage";
 
 export default function Index() {
-  const { isAuthenticated, isLoading, user } = useAuth();
+  const { isAuthenticated, isLoading, user, guestLogin } = useAuth();
   const c = useThemeColors();
   const [authGateReady, setAuthGateReady] = useState(false);
   const [seenOnboarding, setSeenOnboarding] = useState(false);
+  const guestStartedRef = useRef(false);
 
   useEffect(() => {
     if (isLoading) return;
@@ -17,26 +18,28 @@ export default function Index() {
       setAuthGateReady(true);
       return;
     }
-    hasCompletedOnboarding().then((seen) => {
+    if (guestStartedRef.current) return;
+    guestStartedRef.current = true;
+    hasCompletedOnboarding().then(async (seen) => {
       setSeenOnboarding(seen);
-      setAuthGateReady(true);
+      if (seen) {
+        try {
+          await guestLogin();
+        } finally {
+          setAuthGateReady(true);
+        }
+      } else {
+        setAuthGateReady(true);
+      }
     });
-  }, [isLoading, isAuthenticated]);
+  }, [isLoading, isAuthenticated, guestLogin]);
 
   if (isLoading || !authGateReady) {
-    return (
-      <View style={[styles.centered, { backgroundColor: c.background }]}>
-        <ActivityIndicator size="large" color={c.green} />
-      </View>
-    );
+    return <View style={[styles.centered, { backgroundColor: c.background }]} />;
   }
 
   if (!isAuthenticated && !seenOnboarding) {
     return <Redirect href="/(auth)/onboarding" />;
-  }
-
-  if (!isAuthenticated) {
-    return <Redirect href="/(auth)/welcome" />;
   }
 
   if (user?.type === "charity") {

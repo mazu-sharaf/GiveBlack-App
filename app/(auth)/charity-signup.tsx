@@ -541,29 +541,29 @@ const styles = StyleSheet.create({
     borderRadius: 20,
   },
   badgeText: {
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 13,
     color: Colors.green,
   },
   title: {
-    fontFamily: "Poppins_700Bold",
+    fontFamily: "SpaceGrotesk_700Bold",
     fontSize: 28,
     textAlign: "center",
     marginBottom: 8,
   },
   subtitle: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 14,
     textAlign: "center",
     marginBottom: 24,
   },
   sectionLabel: {
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 15,
     marginBottom: 12,
   },
   payoutHint: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 13,
     lineHeight: 19,
     marginBottom: 12,
@@ -598,7 +598,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   avatarHint: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 12,
     textAlign: "center",
     marginBottom: 14,
@@ -628,7 +628,7 @@ const styles = StyleSheet.create({
   },
   input: {
     flex: 1,
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 15,
   },
   pickerText: {
@@ -654,7 +654,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   modalTitle: {
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 17,
   },
   modalList: {
@@ -669,7 +669,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   categoryRowText: {
-    fontFamily: "Poppins_500Medium",
+    fontFamily: "SpaceGrotesk_500Medium",
     fontSize: 16,
     flex: 1,
     paddingRight: 12,
@@ -698,12 +698,12 @@ const styles = StyleSheet.create({
   },
   termsText: {
     flex: 1,
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 14,
     lineHeight: 20,
   },
   termsLink: {
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     color: Colors.green,
   },
   signUpBtn: {
@@ -714,7 +714,7 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   signUpBtnText: {
-    fontFamily: "Poppins_700Bold",
+    fontFamily: "SpaceGrotesk_700Bold",
     fontSize: 16,
     color: Colors.white,
   },
@@ -724,11 +724,11 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   bottomLabel: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 14,
   },
   bottomLink: {
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 14,
     color: Colors.green,
   },
@@ -745,7 +745,7 @@ const styles = StyleSheet.create({
     alignSelf: "center",
   },
   donorLinkText: {
-    fontFamily: "Poppins_500Medium",
+    fontFamily: "SpaceGrotesk_500Medium",
     fontSize: 13,
     color: Colors.green,
   },

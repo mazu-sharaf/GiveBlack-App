@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useCallback } from "react";
 import {
   View,
   Text,
@@ -11,24 +11,29 @@ import {
 } from "react-native";
 import { Image } from "expo-image";
 import { useSafeInsets } from "@/lib/safe-area";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import Colors from "@/constants/colors";
-import { useTheme, useThemeColors } from "@/context/ThemeContext";
+import { useThemeColors } from "@/context/ThemeContext";
 import { useApp } from "@/context/AppContext";
 import AppHeader from "@/components/AppHeader";
 
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
-
 import { getCampaignImage, campaignImages } from "@/constants/images";
+
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 type SortOption = "default" | "name_az" | "name_za" | "raised_high" | "raised_low";
 
 export default function AllCampaignsScreen() {
   const insets = useSafeInsets();
   const c = useThemeColors();
-  const { isDark } = useTheme();
-  const { campaigns, categories, toggleFavorite, isFavorite } = useApp();
+  const { campaigns, categories, toggleFavorite, isFavorite, setLastMeaningfulRoute } = useApp();
+
+  useFocusEffect(
+    useCallback(() => {
+      setLastMeaningfulRoute("/all-campaigns");
+    }, [setLastMeaningfulRoute])
+  );
   const [search, setSearch] = useState("");
   const [showFilter, setShowFilter] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState("");
@@ -79,8 +84,8 @@ export default function AllCampaignsScreen() {
     { key: "raised_low", label: "Least raised" },
   ];
 
-  const chipBg = isDark ? "#2A2A2A" : "#F1F1F1";
-  const sortBorderColor = isDark ? "#333" : "#F5F5F5";
+  const chipBg = c.inputBg;
+  const sortBorderColor = c.border;
 
   return (
     <View style={[styles.container, { backgroundColor: c.background }]}>
@@ -105,7 +110,7 @@ export default function AllCampaignsScreen() {
           style={[styles.filterBtn, { backgroundColor: activeFilterCount > 0 ? c.green : c.cardBg, borderColor: activeFilterCount > 0 ? c.green : c.border }]}
           onPress={() => setShowFilter(true)}
         >
-          <Ionicons name="options-outline" size={20} color={activeFilterCount > 0 ? "#FFFFFF" : c.text} />
+          <Ionicons name="options-outline" size={20} color={activeFilterCount > 0 ? Colors.white : c.text} />
           {activeFilterCount > 0 && (
             <View style={styles.filterBadge}>
               <Text style={styles.filterBadgeText}>{activeFilterCount}</Text>
@@ -155,7 +160,7 @@ export default function AllCampaignsScreen() {
                   <Ionicons
                     name={isFavorite(camp.id) ? "heart" : "heart-outline"}
                     size={18}
-                    color={isFavorite(camp.id) ? c.green : "#FFFFFF"}
+                    color={isFavorite(camp.id) ? c.green : Colors.white}
                   />
                 </Pressable>
               </View>
@@ -175,7 +180,7 @@ export default function AllCampaignsScreen() {
                 <Text style={[styles.goalText, { color: c.textMuted, marginBottom: 8 }]} numberOfLines={1}>
                   {camp.orgName}
                 </Text>
-                <View style={[styles.progressBar, { backgroundColor: isDark ? "#333" : "#E8E8E8" }]}>
+                <View style={[styles.progressBar, { backgroundColor: c.progressBarBg }]}>
                   <View
                     style={[
                       styles.progressFill,
@@ -221,7 +226,7 @@ export default function AllCampaignsScreen() {
                 style={[styles.chip, { backgroundColor: !selectedCategory ? c.green : chipBg }]}
                 onPress={() => setSelectedCategory("")}
               >
-                <Text style={[styles.chipText, { color: !selectedCategory ? "#FFFFFF" : c.text }]}>All</Text>
+                <Text style={[styles.chipText, { color: !selectedCategory ? Colors.white : c.text }]}>All</Text>
               </Pressable>
               {categories.map((cat) => (
                 <Pressable
@@ -229,7 +234,7 @@ export default function AllCampaignsScreen() {
                   style={[styles.chip, { backgroundColor: selectedCategory === cat.id ? c.green : chipBg }]}
                   onPress={() => setSelectedCategory(selectedCategory === cat.id ? "" : cat.id)}
                 >
-                  <Text style={[styles.chipText, { color: selectedCategory === cat.id ? "#FFFFFF" : c.text }]}>{cat.name}</Text>
+                  <Text style={[styles.chipText, { color: selectedCategory === cat.id ? Colors.white : c.text }]}>{cat.name}</Text>
                 </Pressable>
               ))}
             </ScrollView>
@@ -286,7 +291,7 @@ const styles = StyleSheet.create({
   },
   searchInput: {
     flex: 1,
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 14,
     paddingVertical: 0,
   },
@@ -310,9 +315,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   filterBadgeText: {
-    fontFamily: "Poppins_700Bold",
+    fontFamily: "SpaceGrotesk_700Bold",
     fontSize: 10,
-    color: "#FFFFFF",
+    color: Colors.white,
   },
   scrollContent: {
     paddingHorizontal: 20,
@@ -357,7 +362,7 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   cardName: {
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 15,
     flex: 1,
   },
@@ -377,15 +382,15 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   raisedText: {
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 13,
   },
   goalText: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 12,
   },
   pctText: {
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 13,
   },
   emptyState: {
@@ -395,7 +400,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   emptyText: {
-    fontFamily: "Poppins_500Medium",
+    fontFamily: "SpaceGrotesk_500Medium",
     fontSize: 16,
   },
   modalOverlay: {
@@ -418,7 +423,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   modalTitle: {
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 16,
     marginBottom: 12,
   },
@@ -435,7 +440,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
   },
   chipText: {
-    fontFamily: "Poppins_500Medium",
+    fontFamily: "SpaceGrotesk_500Medium",
     fontSize: 13,
   },
   sortOption: {
@@ -446,11 +451,11 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
   },
   sortOptionText: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 14,
   },
   sortOptionActive: {
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
   },
   radio: {
     width: 22,
@@ -478,7 +483,7 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
   },
   resetBtnText: {
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 15,
   },
   applyBtn: {
@@ -488,8 +493,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   applyBtnText: {
-    fontFamily: "Poppins_700Bold",
+    fontFamily: "SpaceGrotesk_700Bold",
     fontSize: 15,
-    color: "#FFFFFF",
+    color: Colors.white,
   },
 });

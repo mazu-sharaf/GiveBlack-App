@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from "react";
 import { Platform } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Image as ExpoImage } from "expo-image";
 import { apiPatch, getApiUrl } from "@/lib/query-client";
 import { useAuth } from "./AuthContext";
 
@@ -70,6 +71,7 @@ export interface Category {
 }
 
 const FAVORITES_KEY = "giveblack_favorites";
+const LAST_ROUTE_KEY = "giveblack_last_route";
 
 interface AppContextValue {
   organizations: Organization[];
@@ -101,6 +103,8 @@ interface AppContextValue {
   addCard: (card: { last4?: string; [key: string]: unknown }) => void;
   verifyPin: (pin: string) => Promise<boolean>;
   refresh: () => Promise<void>;
+  lastMeaningfulRoute: string | null;
+  setLastMeaningfulRoute: (route: string | null) => void;
 }
 
 const AppContext = createContext<AppContextValue | undefined>(undefined);
@@ -251,7 +255,26 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   >([]);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [savedCards, setSavedCards] = useState<Array<{ id: string; last4?: string; [key: string]: unknown }>>([]);
+  const [lastMeaningfulRoute, setLastMeaningfulRouteState] = useState<string | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const stored = await AsyncStorage.getItem(LAST_ROUTE_KEY);
+        if (stored) setLastMeaningfulRouteState(stored);
+      } catch {}
+    })();
+  }, []);
+
+  const setLastMeaningfulRoute = useCallback((route: string | null) => {
+    setLastMeaningfulRouteState(route);
+    if (route == null) {
+      AsyncStorage.removeItem(LAST_ROUTE_KEY).catch(() => {});
+    } else {
+      AsyncStorage.setItem(LAST_ROUTE_KEY, route).catch(() => {});
+    }
+  }, []);
 
   const profileKey = `giveblack_profile_${userId}`;
 
@@ -292,6 +315,28 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     loadFavorites();
   }, [userId, loadFavorites]);
 
+  const prevUserIdRef = useRef<string | null | undefined>(undefined);
+
+  // Clear last browsed route on explicit login (guest → authenticated) and on
+  // explicit logout (authenticated → guest/unauthenticated). Skip the very first
+  // render (prevId === undefined) so a cold-start with an existing session does
+  // not erase a persisted route unnecessarily.
+  useEffect(() => {
+    const prevId = prevUserIdRef.current;
+    const currId = user?.id ?? null;
+    prevUserIdRef.current = currId;
+
+    if (prevId === undefined) return;
+
+    const wasAuthenticated = prevId != null && prevId !== "guest";
+    const isNowGuestOrOut = currId == null || currId === "guest";
+    const justLoggedIn = currId != null && currId !== "guest" && (prevId == null || prevId === "guest");
+
+    if (justLoggedIn || (wasAuthenticated && isNowGuestOrOut)) {
+      setLastMeaningfulRoute(null);
+    }
+  }, [user?.id, setLastMeaningfulRoute]);
+
   const accessToken = session?.accessToken;
 
   const refresh = useCallback(async () => {
@@ -331,7 +376,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (catRes.ok) {
         const data: Record<string, unknown> = await catRes.json();
         const list = Array.isArray(data) ? data : Array.isArray(data.categories) ? data.categories : Array.isArray(data.data) ? data.data : [];
-        setCategories((list as Record<string, unknown>[]).map(normalizeCat));
+        const normalized = (list as Record<string, unknown>[]).map(normalizeCat);
+        setCategories(normalized);
+        const imageUrls = normalized.map((c) => c.imageUrl).filter((u): u is string => !!u);
+        if (imageUrls.length > 0) {
+          ExpoImage.prefetch(imageUrls, { cachePolicy: "disk" }).catch(() => {});
+        }
       }
 
       if (notifRes?.ok) {
@@ -487,6 +537,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       return btoa(pin) === userProfile.pinHash;
     },
     refresh,
+    lastMeaningfulRoute,
+    setLastMeaningfulRoute,
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

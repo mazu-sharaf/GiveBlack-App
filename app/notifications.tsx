@@ -55,10 +55,9 @@ function typeAccent(
   type: AppNotification["type"],
   c: ReturnType<typeof useThemeColors>
 ): { circleBg: string; iconColor: string } {
-  const warn = "#f59e0b";
   switch (type) {
     case "warning":
-      return { circleBg: warn + "28", iconColor: warn };
+      return { circleBg: c.warningAmber + "28", iconColor: c.warningAmber };
     default:
       return { circleBg: c.green + "28", iconColor: c.green };
   }
@@ -196,7 +195,7 @@ export default function NotificationsScreen() {
                   <NotificationMessageText
                     message={detail.message}
                     baseStyle={[styles.modalBody, { color: c.textMuted }]}
-                    linkColor="#60a5fa"
+                    linkColor={c.linkAccent}
                   />
                   <Text style={[styles.modalTime, { color: c.textLight }]}>{formatTimeAgo(detail.created_at)}</Text>
                 </>
@@ -237,15 +236,15 @@ const styles = StyleSheet.create({
   },
   iconCircle: { width: 48, height: 48, borderRadius: 24, alignItems: "center", justifyContent: "center" },
   notifBody: { flex: 1, minWidth: 0 },
-  notifTitle: { fontFamily: "Poppins_600SemiBold", fontSize: 14, marginBottom: 6 },
-  titleUnread: { fontFamily: "Poppins_600SemiBold" },
-  titleRead: { fontFamily: "Poppins_400Regular", opacity: 0.88 },
-  notifMessage: { fontFamily: "Poppins_400Regular", fontSize: 13, lineHeight: 20, marginBottom: 4 },
-  tapHint: { fontFamily: "Poppins_400Regular", fontSize: 12, marginBottom: 4 },
-  notifTime: { fontFamily: "Poppins_400Regular", fontSize: 11 },
+  notifTitle: { fontFamily: "SpaceGrotesk_600SemiBold", fontSize: 14, marginBottom: 6 },
+  titleUnread: { fontFamily: "SpaceGrotesk_600SemiBold" },
+  titleRead: { fontFamily: "SpaceGrotesk_400Regular", opacity: 0.88 },
+  notifMessage: { fontFamily: "SpaceGrotesk_400Regular", fontSize: 13, lineHeight: 20, marginBottom: 4 },
+  tapHint: { fontFamily: "SpaceGrotesk_400Regular", fontSize: 12, marginBottom: 4 },
+  notifTime: { fontFamily: "SpaceGrotesk_400Regular", fontSize: 11 },
   emptyState: { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 40, gap: 12 },
-  emptyTitle: { fontFamily: "Poppins_600SemiBold", fontSize: 20 },
-  emptyDesc: { fontFamily: "Poppins_400Regular", fontSize: 14, textAlign: "center", lineHeight: 20 },
+  emptyTitle: { fontFamily: "SpaceGrotesk_600SemiBold", fontSize: 20 },
+  emptyDesc: { fontFamily: "SpaceGrotesk_400Regular", fontSize: 14, textAlign: "center", lineHeight: 20 },
   modalOverlay: { flex: 1, justifyContent: "center", paddingHorizontal: 20 },
   modalCard: {
     borderRadius: 16,
@@ -264,7 +263,7 @@ const styles = StyleSheet.create({
   },
   modalTitle: {
     flex: 1,
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 18,
     lineHeight: 24,
   },
@@ -276,6 +275,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   modalScroll: { maxHeight: "100%" },
-  modalBody: { fontFamily: "Poppins_400Regular", fontSize: 15, lineHeight: 24, paddingHorizontal: 16, paddingTop: 16 },
-  modalTime: { fontFamily: "Poppins_400Regular", fontSize: 12, paddingHorizontal: 16, marginTop: 16 },
+  modalBody: { fontFamily: "SpaceGrotesk_400Regular", fontSize: 15, lineHeight: 24, paddingHorizontal: 16, paddingTop: 16 },
+  modalTime: { fontFamily: "SpaceGrotesk_400Regular", fontSize: 12, paddingHorizontal: 16, marginTop: 16 },
 });

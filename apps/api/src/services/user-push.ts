@@ -6,7 +6,8 @@ export type NotificationPreferenceKey =
   | "org_donations"
   | "org_volunteers"
   | "org_campaign_status"
-  | "donor_new_campaigns_from_orgs_i_supported";
+  | "donor_new_campaigns_from_orgs_i_supported"
+  | "new_campaigns";
 
 const DEFAULT_PREFS: Record<NotificationPreferenceKey, boolean> = {
   donor_receipts: true,
@@ -14,6 +15,7 @@ const DEFAULT_PREFS: Record<NotificationPreferenceKey, boolean> = {
   org_volunteers: true,
   org_campaign_status: true,
   donor_new_campaigns_from_orgs_i_supported: true,
+  new_campaigns: true,
 };
 
 export function defaultNotificationPreferences(): Record<NotificationPreferenceKey, boolean> {
@@ -289,16 +291,44 @@ export async function notifyCampaignWentLive(input: {
     [input.orgId]
   );
   const charitySet = new Set(charityIds);
-  const donorIdsFiltered = [...new Set((donorRes.rows as { id: string }[]).map((r) => r.id).filter(Boolean))].filter(
+  const orgDonorIds = [...new Set((donorRes.rows as { id: string }[]).map((r) => r.id).filter(Boolean))].filter(
     (id) => !charitySet.has(id)
   );
-  if (donorIdsFiltered.length) {
+  if (orgDonorIds.length) {
     await notifyUsers({
-      userIds: donorIdsFiltered,
+      userIds: orgDonorIds,
       title: `New campaign — ${orgName}`,
       body: `${input.title} just launched. Tap to view.`,
       data: { type: "campaign", campaignId: input.campaignId, orgId: input.orgId },
       preferenceKey: "donor_new_campaigns_from_orgs_i_supported",
+      channelId: "campaigns",
+      notificationType: "new",
+    });
+  }
+
+  const orgDonorSet = new Set(orgDonorIds);
+  const allDonorsRes = await db.query(
+    `select distinct u.id::text as id
+     from users u
+     where u.disabled_at is null
+       and u.role not in ('admin', 'super_admin', 'manager', 'staff')
+       and not exists (
+         select 1 from device_push_tokens dpt
+         where dpt.user_id = u.id and dpt.disabled_at is null
+         having count(*) = 0
+       )`,
+    []
+  );
+  const allPlatformDonorIds = (allDonorsRes.rows as { id: string }[])
+    .map((r) => r.id)
+    .filter((id) => id && !charitySet.has(id) && !orgDonorSet.has(id));
+  if (allPlatformDonorIds.length) {
+    await notifyUsers({
+      userIds: allPlatformDonorIds,
+      title: `New campaign on GiveBlack`,
+      body: `"${input.title}" by ${orgName} is now live. Tap to view.`,
+      data: { type: "campaign", campaignId: input.campaignId, orgId: input.orgId },
+      preferenceKey: "new_campaigns",
       channelId: "campaigns",
       notificationType: "new",
     });

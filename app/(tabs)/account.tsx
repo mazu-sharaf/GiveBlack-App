@@ -14,7 +14,7 @@ import { useSafeInsets } from "@/lib/safe-area";
 import { Ionicons } from "@expo/vector-icons";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import Colors from "@/constants/colors";
-import { useTheme, useThemeColors } from "@/context/ThemeContext";
+import { useThemeColors } from "@/context/ThemeContext";
 import { useApp } from "@/context/AppContext";
 import { useAuth } from "@/context/AuthContext";
 import { getPreferredDisplayName } from "@/lib/user-display";
@@ -23,6 +23,7 @@ interface MenuItemProps {
   icon: string;
   label: string;
   iconBg: string;
+  iconColor: string;
   onPress?: () => void;
   isSwitch?: boolean;
   switchValue?: boolean;
@@ -30,22 +31,23 @@ interface MenuItemProps {
   textColor?: string;
   chevronColor?: string;
   greenColor?: string;
+  dangerLabel?: boolean;
 }
 
-function MenuItem({ icon, label, iconBg, onPress, isSwitch, switchValue, onSwitchChange, textColor, chevronColor, greenColor }: MenuItemProps) {
+function MenuItem({ icon, label, iconBg, iconColor, onPress, isSwitch, switchValue, onSwitchChange, textColor, chevronColor, greenColor, dangerLabel }: MenuItemProps) {
   const tc = useThemeColors();
   return (
     <Pressable style={styles.menuItem} onPress={isSwitch ? undefined : onPress}>
       <View style={[styles.menuIconCircle, { backgroundColor: iconBg }]}>
-        <Ionicons name={icon as any} size={20} color={iconBg === "#F5F5F5" || iconBg === "#2A2A2A" ? "#666" : iconBg === "#FFEBEE" || iconBg === "#3D1515" ? "#E53935" : darken(iconBg)} />
+        <Ionicons name={icon as any} size={20} color={iconColor} />
       </View>
-      <Text style={[styles.menuLabel, { color: textColor }, label === "Logout" && { color: "#E53935" }]}>{label}</Text>
+      <Text style={[styles.menuLabel, { color: textColor }, dangerLabel && { color: tc.danger }]}>{label}</Text>
       {isSwitch ? (
         <Switch
           value={switchValue}
           onValueChange={onSwitchChange}
           trackColor={{ false: tc.border, true: greenColor || tc.green }}
-          thumbColor="#FFFFFF"
+          thumbColor={Colors.white}
         />
       ) : (
         <Ionicons name="chevron-forward" size={18} color={chevronColor || tc.textLight} />
@@ -54,28 +56,132 @@ function MenuItem({ icon, label, iconBg, onPress, isSwitch, switchValue, onSwitc
   );
 }
 
-function darken(hex: string): string {
-  const colors: Record<string, string> = {
-    "#E8F5E9": "#2E7D32",
-    "#E3F2FD": "#1565C0",
-    "#F3E5F5": "#7B1FA2",
-    "#FFF3E0": "#E65100",
-    "#FFEBEE": "#E53935",
-    "#1B2E1B": "#4CAF50",
-    "#1B2A3D": "#42A5F5",
-    "#2D1B3D": "#CE93D8",
-    "#3D2A1B": "#FFB74D",
-    "#3D1515": "#E53935",
-  };
-  return colors[hex] || Colors.primary;
+type IoniconsName = React.ComponentProps<typeof Ionicons>["name"];
+
+const GUEST_BENEFITS: { icon: IoniconsName; label: string }[] = [
+  { icon: "bar-chart-outline", label: "Track your impact over time" },
+  { icon: "heart-outline", label: "Save your favourite campaigns" },
+  { icon: "receipt-outline", label: "Get tax receipts for every donation" },
+];
+
+function GuestAccountScreen() {
+  const router = useRouter();
+  const c = useThemeColors();
+  const { logout, guestLogin } = useAuth();
+  const { lastMeaningfulRoute } = useApp();
+  const insets = useSafeInsets();
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
+
+  return (
+    <View style={[styles.container, { backgroundColor: c.background }]}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingBottom: insets.bottom + 100, alignItems: "center" },
+        ]}
+      >
+        <Animated.View entering={FadeInDown.delay(0).duration(400)} style={styles.guestHeroWrap}>
+          <View style={[styles.guestIconCircle, { backgroundColor: c.green + "22" }]}>
+            <Ionicons name="person-circle-outline" size={72} color={c.green} />
+          </View>
+          <Text style={[styles.guestTitle, { color: c.text }]}>You're browsing as a guest</Text>
+          <Text style={[styles.guestSubtitle, { color: c.textMuted }]}>
+            Create a free account to unlock the full GiveBlack experience.
+          </Text>
+        </Animated.View>
+
+        <Animated.View entering={FadeInDown.delay(80).duration(400)} style={[styles.guestBenefitsCard, { backgroundColor: c.cardBg }]}>
+          {GUEST_BENEFITS.map((b, i) => (
+            <React.Fragment key={b.icon}>
+              <View style={styles.guestBenefitRow}>
+                <View style={[styles.guestBenefitIcon, { backgroundColor: c.green + "18" }]}>
+                  <Ionicons name={b.icon} size={20} color={c.green} />
+                </View>
+                <Text style={[styles.guestBenefitText, { color: c.text }]}>{b.label}</Text>
+              </View>
+              {i < GUEST_BENEFITS.length - 1 && <View style={[styles.menuSep, { backgroundColor: c.border, marginLeft: 58 }]} />}
+            </React.Fragment>
+          ))}
+        </Animated.View>
+
+        <Animated.View entering={FadeInDown.delay(160).duration(400)} style={styles.guestCtaWrap}>
+          <Pressable
+            style={[styles.guestCtaPrimary, { backgroundColor: c.green }]}
+            onPress={() =>
+              router.push(
+                lastMeaningfulRoute
+                  ? { pathname: "/(auth)/donor-signup", params: { returnTo: lastMeaningfulRoute } }
+                  : "/(auth)/donor-signup"
+              )
+            }
+          >
+            <Text style={styles.guestCtaPrimaryText}>Create Free Account</Text>
+          </Pressable>
+          <Pressable
+            style={[styles.guestCtaSecondary, { borderColor: c.green }]}
+            onPress={() =>
+              router.push(
+                lastMeaningfulRoute
+                  ? { pathname: "/(auth)/donor-login", params: { returnTo: lastMeaningfulRoute } }
+                  : "/(auth)/donor-login"
+              )
+            }
+          >
+            <Text style={[styles.guestCtaSecondaryText, { color: c.green }]}>Sign In</Text>
+          </Pressable>
+        </Animated.View>
+
+        <Animated.View entering={FadeInDown.delay(220).duration(400)}>
+          <Pressable style={styles.guestLogoutBtn} onPress={() => setShowLogoutModal(true)}>
+            <Ionicons name="log-out-outline" size={18} color={c.danger} />
+            <Text style={[styles.guestLogoutText, { color: c.danger }]}>Leave guest mode</Text>
+          </Pressable>
+        </Animated.View>
+      </ScrollView>
+
+      <Modal visible={showLogoutModal} transparent animationType="fade">
+        <Pressable style={[styles.modalOverlay, { backgroundColor: c.modalOverlay }]} onPress={() => setShowLogoutModal(false)}>
+          <View style={[styles.modalCard, { backgroundColor: c.cardBg }]}>
+            <Text style={[styles.modalText, { color: c.text }]}>Leave guest mode?</Text>
+            <View style={styles.modalBtns}>
+              <Pressable style={[styles.cancelBtn, { borderColor: c.green }]} onPress={() => setShowLogoutModal(false)}>
+                <Text style={[styles.cancelBtnText, { color: c.green }]}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.okBtn, { backgroundColor: c.green }]}
+                onPress={async () => {
+                  setShowLogoutModal(false);
+                  await logout();
+                  await guestLogin();
+                  router.replace("/(tabs)");
+                }}
+              >
+                <Text style={styles.okBtnText}>OK</Text>
+              </Pressable>
+            </View>
+          </View>
+        </Pressable>
+      </Modal>
+    </View>
+  );
 }
 
 export default function AccountScreen() {
+  const { isGuest } = useAuth();
+
+  if (isGuest) {
+    return <GuestAccountScreen />;
+  }
+
+  return <AuthenticatedAccountScreen />;
+}
+
+function AuthenticatedAccountScreen() {
   const router = useRouter();
   const c = useThemeColors();
-  const { isDark, toggleTheme, theme, setTheme } = useTheme();
   const { walletBalance, userProfile, updateProfile } = useApp();
-  const { user, avatarUrl, donationSummary, logout } = useAuth();
+  const { user, avatarUrl, donationSummary, logout, guestLogin } = useAuth();
   const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   const insets = useSafeInsets();
@@ -85,10 +191,6 @@ export default function AccountScreen() {
     String(user?.email || ""),
     "GiveBlack Member"
   );
-
-  const iconBgs = isDark
-    ? { green: "#1B2E1B", blue: "#1B2A3D", purple: "#2D1B3D", orange: "#3D2A1B", red: "#3D1515", grey: "#2A2A2A", moon: "#2D2A1B" }
-    : { green: "#E8F5E9", blue: "#E3F2FD", purple: "#F3E5F5", orange: "#FFF3E0", red: "#FFEBEE", grey: "#F5F5F5", moon: "#FFF3E0" };
 
   return (
     <View style={[styles.container, { backgroundColor: c.background }]}>
@@ -156,7 +258,8 @@ export default function AccountScreen() {
           <MenuItem
             icon="receipt-outline"
             label="Transactions"
-            iconBg={iconBgs.green}
+            iconBg={c.iconBgGreen}
+            iconColor={c.iconFgGreen}
             textColor={c.text}
             chevronColor={c.textLight}
             greenColor={c.green}
@@ -164,9 +267,21 @@ export default function AccountScreen() {
           />
           <View style={[styles.menuSep, { backgroundColor: c.border }]} />
           <MenuItem
+            icon="heart-outline"
+            label="Favorites"
+            iconBg={c.iconBgRed}
+            iconColor={c.iconFgRed}
+            textColor={c.text}
+            chevronColor={c.textLight}
+            greenColor={c.green}
+            onPress={() => router.push("/(tabs)/favourite")}
+          />
+          <View style={[styles.menuSep, { backgroundColor: c.border }]} />
+          <MenuItem
             icon="person-outline"
             label="Edit profile"
-            iconBg={iconBgs.blue}
+            iconBg={c.iconBgBlue}
+            iconColor={c.iconFgBlue}
             textColor={c.text}
             chevronColor={c.textLight}
             greenColor={c.green}
@@ -174,21 +289,10 @@ export default function AccountScreen() {
           />
           <View style={[styles.menuSep, { backgroundColor: c.border }]} />
           <MenuItem
-            icon="moon-outline"
-            label="Dark Mode"
-            iconBg={iconBgs.moon}
-            textColor={c.text}
-            chevronColor={c.textLight}
-            greenColor={c.green}
-            isSwitch
-            switchValue={isDark}
-            onSwitchChange={() => toggleTheme()}
-          />
-          <View style={[styles.menuSep, { backgroundColor: c.border }]} />
-          <MenuItem
             icon="eye-off-outline"
             label="Donate as anonymous"
-            iconBg={iconBgs.purple}
+            iconBg={c.iconBgPurple}
+            iconColor={c.iconFgPurple}
             textColor={c.text}
             chevronColor={c.textLight}
             greenColor={c.green}
@@ -200,7 +304,8 @@ export default function AccountScreen() {
           <MenuItem
             icon="people-outline"
             label="Invite friends"
-            iconBg={iconBgs.orange}
+            iconBg={c.iconBgOrange}
+            iconColor={c.iconFgOrange}
             textColor={c.text}
             chevronColor={c.textLight}
             greenColor={c.green}
@@ -208,9 +313,21 @@ export default function AccountScreen() {
           />
           <View style={[styles.menuSep, { backgroundColor: c.border }]} />
           <MenuItem
+            icon="notifications-outline"
+            label="Notifications"
+            iconBg={c.iconBgBlue}
+            iconColor={c.iconFgBlue}
+            textColor={c.text}
+            chevronColor={c.textLight}
+            greenColor={c.green}
+            onPress={() => router.push("/settings/notifications")}
+          />
+          <View style={[styles.menuSep, { backgroundColor: c.border }]} />
+          <MenuItem
             icon="settings-outline"
-            label="Settings"
-            iconBg={iconBgs.grey}
+            label="Settings & Appearance"
+            iconBg={c.iconBgGrey}
+            iconColor={c.iconFgGrey}
             textColor={c.text}
             chevronColor={c.textLight}
             greenColor={c.green}
@@ -220,10 +337,12 @@ export default function AccountScreen() {
           <MenuItem
             icon="log-out-outline"
             label="Logout"
-            iconBg={iconBgs.red}
+            iconBg={c.iconBgRed}
+            iconColor={c.iconFgRed}
             textColor={c.text}
             chevronColor={c.textLight}
             greenColor={c.green}
+            dangerLabel
             onPress={() => setShowLogoutModal(true)}
           />
         </Animated.View>
@@ -242,7 +361,8 @@ export default function AccountScreen() {
                 onPress={async () => {
                   setShowLogoutModal(false);
                   await logout();
-                  router.replace("/(auth)/welcome");
+                  await guestLogin();
+                  router.replace("/(tabs)");
                 }}
               >
                 <Text style={styles.okBtnText}>OK</Text>
@@ -261,6 +381,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: 20,
+    flexGrow: 1,
   },
   profileCard: {
     borderRadius: 20,
@@ -289,16 +410,16 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   avatarInitial: {
-    fontFamily: "Poppins_700Bold",
+    fontFamily: "SpaceGrotesk_700Bold",
     fontSize: 18,
-    color: "#FFFFFF",
+    color: Colors.white,
   },
   profileName: {
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 16,
   },
   profileEmail: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 12,
     marginTop: 2,
   },
@@ -310,7 +431,7 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
   profileEditText: {
-    fontFamily: "Poppins_500Medium",
+    fontFamily: "SpaceGrotesk_500Medium",
     fontSize: 13,
   },
   avatarImage: {
@@ -319,7 +440,7 @@ const styles = StyleSheet.create({
     borderRadius: 22,
   },
   profileStat: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 12,
     marginTop: 2,
   },
@@ -331,11 +452,11 @@ const styles = StyleSheet.create({
     paddingBottom: 20,
   },
   helloText: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 15,
   },
   userName: {
-    fontFamily: "Poppins_700Bold",
+    fontFamily: "SpaceGrotesk_700Bold",
     fontSize: 24,
     marginTop: -2,
   },
@@ -361,14 +482,14 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   walletLabel: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 13,
     color: "rgba(255,255,255,0.65)",
   },
   walletBalance: {
-    fontFamily: "Poppins_700Bold",
+    fontFamily: "SpaceGrotesk_700Bold",
     fontSize: 26,
-    color: "#FFFFFF",
+    color: Colors.white,
     marginTop: -2,
   },
   topUpBtn: {
@@ -377,9 +498,9 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   topUpText: {
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 14,
-    color: "#FFFFFF",
+    color: Colors.white,
   },
   menuCard: {
     borderRadius: 20,
@@ -406,7 +527,7 @@ const styles = StyleSheet.create({
   },
   menuLabel: {
     flex: 1,
-    fontFamily: "Poppins_500Medium",
+    fontFamily: "SpaceGrotesk_500Medium",
     fontSize: 15,
   },
   menuSep: {
@@ -427,7 +548,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   modalText: {
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 17,
     textAlign: "center",
     marginBottom: 24,
@@ -445,7 +566,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   cancelBtnText: {
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 15,
   },
   okBtn: {
@@ -455,8 +576,100 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   okBtnText: {
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 15,
-    color: "#FFFFFF",
+    color: Colors.white,
+  },
+  guestHeroWrap: {
+    alignItems: "center",
+    paddingTop: 40,
+    paddingBottom: 32,
+    width: "100%",
+  },
+  guestIconCircle: {
+    width: 112,
+    height: 112,
+    borderRadius: 56,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 20,
+  },
+  guestTitle: {
+    fontFamily: "SpaceGrotesk_700Bold",
+    fontSize: 22,
+    textAlign: "center",
+    marginBottom: 10,
+  },
+  guestSubtitle: {
+    fontFamily: "SpaceGrotesk_400Regular",
+    fontSize: 14,
+    textAlign: "center",
+    lineHeight: 22,
+    paddingHorizontal: 8,
+  },
+  guestBenefitsCard: {
+    borderRadius: 20,
+    paddingVertical: 6,
+    width: "100%",
+    marginBottom: 24,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    elevation: 3,
+  },
+  guestBenefitRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 16,
+    paddingHorizontal: 18,
+    gap: 14,
+  },
+  guestBenefitIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  guestBenefitText: {
+    fontFamily: "SpaceGrotesk_500Medium",
+    fontSize: 15,
+    flex: 1,
+  },
+  guestCtaWrap: {
+    width: "100%",
+    gap: 12,
+    marginBottom: 24,
+  },
+  guestCtaPrimary: {
+    borderRadius: 16,
+    paddingVertical: 16,
+    alignItems: "center",
+  },
+  guestCtaPrimaryText: {
+    fontFamily: "SpaceGrotesk_600SemiBold",
+    fontSize: 16,
+    color: Colors.white,
+  },
+  guestCtaSecondary: {
+    borderRadius: 16,
+    paddingVertical: 16,
+    alignItems: "center",
+    borderWidth: 1.5,
+  },
+  guestCtaSecondaryText: {
+    fontFamily: "SpaceGrotesk_600SemiBold",
+    fontSize: 16,
+  },
+  guestLogoutBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingVertical: 12,
+  },
+  guestLogoutText: {
+    fontFamily: "SpaceGrotesk_500Medium",
+    fontSize: 14,
   },
 });

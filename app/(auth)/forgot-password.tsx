@@ -132,8 +132,8 @@ export default function ForgotPasswordScreen() {
   function getPasswordStrength(): { label: string; color: string; width: string } {
     const len = newPassword.length;
     if (len === 0) return { label: "", color: "transparent", width: "0%" };
-    if (len < 4) return { label: "Weak", color: "#E74C3C", width: "25%" };
-    if (len < 6) return { label: "Fair", color: "#F39C12", width: "50%" };
+    if (len < 4) return { label: "Weak", color: Colors.danger, width: "25%" };
+    if (len < 6) return { label: "Fair", color: c.warningAmber, width: "50%" };
     if (len < 8) return { label: "Good", color: Colors.green, width: "75%" };
     return { label: "Strong", color: Colors.green, width: "100%" };
   }
@@ -248,7 +248,7 @@ export default function ForgotPasswordScreen() {
         )}
 
         <View style={[styles.inputWrap, { backgroundColor: c.inputBg }, passwordError && styles.inputError]}>
-          <Ionicons name="lock-closed-outline" size={20} color={passwordError ? "#E74C3C" : c.textMuted} style={styles.inputIcon} />
+          <Ionicons name="lock-closed-outline" size={20} color={passwordError ? Colors.danger : c.textMuted} style={styles.inputIcon} />
           <TextInput
             style={[styles.input, { color: c.text }]}
             placeholder="Confirm Password"
@@ -296,12 +296,12 @@ export default function ForgotPasswordScreen() {
         <View style={styles.confettiArea}>
           <View style={[styles.confettiDot, { top: 20, left: 30, backgroundColor: Colors.gold }]} />
           <View style={[styles.confettiDot, { top: 40, right: 50, backgroundColor: Colors.green }]} />
-          <View style={[styles.confettiDot, { top: 80, left: 60, backgroundColor: "#E74C3C" }]} />
-          <View style={[styles.confettiDot, { top: 10, right: 30, backgroundColor: "#3498DB" }]} />
+          <View style={[styles.confettiDot, { top: 80, left: 60, backgroundColor: Colors.danger }]} />
+          <View style={[styles.confettiDot, { top: 10, right: 30, backgroundColor: Colors.linkAccent }]} />
           <View style={[styles.confettiRect, { top: 50, left: 20, backgroundColor: Colors.green }]} />
           <View style={[styles.confettiRect, { top: 30, right: 40, backgroundColor: Colors.gold }]} />
-          <View style={[styles.confettiDot, { top: 70, right: 20, backgroundColor: "#E74C3C" }]} />
-          <View style={[styles.confettiRect, { top: 60, left: 80, backgroundColor: "#3498DB" }]} />
+          <View style={[styles.confettiDot, { top: 70, right: 20, backgroundColor: Colors.danger }]} />
+          <View style={[styles.confettiRect, { top: 60, left: 80, backgroundColor: Colors.linkAccent }]} />
         </View>
 
         <View style={styles.successCircle}>
@@ -387,14 +387,14 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   title: {
-    fontFamily: "Poppins_700Bold",
+    fontFamily: "SpaceGrotesk_700Bold",
     fontSize: 36,
     color: Colors.primary,
     lineHeight: 44,
     marginBottom: 12,
   },
   subtitle: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 14,
     color: Colors.textMuted,
     lineHeight: 22,
@@ -411,7 +411,7 @@ const styles = StyleSheet.create({
     opacity: 0.7,
   },
   continueBtnText: {
-    fontFamily: "Poppins_700Bold",
+    fontFamily: "SpaceGrotesk_700Bold",
     fontSize: 16,
     color: Colors.white,
   },
@@ -428,7 +428,7 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: Colors.border,
     backgroundColor: Colors.white,
-    fontFamily: "Poppins_700Bold",
+    fontFamily: "SpaceGrotesk_700Bold",
     fontSize: 22,
     color: Colors.primary,
     textAlign: "center",
@@ -437,13 +437,13 @@ const styles = StyleSheet.create({
     borderColor: Colors.green,
   },
   otpBoxError: {
-    borderColor: "#E74C3C",
-    backgroundColor: "#E74C3C10",
+    borderColor: Colors.danger,
+    backgroundColor: Colors.danger + "10",
   },
   errorText: {
-    fontFamily: "Poppins_500Medium",
+    fontFamily: "SpaceGrotesk_500Medium",
     fontSize: 13,
-    color: "#E74C3C",
+    color: Colors.danger,
     textAlign: "center",
     marginBottom: 8,
   },
@@ -452,14 +452,14 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   resendText: {
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 14,
     color: Colors.green,
   },
   inputWrap: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#F1F1F1",
+    backgroundColor: Colors.inputBg,
     borderRadius: 14,
     paddingHorizontal: 16,
     paddingVertical: 15,
@@ -467,14 +467,14 @@ const styles = StyleSheet.create({
   },
   inputError: {
     borderWidth: 1.5,
-    borderColor: "#E74C3C",
+    borderColor: Colors.danger,
   },
   inputIcon: {
     marginRight: 10,
   },
   input: {
     flex: 1,
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 15,
     color: Colors.primary,
   },
@@ -489,7 +489,7 @@ const styles = StyleSheet.create({
     flex: 1,
     height: 4,
     borderRadius: 2,
-    backgroundColor: "#E0E0E0",
+    backgroundColor: Colors.progressBarBg,
     overflow: "hidden",
   },
   strengthFill: {
@@ -497,7 +497,7 @@ const styles = StyleSheet.create({
     borderRadius: 2,
   },
   strengthLabel: {
-    fontFamily: "Poppins_500Medium",
+    fontFamily: "SpaceGrotesk_500Medium",
     fontSize: 12,
     minWidth: 40,
   },
@@ -534,13 +534,13 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   successTitle: {
-    fontFamily: "Poppins_700Bold",
+    fontFamily: "SpaceGrotesk_700Bold",
     fontSize: 28,
     color: Colors.primary,
     marginBottom: 12,
   },
   successSubtitle: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 14,
     color: Colors.textMuted,
     textAlign: "center",

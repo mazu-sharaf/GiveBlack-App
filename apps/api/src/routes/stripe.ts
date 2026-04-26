@@ -12,6 +12,61 @@ import { TIER_LIMITS } from "../lib/tier-limits.js";
 
 export { TIER_LIMITS };
 
+const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000;
+const EMAIL_LIMIT = 5;
+const IP_LIMIT = 20;
+
+interface RateLimitBucket {
+  count: number;
+  windowStart: number;
+}
+
+const emailRateLimitMap = new Map<string, RateLimitBucket>();
+const ipRateLimitMap = new Map<string, RateLimitBucket>();
+
+function pruneRateLimitMap(map: Map<string, RateLimitBucket>, now: number): void {
+  for (const [key, bucket] of map.entries()) {
+    if (now - bucket.windowStart >= RATE_LIMIT_WINDOW_MS) {
+      map.delete(key);
+    }
+  }
+}
+
+function checkRateLimit(
+  map: Map<string, RateLimitBucket>,
+  key: string,
+  limit: number,
+  now: number
+): boolean {
+  const bucket = map.get(key);
+  if (!bucket || now - bucket.windowStart >= RATE_LIMIT_WINDOW_MS) {
+    map.set(key, { count: 1, windowStart: now });
+    return true;
+  }
+  if (bucket.count >= limit) {
+    return false;
+  }
+  bucket.count += 1;
+  return true;
+}
+
+function applyGuestRateLimit(
+  email: string,
+  ip: string,
+): { allowed: boolean; reason?: string } {
+  const now = Date.now();
+  pruneRateLimitMap(emailRateLimitMap, now);
+  pruneRateLimitMap(ipRateLimitMap, now);
+
+  if (!checkRateLimit(ipRateLimitMap, ip, IP_LIMIT, now)) {
+    return { allowed: false, reason: "Too many requests from this IP address. Please try again later." };
+  }
+  if (!checkRateLimit(emailRateLimitMap, email, EMAIL_LIMIT, now)) {
+    return { allowed: false, reason: "Too many requests for this email address. Please try again later." };
+  }
+  return { allowed: true };
+}
+
 function tierFromProductId(productId: string | null | undefined): string {
   if (!productId) return "free";
   if (productId === env.STRIPE_PRODUCT_GROWTH) return "growth";
@@ -237,6 +292,36 @@ const syncSubscriptionSchema = z.object({
 
 const syncNativeDonationSchema = z.object({
   paymentIntentId: z.string().min(1),
+});
+
+const guestCreateIntentSchema = z.object({
+  orgId: z.string().min(1),
+  campaignId: z.string().optional(),
+  amount: z.coerce.number().positive(),
+  currency: z.string().default("usd"),
+  email: z.string().email(),
+  name: z.string().optional(),
+  educationPartnerCode: z.string().optional(),
+  reinvestOptIn: z.boolean().optional().default(false),
+  reinvestPct: z.coerce.number().min(0).max(100).optional().default(5),
+});
+
+const guestSyncDonationSchema = z.object({
+  paymentIntentId: z.string().min(1),
+  email: z.string().email(),
+});
+
+const guestDonateCheckoutSchema = z.object({
+  orgId: z.string().min(1),
+  campaignId: z.string().optional(),
+  amount: z.coerce.number().positive(),
+  currency: z.string().default("usd"),
+  email: z.string().email(),
+  name: z.string().optional(),
+  educationPartnerCode: z.string().optional(),
+  reinvestOptIn: z.boolean().optional().default(false),
+  reinvestPct: z.coerce.number().min(0).max(100).optional().default(5),
+  returnUrl: z.string().optional(),
 });
 
 const portalSchema = z.object({
@@ -691,6 +776,156 @@ export const stripeRoutes: FastifyPluginAsync = async (app) => {
           <div class="icon">&#10007;</div>
           <h1>Payment Cancelled</h1>
           <p>Your donation was not processed. You can close this window and return to the app.</p>
+        </div>
+      </body></html>
+    `);
+  });
+
+  app.get("/api/payments/guest-checkout-success", async (request, reply) => {
+    const q = request.query as { session_id?: string };
+    const sessionId = q.session_id;
+
+    const baseUrl = env.EXPO_PUBLIC_API_URL
+      ? env.EXPO_PUBLIC_API_URL.replace(/\/app\/?$/, "").replace(/\/$/, "")
+      : `${request.protocol}://${request.hostname}`;
+    const signupUrl = `${baseUrl}/donor-signup`;
+
+    const stripe = requireStripe(reply);
+    if (!stripe || !sessionId) {
+      return reply.type("text/html").send(`
+        <!DOCTYPE html>
+        <html><head><title>Payment Successful</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <style>
+          body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; background: #0a0a0a; color: #fff; }
+          .card { text-align: center; padding: 40px; max-width: 480px; }
+          .icon { font-size: 64px; margin-bottom: 16px; }
+          h1 { font-size: 24px; margin-bottom: 8px; }
+          p { color: #999; font-size: 16px; margin-bottom: 24px; }
+          .btn { background: #059669; color: #fff; border: none; padding: 14px 32px; border-radius: 12px; font-size: 16px; cursor: pointer; text-decoration: none; display: inline-block; margin-top: 8px; }
+        </style>
+        </head><body>
+          <div class="card">
+            <div class="icon">&#10003;</div>
+            <h1>Payment Successful</h1>
+            <p>Thank you for your donation! A receipt will be sent to your email.</p>
+            <p>Create a free account to track your donations and access donor features.</p>
+            <a href="${signupUrl}" class="btn">Create Free Account</a>
+          </div>
+        </body></html>
+      `);
+    }
+
+    let guestEmailForReceipt: string | null = null;
+    let orgNameForReceipt: string | null = null;
+    let amountForReceipt: number | null = null;
+
+    const escapeHtml = (s: string) =>
+      s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+
+    try {
+      const session = await stripe.checkout.sessions.retrieve(sessionId);
+      const md = (session.metadata || {}) as Record<string, string>;
+      guestEmailForReceipt = md.donorEmail || null;
+
+      if (session.payment_status === "paid") {
+        const piId = stripeId(session.payment_intent as string | { id?: string } | null);
+        if (piId) {
+          const donStatusRes = await db.query(
+            `select status from donations
+             where stripe_payment_intent_id = $1 or stripe_payment_intent_id = $2
+             order by created_at desc limit 1`,
+            [piId, sessionId]
+          );
+          const wasPending = (donStatusRes.rows[0] as { status?: string } | undefined)?.status === "pending";
+
+          const client = await db.connect();
+          try {
+            await client.query("BEGIN");
+            await client.query(
+              `update donations set stripe_payment_intent_id = $1
+               where stripe_payment_intent_id = $2 and status = 'pending'`,
+              [piId, sessionId]
+            );
+            const piObj = await stripe.paymentIntents.retrieve(piId);
+            await applyDonationFromSucceededPaymentIntent(client, piObj as unknown as Record<string, unknown>);
+            await client.query("COMMIT");
+          } catch (e) {
+            await client.query("ROLLBACK").catch(() => {});
+            request.log.error({ err: e }, "guest-checkout-success: finalize failed");
+          } finally {
+            client.release();
+          }
+
+          if (wasPending && guestEmailForReceipt && md.orgId) {
+            try {
+              const orgRes = await db.query("select name from organizations where id = $1", [md.orgId]);
+              orgNameForReceipt = (orgRes.rows[0] as Record<string, unknown> | undefined)?.name as string || null;
+              amountForReceipt = session.amount_total ? session.amount_total / 100 : null;
+
+              if (orgNameForReceipt && amountForReceipt !== null) {
+                const { sendBrevoEmail } = await import("../services/brevo.js");
+                const { emailLayout, ctaButton } = await import("../services/email-template.js");
+                const amountStr = `$${amountForReceipt.toFixed(2)}`;
+                const content = `
+                  <h2 style="color:#ffffff;margin:0 0 8px 0;font-size:22px;">Thank You for Your Donation!</h2>
+                  <p style="color:#cccccc;margin:0 0 24px 0;font-size:16px;">Your donation of <strong style="color:#059669;">${amountStr}</strong> to <strong>${orgNameForReceipt}</strong> has been received.</p>
+                  <div style="background:#1a1a1a;border:1px solid #222222;border-radius:12px;padding:24px;margin-bottom:24px;">
+                    <p style="color:#999999;margin:0 0 8px 0;font-size:13px;text-transform:uppercase;letter-spacing:0.5px;">Donation Summary</p>
+                    <p style="color:#ffffff;margin:0 0 4px 0;font-size:16px;"><strong>Organization:</strong> ${orgNameForReceipt}</p>
+                    <p style="color:#ffffff;margin:0;font-size:16px;"><strong>Amount:</strong> ${amountStr}</p>
+                  </div>
+                  <p style="color:#cccccc;margin:0 0 24px 0;font-size:15px;">Want to track your donations and access exclusive donor features? Create a free GiveBlack account.</p>
+                  ${ctaButton("https://giveblackapp.com", "Create Free Account")}
+                  <p style="color:#999999;margin:24px 0 0 0;font-size:13px;">Thank you for making a difference in your community.</p>
+                `;
+                await sendBrevoEmail({
+                  to: guestEmailForReceipt,
+                  subject: `Your donation to ${orgNameForReceipt} — Receipt`,
+                  html: emailLayout(content),
+                  tags: ["giveblack", "donation-receipt", "guest"],
+                });
+              }
+            } catch (emailErr) {
+              request.log.error({ err: emailErr }, "guest-checkout-success: receipt email failed");
+            }
+          }
+        }
+      }
+    } catch (e) {
+      request.log.error({ err: e }, "guest-checkout-success: session retrieval failed");
+    }
+
+    const safeEmail = guestEmailForReceipt ? escapeHtml(guestEmailForReceipt) : null;
+
+    return reply.type("text/html").send(`
+      <!DOCTYPE html>
+      <html><head><title>Payment Successful</title>
+      <meta name="viewport" content="width=device-width, initial-scale=1">
+      <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; background: #0a0a0a; color: #fff; }
+        .card { text-align: center; padding: 40px; max-width: 480px; width: 100%; box-sizing: border-box; }
+        .icon { font-size: 64px; margin-bottom: 16px; color: #059669; }
+        h1 { font-size: 24px; margin-bottom: 8px; }
+        p { color: #999; font-size: 16px; margin-bottom: 16px; }
+        .highlight { color: #059669; }
+        .divider { border: none; border-top: 1px solid #222; margin: 24px 0; }
+        .upsell { background: #111; border: 1px solid #222; border-radius: 16px; padding: 24px; margin-bottom: 24px; }
+        .upsell h2 { font-size: 18px; margin: 0 0 8px 0; color: #fff; }
+        .upsell p { color: #999; font-size: 14px; margin: 0 0 16px 0; }
+        .btn { background: #059669; color: #fff; border: none; padding: 14px 32px; border-radius: 12px; font-size: 16px; cursor: pointer; text-decoration: none; display: inline-block; font-weight: 600; }
+      </style>
+      </head><body>
+        <div class="card">
+          <div class="icon">&#10003;</div>
+          <h1>Donation Complete!</h1>
+          ${safeEmail ? `<p>A receipt is being sent to <span class="highlight">${safeEmail}</span>.</p>` : "<p>Thank you for your donation!</p>"}
+          <hr class="divider" />
+          <div class="upsell">
+            <h2>Track your giving</h2>
+            <p>Create a free GiveBlack account to see your donation history, download receipts, and support more causes.</p>
+            <a href="${signupUrl}" class="btn">Create Free Account</a>
+          </div>
         </div>
       </body></html>
     `);
@@ -1596,6 +1831,370 @@ export const stripeRoutes: FastifyPluginAsync = async (app) => {
       return { ok: true };
     }
   );
+
+  app.post("/api/payments/guest-donate-checkout", async (request, reply) => {
+    let body: z.infer<typeof guestDonateCheckoutSchema>;
+    try {
+      body = guestDonateCheckoutSchema.parse(request.body);
+    } catch (e: unknown) {
+      return reply.code(400).send({ error: e instanceof Error ? e.message : "Invalid request" });
+    }
+
+    const rateCheck = applyGuestRateLimit(normalizeEmail(body.email), request.ip);
+    if (!rateCheck.allowed) {
+      return reply.code(429).send({ error: rateCheck.reason ?? "Too many requests. Please try again later." });
+    }
+
+    const stripe = requireStripe(reply);
+    if (!stripe) return;
+
+    if (body.campaignId) {
+      const campRes = await db.query(
+        `select status, organization_id from campaigns where id = $1`,
+        [body.campaignId]
+      );
+      const camp = campRes.rows[0] as { status: string; organization_id: string } | undefined;
+      if (!camp) return reply.code(404).send({ error: "Campaign not found" });
+      if (camp.organization_id !== body.orgId) return reply.code(400).send({ error: "Campaign does not belong to this organization" });
+      if (camp.status !== "active") return reply.code(400).send({ error: "This campaign is not accepting donations" });
+    }
+
+    const orgRes = await db.query("select id, name from organizations where id = $1", [body.orgId]);
+    if (!orgRes.rowCount) return reply.code(404).send({ error: "Organization not found" });
+    const orgName = (orgRes.rows[0] as Record<string, unknown>)?.name as string || "Organization";
+
+    let campaignTitle = "";
+    if (body.campaignId) {
+      const campRes = await db.query("select title from campaigns where id = $1", [body.campaignId]);
+      campaignTitle = (campRes.rows[0] as Record<string, unknown> | undefined)?.title as string || "";
+    }
+
+    const description = campaignTitle
+      ? `Donation to ${orgName} - ${campaignTitle}`
+      : `Donation to ${orgName}`;
+
+    const guestEmail = normalizeEmail(body.email);
+    const guestName = body.name ? String(body.name).trim() : null;
+
+    const existingCustomerRes = await db.query(
+      "select stripe_customer_id from guest_stripe_customers where email = $1 limit 1",
+      [guestEmail]
+    );
+    let customerId: string | null = (existingCustomerRes.rows[0] as { stripe_customer_id?: string } | undefined)?.stripe_customer_id ?? null;
+
+    if (customerId) {
+      try {
+        const existingCustomer = await stripe.customers.retrieve(customerId);
+        if ("deleted" in existingCustomer && existingCustomer.deleted) customerId = null;
+      } catch {
+        customerId = null;
+      }
+    }
+
+    if (!customerId) {
+      const customer = await stripe.customers.create({
+        email: guestEmail,
+        name: guestName || undefined,
+        metadata: { guest: "1" },
+      });
+      customerId = customer.id;
+      await db.query(
+        `insert into guest_stripe_customers (email, stripe_customer_id) values ($1, $2)
+         on conflict (email) do update set stripe_customer_id = excluded.stripe_customer_id`,
+        [guestEmail, customerId]
+      );
+    }
+
+    const partnerId = await resolveEducationPartnerId(body.educationPartnerCode);
+    const reinvestOptIn = body.reinvestOptIn ?? false;
+    const reinvestPct = body.reinvestPct ?? 5;
+    const alloc = computeReinvestAllocation(body.amount, reinvestOptIn, reinvestPct, partnerId);
+
+    const baseUrl = env.EXPO_PUBLIC_API_URL
+      ? env.EXPO_PUBLIC_API_URL.replace(/\/app\/?$/, "").replace(/\/$/, "")
+      : `${request.protocol}://${request.hostname}`;
+
+    const successUrl = `${baseUrl}/api/payments/guest-checkout-success?session_id={CHECKOUT_SESSION_ID}`;
+    const cancelUrl = body.returnUrl && body.returnUrl.trim().length > 0
+      ? (body.returnUrl.trim().includes("?")
+        ? `${body.returnUrl.trim()}&cancelled=1`
+        : `${body.returnUrl.trim()}?cancelled=1`)
+      : `${baseUrl}/api/payments/checkout-cancel`;
+
+    const donationMeta: Record<string, string> = {
+      orgId: body.orgId,
+      campaignId: body.campaignId || "",
+      donorEmail: guestEmail,
+      guest: "1",
+      type: "donation",
+      epId: partnerId || "",
+      reinvest: reinvestOptIn ? "1" : "0",
+      rAmt: String(alloc.reinvest_amount),
+      pAmt: String(alloc.partner_reinvest_amount),
+      gAmt: String(alloc.general_reinvest_amount),
+    };
+
+    const session = await stripe.checkout.sessions.create({
+      mode: "payment",
+      customer: customerId,
+      line_items: [
+        {
+          price_data: {
+            currency: body.currency,
+            unit_amount: Math.round(body.amount * 100),
+            product_data: { name: description },
+          },
+          quantity: 1,
+        },
+      ],
+      payment_intent_data: { metadata: donationMeta },
+      success_url: successUrl,
+      cancel_url: cancelUrl,
+      metadata: donationMeta,
+    });
+
+    const piIdAfterCreate = stripeId(session.payment_intent);
+    const donationStripeKey = piIdAfterCreate ?? session.id;
+    if (piIdAfterCreate) {
+      await stripe.paymentIntents.update(piIdAfterCreate, {
+        metadata: {
+          ...Object.fromEntries(Object.entries(donationMeta).map(([k, v]) => [k, String(v ?? "")])),
+          checkoutSessionId: session.id,
+        },
+      });
+    }
+
+    await db.query(
+      `insert into donations (
+         org_id, campaign_id, user_id, donor_email, donor_name, amount, currency, status, stripe_payment_intent_id,
+         education_partner_id, reinvest_opt_in, reinvest_amount, partner_reinvest_amount, general_reinvest_amount
+       ) values ($1, $2, NULL, $3, $4, $5, $6, 'pending', $7, $8, $9, $10, $11, $12)`,
+      [
+        body.orgId,
+        body.campaignId || null,
+        guestEmail,
+        guestName,
+        body.amount,
+        body.currency,
+        donationStripeKey,
+        partnerId || null,
+        reinvestOptIn,
+        alloc.reinvest_amount,
+        alloc.partner_reinvest_amount,
+        alloc.general_reinvest_amount,
+      ]
+    );
+
+    return { url: session.url, sessionId: session.id };
+  });
+
+  app.post("/api/payments/guest-create-intent", async (request, reply) => {
+    let body: z.infer<typeof guestCreateIntentSchema>;
+    try {
+      body = guestCreateIntentSchema.parse(request.body);
+    } catch (e: unknown) {
+      return reply.code(400).send({ error: e instanceof Error ? e.message : "Invalid request" });
+    }
+
+    const rateCheck = applyGuestRateLimit(normalizeEmail(body.email), request.ip);
+    if (!rateCheck.allowed) {
+      return reply.code(429).send({ error: rateCheck.reason ?? "Too many requests. Please try again later." });
+    }
+
+    const stripe = requireStripe(reply);
+    if (!stripe) return;
+
+    if (body.campaignId) {
+      const campRes = await db.query(
+        `select status, organization_id from campaigns where id = $1`,
+        [body.campaignId]
+      );
+      const camp = campRes.rows[0] as { status: string; organization_id: string } | undefined;
+      if (!camp) return reply.code(404).send({ error: "Campaign not found" });
+      if (camp.organization_id !== body.orgId) return reply.code(400).send({ error: "Campaign does not belong to this organization" });
+      if (camp.status !== "active") return reply.code(400).send({ error: "This campaign is not accepting donations" });
+    }
+
+    const orgRes = await db.query("select id from organizations where id = $1", [body.orgId]);
+    if (!orgRes.rowCount) return reply.code(404).send({ error: "Organization not found" });
+
+    const guestEmail = normalizeEmail(body.email);
+    const guestName = body.name ? String(body.name).trim() : null;
+
+    const existingCustomerRes = await db.query(
+      "select stripe_customer_id from guest_stripe_customers where email = $1 limit 1",
+      [guestEmail]
+    );
+    let customerId: string | null = (existingCustomerRes.rows[0] as { stripe_customer_id?: string } | undefined)?.stripe_customer_id ?? null;
+
+    if (customerId) {
+      try {
+        const existingCustomer = await stripe.customers.retrieve(customerId);
+        if ("deleted" in existingCustomer && existingCustomer.deleted) customerId = null;
+      } catch {
+        customerId = null;
+      }
+    }
+
+    if (!customerId) {
+      const customer = await stripe.customers.create({
+        email: guestEmail,
+        name: guestName || undefined,
+        metadata: { guest: "1" },
+      });
+      customerId = customer.id;
+      await db.query(
+        `insert into guest_stripe_customers (email, stripe_customer_id) values ($1, $2)
+         on conflict (email) do update set stripe_customer_id = excluded.stripe_customer_id`,
+        [guestEmail, customerId]
+      );
+    }
+
+    const partnerId = await resolveEducationPartnerId(body.educationPartnerCode);
+    const reinvestOptIn = body.reinvestOptIn ?? false;
+    const reinvestPct = body.reinvestPct ?? 5;
+    const alloc = computeReinvestAllocation(body.amount, reinvestOptIn, reinvestPct, partnerId);
+
+    const intent = await stripe.paymentIntents.create({
+      amount: Math.round(body.amount * 100),
+      currency: body.currency,
+      customer: customerId,
+      payment_method_types: ["card"],
+      metadata: {
+        orgId: body.orgId,
+        campaignId: body.campaignId || "",
+        donorEmail: guestEmail,
+        guest: "1",
+        type: "donation",
+        epId: partnerId || "",
+        reinvest: reinvestOptIn ? "1" : "0",
+        rAmt: String(alloc.reinvest_amount),
+        pAmt: String(alloc.partner_reinvest_amount),
+        gAmt: String(alloc.general_reinvest_amount),
+      },
+    } as any);
+
+    const ephemeralKey = await stripe.ephemeralKeys.create(
+      { customer: customerId },
+      { apiVersion: "2024-04-10" }
+    );
+
+    await db.query(
+      `insert into donations (
+         org_id, campaign_id, user_id, donor_email, donor_name, amount, currency, status, stripe_payment_intent_id,
+         education_partner_id, reinvest_opt_in, reinvest_amount, partner_reinvest_amount, general_reinvest_amount
+       ) values ($1, $2, NULL, $3, $4, $5, $6, 'pending', $7, $8, $9, $10, $11, $12)`,
+      [
+        body.orgId,
+        body.campaignId || null,
+        guestEmail,
+        guestName,
+        body.amount,
+        body.currency,
+        intent.id,
+        partnerId || null,
+        reinvestOptIn,
+        alloc.reinvest_amount,
+        alloc.partner_reinvest_amount,
+        alloc.general_reinvest_amount,
+      ]
+    );
+
+    return {
+      clientSecret: intent.client_secret,
+      paymentIntentId: intent.id,
+      customerId,
+      ephemeralKey: ephemeralKey.secret,
+    };
+  });
+
+  app.post("/api/payments/guest-sync-native-donation", async (request, reply) => {
+    let body: z.infer<typeof guestSyncDonationSchema>;
+    try {
+      body = guestSyncDonationSchema.parse(request.body);
+    } catch (e: unknown) {
+      return reply.code(400).send({ error: e instanceof Error ? e.message : "Invalid request" });
+    }
+
+    const rateCheck = applyGuestRateLimit(normalizeEmail(body.email), request.ip);
+    if (!rateCheck.allowed) {
+      return reply.code(429).send({ error: rateCheck.reason ?? "Too many requests. Please try again later." });
+    }
+
+    const stripe = requireStripe(reply);
+    if (!stripe) return;
+
+    let pi: Awaited<ReturnType<ReturnType<typeof getStripe>["paymentIntents"]["retrieve"]>>;
+    try {
+      pi = await stripe.paymentIntents.retrieve(body.paymentIntentId);
+    } catch {
+      return reply.code(404).send({ error: "Payment not found" });
+    }
+
+    if (pi.status !== "succeeded") {
+      return reply.code(400).send({ error: "Payment not completed yet" });
+    }
+
+    const guestEmail = normalizeEmail(body.email);
+
+    const donationCheck = await db.query(
+      `select 1 from donations where stripe_payment_intent_id = $1 and lower(trim(coalesce(donor_email, ''))) = $2`,
+      [pi.id, guestEmail]
+    );
+    if (!donationCheck.rowCount) {
+      return reply.code(403).send({ error: "No matching donation for this email" });
+    }
+
+    const client = await db.connect();
+    try {
+      await client.query("BEGIN");
+      await applyDonationFromSucceededPaymentIntent(client, pi as unknown as Record<string, unknown>);
+      await client.query("COMMIT");
+    } catch (err) {
+      await client.query("ROLLBACK");
+      app.log.error({ err }, "guest-sync-native-donation failed");
+      return reply.code(500).send({ error: "Failed to sync donation" });
+    } finally {
+      client.release();
+    }
+
+    try {
+      const donationInfoRes = await db.query(
+        `select d.amount, o.name as org_name from donations d
+         left join organizations o on o.id = d.org_id
+         where d.stripe_payment_intent_id = $1 limit 1`,
+        [pi.id]
+      );
+      const donInfo = donationInfoRes.rows[0] as { amount: string; org_name: string } | undefined;
+      if (donInfo) {
+        const { sendBrevoEmail } = await import("../services/brevo.js");
+        const { emailLayout, ctaButton } = await import("../services/email-template.js");
+        const amountStr = `$${Number(donInfo.amount).toFixed(2)}`;
+        const content = `
+          <h2 style="color:#ffffff;margin:0 0 8px 0;font-size:22px;">Thank You for Your Donation!</h2>
+          <p style="color:#cccccc;margin:0 0 24px 0;font-size:16px;">Your donation of <strong style="color:#059669;">${amountStr}</strong> to <strong>${donInfo.org_name}</strong> has been received.</p>
+          <div style="background:#1a1a1a;border:1px solid #222222;border-radius:12px;padding:24px;margin-bottom:24px;">
+            <p style="color:#999999;margin:0 0 8px 0;font-size:13px;text-transform:uppercase;letter-spacing:0.5px;">Donation Summary</p>
+            <p style="color:#ffffff;margin:0 0 4px 0;font-size:16px;"><strong>Organization:</strong> ${donInfo.org_name}</p>
+            <p style="color:#ffffff;margin:0;font-size:16px;"><strong>Amount:</strong> ${amountStr}</p>
+          </div>
+          <p style="color:#cccccc;margin:0 0 24px 0;font-size:15px;">Want to track your donations and access exclusive donor features? Create a free GiveBlack account.</p>
+          ${ctaButton("https://giveblackapp.com", "Create Free Account")}
+          <p style="color:#999999;margin:24px 0 0 0;font-size:13px;">Thank you for making a difference in your community.</p>
+        `;
+        await sendBrevoEmail({
+          to: guestEmail,
+          subject: `Your donation to ${donInfo.org_name} — Receipt`,
+          html: emailLayout(content),
+          tags: ["giveblack", "donation-receipt", "guest"],
+        });
+      }
+    } catch (emailErr) {
+      app.log.error({ err: emailErr }, "Failed to send guest donation receipt email");
+    }
+
+    return { ok: true };
+  });
 
   app.post("/api/webhooks/stripe", async (request, reply) => {
     const rawBody = request.rawBody as string | undefined;

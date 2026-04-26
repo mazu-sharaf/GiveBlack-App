@@ -75,6 +75,44 @@ export async function issueSessionForUser(
   };
 }
 
+/**
+ * Claim any succeeded guest donations (user_id IS NULL) whose donor_email matches
+ * the newly created account's email, and roll their totals into donor_stats.
+ */
+async function claimGuestDonations(userId: string, email: string): Promise<void> {
+  // Step 1: assign unclaimed succeeded guest donations to the new user
+  await db.query(
+    `update donations
+     set user_id = $1
+     where user_id is null
+       and lower(trim(donor_email)) = lower(trim($2))
+       and status = 'succeeded'`,
+    [userId, email]
+  );
+
+  // Step 2: recompute donor_stats from the source-of-truth donations rows.
+  // Using a full recompute (rather than accumulating from RETURNING) prevents
+  // double-counting in the rare case where the Stripe webhook already resolved
+  // the same donation via its email-lookup path and incremented donor_stats.
+  await db.query(
+    `insert into donor_stats (user_id, total_amount_cents, donation_count, first_donation_at, last_donation_at)
+     select $1,
+            coalesce(sum((amount * 100)::bigint), 0),
+            count(*),
+            min(created_at),
+            max(created_at)
+     from donations
+     where user_id = $1
+       and status = 'succeeded'
+     on conflict (user_id) do update set
+       total_amount_cents = excluded.total_amount_cents,
+       donation_count     = excluded.donation_count,
+       first_donation_at  = excluded.first_donation_at,
+       last_donation_at   = excluded.last_donation_at`,
+    [userId]
+  );
+}
+
 export const authRoutes: FastifyPluginAsync = async (app) => {
   // Donor signup endpoint
   app.post("/api/auth/signup/donor", async (request, reply) => {
@@ -106,11 +144,45 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
       ).catch(() => {}); // Ignore profile errors
     }
 
+    // Claim any guest donations made with this email before account creation
+    await claimGuestDonations(user.id, email).catch((err) => {
+      app.log.warn({ err, userId: user.id, email }, "Failed to claim guest donations on signup");
+    });
+
     const tokens = await issueSessionForUser(app, request, {
       id: user.id,
       email: user.email,
       role: user.role,
     });
+
+    // Fire-and-forget: welcome email to new donor
+    void (async () => {
+      try {
+        const { sendBrevoEmail } = await import("../services/brevo.js");
+        const { emailLayout, ctaButton } = await import("../services/email-template.js");
+        const firstName = body.name.trim().split(" ")[0];
+        const appUrl = process.env.APP_URL || "https://giveblackapp.com";
+        const content = `
+          <h2 style="color:#ffffff;margin:0 0 8px 0;font-size:22px;">Welcome to GiveBlack, ${firstName}!</h2>
+          <p style="color:#cccccc;margin:0 0 16px 0;font-size:16px;line-height:1.6;">
+            Thank you for joining our community of givers. GiveBlack connects donors like you with Black-led
+            education and community programs that are making a real difference.
+          </p>
+          <p style="color:#cccccc;margin:0 0 24px 0;font-size:16px;line-height:1.6;">
+            Browse organizations, support campaigns, and invite your friends to join the movement.
+          </p>
+          ${ctaButton(appUrl, "Start Exploring")}
+        `;
+        await sendBrevoEmail({
+          to: email,
+          subject: `Welcome to GiveBlack, ${firstName}!`,
+          html: emailLayout(content),
+          tags: ["giveblack", "welcome"],
+        });
+      } catch (err) {
+        app.log.warn({ err, email }, "Failed to send donor welcome email");
+      }
+    })();
 
     return reply.code(201).send({
       success: true,
@@ -237,6 +309,11 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
       ).catch(() => {});
     }
 
+    // Claim any guest donations made with this email before account creation
+    await claimGuestDonations(user.id, email).catch((err) => {
+      app.log.warn({ err, userId: user.id, email }, "Failed to claim guest donations on signup");
+    });
+
     const tokens = await issueSessionForUser(app, request, {
       id: user.id,
       email: user.email,
@@ -294,6 +371,13 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
         app.log.error({ err: e, msg: "Failed to load charity request status" });
         return reply.code(403).send({ error: "Your charity account is not approved yet." });
       }
+    }
+
+    // Claim any guest donations made with this email before this login
+    if (user.role === "donor") {
+      await claimGuestDonations(user.id, user.email).catch((err) => {
+        app.log.warn({ err, userId: user.id, email: user.email }, "Failed to claim guest donations on login");
+      });
     }
 
     const tokens = await issueSessionForUser(app, request, {

@@ -14,7 +14,7 @@ import { useSafeInsets } from "@/lib/safe-area";
 import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import Colors from "@/constants/colors";
-import { useTheme, useThemeColors } from "@/context/ThemeContext";
+import { useThemeColors } from "@/context/ThemeContext";
 import { useApp } from "@/context/AppContext";
 
 import { getCampaignImage, campaignImages } from "@/constants/images";
@@ -24,7 +24,6 @@ type SortOption = "default" | "name_az" | "name_za" | "raised_high" | "raised_lo
 export default function FavouriteScreen() {
   const insets = useSafeInsets();
   const c = useThemeColors();
-  const { isDark } = useTheme();
   const { campaigns, categories, favorites, toggleFavorite } = useApp();
   const [search, setSearch] = useState("");
   const [showFilter, setShowFilter] = useState(false);
@@ -78,8 +77,8 @@ export default function FavouriteScreen() {
     { key: "raised_low", label: "Least raised" },
   ];
 
-  const chipBg = isDark ? "#2A2A2A" : "#F1F1F1";
-  const sortBorderColor = isDark ? "#333" : "#F5F5F5";
+  const chipBg = c.inputBg;
+  const sortBorderColor = c.border;
 
   return (
     <View style={[styles.container, { backgroundColor: c.background }]}>
@@ -103,7 +102,7 @@ export default function FavouriteScreen() {
           style={[styles.filterBtn, { backgroundColor: activeFilterCount > 0 ? c.green : c.cardBg, borderColor: activeFilterCount > 0 ? c.green : c.border }]}
           onPress={() => setShowFilter(true)}
         >
-          <Ionicons name="options-outline" size={20} color={activeFilterCount > 0 ? "#FFFFFF" : c.text} />
+          <Ionicons name="options-outline" size={20} color={activeFilterCount > 0 ? Colors.white : c.text} />
           {activeFilterCount > 0 && (
             <View style={styles.filterBadge}>
               <Text style={styles.filterBadgeText}>{activeFilterCount}</Text>
@@ -164,7 +163,7 @@ export default function FavouriteScreen() {
                   <Text style={[styles.resultOrg, { color: c.textMuted }]} numberOfLines={1}>
                     {item.orgName || "Charity"}
                   </Text>
-                  <View style={[styles.progressBar, { backgroundColor: isDark ? "#333" : "#E8E8E8" }]}>
+                  <View style={[styles.progressBar, { backgroundColor: c.progressBarBg }]}>
                     <View
                       style={[
                         styles.progressFill,
@@ -202,7 +201,7 @@ export default function FavouriteScreen() {
                 style={[styles.chip, { backgroundColor: !selectedCategory ? c.green : chipBg }]}
                 onPress={() => setSelectedCategory("")}
               >
-                <Text style={[styles.chipText, { color: !selectedCategory ? "#FFFFFF" : c.text }]}>All</Text>
+                <Text style={[styles.chipText, { color: !selectedCategory ? Colors.white : c.text }]}>All</Text>
               </Pressable>
               {categories.map((cat) => (
                 <Pressable
@@ -210,7 +209,7 @@ export default function FavouriteScreen() {
                   style={[styles.chip, { backgroundColor: selectedCategory === cat.id ? c.green : chipBg }]}
                   onPress={() => setSelectedCategory(selectedCategory === cat.id ? "" : cat.id)}
                 >
-                  <Text style={[styles.chipText, { color: selectedCategory === cat.id ? "#FFFFFF" : c.text }]}>{cat.name}</Text>
+                  <Text style={[styles.chipText, { color: selectedCategory === cat.id ? Colors.white : c.text }]}>{cat.name}</Text>
                 </Pressable>
               ))}
             </ScrollView>
@@ -267,7 +266,7 @@ const styles = StyleSheet.create({
   },
   searchInput: {
     flex: 1,
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 14,
   },
   filterBtn: {
@@ -290,9 +289,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   filterBadgeText: {
-    fontFamily: "Poppins_700Bold",
+    fontFamily: "SpaceGrotesk_700Bold",
     fontSize: 10,
-    color: "#FFFFFF",
+    color: Colors.white,
   },
   listContent: {
     paddingHorizontal: 20,
@@ -319,13 +318,13 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   resultName: {
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 14,
     lineHeight: 20,
     marginBottom: 2,
   },
   resultOrg: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 12,
     marginBottom: 6,
   },
@@ -340,7 +339,7 @@ const styles = StyleSheet.create({
     borderRadius: 2,
   },
   resultPct: {
-    fontFamily: "Poppins_500Medium",
+    fontFamily: "SpaceGrotesk_500Medium",
     fontSize: 11,
   },
   heartBtn: {
@@ -358,12 +357,12 @@ const styles = StyleSheet.create({
     paddingBottom: 100,
   },
   emptyTitle: {
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 18,
     marginTop: 8,
   },
   emptySub: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 14,
     textAlign: "center",
     paddingHorizontal: 40,
@@ -388,7 +387,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   modalTitle: {
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 16,
     marginBottom: 12,
   },
@@ -405,7 +404,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
   },
   chipText: {
-    fontFamily: "Poppins_500Medium",
+    fontFamily: "SpaceGrotesk_500Medium",
     fontSize: 13,
   },
   sortOption: {
@@ -416,11 +415,11 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
   },
   sortOptionText: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 14,
   },
   sortOptionActive: {
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
   },
   radio: {
     width: 22,
@@ -448,7 +447,7 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
   },
   resetBtnText: {
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 15,
   },
   applyBtn: {
@@ -458,8 +457,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   applyBtnText: {
-    fontFamily: "Poppins_700Bold",
+    fontFamily: "SpaceGrotesk_700Bold",
     fontSize: 15,
-    color: "#FFFFFF",
+    color: Colors.white,
   },
 });

@@ -5,6 +5,7 @@ import { router, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useApp } from "@/context/AppContext";
 import { useAuth } from "@/context/AuthContext";
+import Colors from "@/constants/colors";
 import { useThemeColors } from "@/context/ThemeContext";
 import { apiGet, apiPost, getApiUrl } from "@/lib/query-client";
 import { isNativeStripeAvailable, presentNativePaymentSheet } from "@/lib/stripe-confirm";
@@ -13,6 +14,9 @@ import * as LegacyFileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
 import AppHeader from "@/components/AppHeader";
 import Confetti from "@/components/Confetti";
+
+import { buildReceiptHtml } from "@/lib/receipt-html";
+import { saveDonationIntent, clearDonationIntent } from "@/lib/donation-intent";
 
 const PRESET_AMOUNTS = [5, 10, 25, 50, 100, 200];
 const PLATFORM_FEE_RATE = 0.03;
@@ -30,14 +34,19 @@ function generateReference() {
   return result;
 }
 
-import { buildReceiptHtml } from "@/lib/receipt-html";
-
 export default function DonateScreen() {
-  const { orgId, campaignId: campaignIdParam, partner: partnerParam } = useLocalSearchParams<{
+  const { orgId, campaignId: campaignIdParam, partner: partnerParam, amount: amountParam } = useLocalSearchParams<{
     orgId: string;
     campaignId?: string | string[];
     partner?: string | string[];
+    amount?: string | string[];
   }>();
+  const suggestedAmount = (() => {
+    const raw = Array.isArray(amountParam) ? amountParam[0] : amountParam;
+    if (!raw) return null;
+    const n = parseFloat(raw);
+    return Number.isFinite(n) && n > 0 ? n : null;
+  })();
   const campaignId = Array.isArray(campaignIdParam) ? campaignIdParam[0] : campaignIdParam;
   const insets = useSafeInsets();
   const c = useThemeColors();
@@ -49,11 +58,37 @@ export default function DonateScreen() {
   const [amount, setAmount] = useState<string>("0");
   const [customAmount, setCustomAmount] = useState<string>("");
   const [selectedPreset, setSelectedPreset] = useState<number | null>(null);
+
+  // Pre-fill amount from URL param (e.g. after returning from sign-up/login).
+  useEffect(() => {
+    if (!suggestedAmount) return;
+    if (PRESET_AMOUNTS.includes(suggestedAmount)) {
+      setSelectedPreset(suggestedAmount);
+      setAmount(suggestedAmount.toString());
+      setCustomAmount("");
+    } else {
+      setSelectedPreset(null);
+      setAmount(suggestedAmount.toString());
+      setCustomAmount(suggestedAmount.toString());
+    }
+  }, [suggestedAmount]);
+
+  // The user has reached the donate screen — clear any persisted intent so it
+  // isn't applied again if they later navigate through auth for an unrelated reason.
+  useEffect(() => {
+    clearDonationIntent();
+  }, []);
+
   const [step, setStep] = useState<Step>("amount");
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
   const [isAnonymous, setIsAnonymous] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<"native" | null>(null);
+
+  const [guestMode, setGuestMode] = useState(false);
+  const [guestEmail, setGuestEmail] = useState("");
+  const [guestEmailInput, setGuestEmailInput] = useState("");
+  const [showGuestEmailForm, setShowGuestEmailForm] = useState(false);
 
   // Looped guide animation shown while Stripe is processing the donation.
   const [processingGuideStep, setProcessingGuideStep] = useState<0 | 1 | 2>(0);
@@ -201,15 +236,134 @@ export default function DonateScreen() {
     );
   }
 
-  if (!isAuthenticated || isGuest || !session?.accessToken) {
+  if ((!isAuthenticated || isGuest || !session?.accessToken) && !guestMode) {
     return (
       <View style={[styles.container, { backgroundColor: c.background }]}>
         <AppHeader showBack title="Donate" showSearch={false} />
-        <View style={styles.centerContent}>
-          <Ionicons name="lock-closed-outline" size={48} color={c.textMuted} />
-          <Text style={[styles.centerText, { color: c.text }]}>Please sign in to donate</Text>
-          <Pressable style={[styles.btn, { backgroundColor: c.green }]} onPress={() => router.push("/(auth)/donor-login")}>
-            <Text style={styles.btnText}>Sign In</Text>
+        <View style={styles.authGateWrap}>
+          <View style={[styles.authGateCard, { backgroundColor: c.cardBg }]}>
+            {!showGuestEmailForm ? (
+              <>
+                <Text style={[styles.authGateHeading, { color: c.text }]}>
+                  Create a free account to donate
+                </Text>
+                <Text style={[styles.authGateBody, { color: c.textMuted }]}>
+                  {suggestedAmount
+                    ? `Give $${suggestedAmount.toFixed(2)} to `
+                    : "You're one step away from supporting "}
+                  <Text style={{ color: c.text, fontFamily: "SpaceGrotesk_600SemiBold" }}>{org.name}</Text>
+                  {suggestedAmount
+                    ? " — create a free account to complete your donation."
+                    : ". It's free and takes 30 seconds."}
+                </Text>
+
+                <Pressable
+                  style={[styles.authGatePrimaryBtn, { backgroundColor: c.green }]}
+                  onPress={async () => {
+                    const qp = new URLSearchParams();
+                    if (campaignId) qp.set("campaignId", campaignId);
+                    if (suggestedAmount) qp.set("amount", String(suggestedAmount));
+                    const rawPartner = Array.isArray(partnerParam) ? partnerParam[0] : partnerParam;
+                    if (rawPartner) qp.set("partner", rawPartner);
+                    const qs = qp.toString();
+                    const returnTo = `/donate/${orgId}${qs ? `?${qs}` : ""}`;
+                    await saveDonationIntent({ orgId, campaignId, amount: suggestedAmount ?? undefined });
+                    router.push({ pathname: "/(auth)/donor-signup", params: { returnTo } });
+                  }}
+                >
+                  <Text style={styles.authGatePrimaryBtnText}>Create Free Account</Text>
+                </Pressable>
+
+                <Pressable
+                  style={[styles.authGateSecondaryBtn, { borderColor: c.border }]}
+                  onPress={async () => {
+                    const qp = new URLSearchParams();
+                    if (campaignId) qp.set("campaignId", campaignId);
+                    if (suggestedAmount) qp.set("amount", String(suggestedAmount));
+                    const rawPartner = Array.isArray(partnerParam) ? partnerParam[0] : partnerParam;
+                    if (rawPartner) qp.set("partner", rawPartner);
+                    const qs = qp.toString();
+                    const returnTo = `/donate/${orgId}${qs ? `?${qs}` : ""}`;
+                    await saveDonationIntent({ orgId, campaignId, amount: suggestedAmount ?? undefined });
+                    router.push({ pathname: "/(auth)/donor-login", params: { returnTo } });
+                  }}
+                >
+                  <Text style={[styles.authGateSecondaryBtnText, { color: c.text }]}>Sign In</Text>
+                </Pressable>
+
+                <Pressable
+                  style={styles.authGateGuestBtn}
+                  onPress={() => setShowGuestEmailForm(true)}
+                >
+                  <Text style={[styles.authGateGuestBtnText, { color: c.textMuted }]}>Continue as guest</Text>
+                </Pressable>
+
+                <Pressable style={styles.authGateBackLink} onPress={() => router.back()}>
+                  <Ionicons name="arrow-back-outline" size={14} color={c.textMuted} />
+                  <Text style={[styles.authGateBackText, { color: c.textMuted }]}>Browse campaigns</Text>
+                </Pressable>
+              </>
+            ) : (
+              <>
+                <Text style={[styles.authGateHeading, { color: c.text }]}>
+                  Continue as guest
+                </Text>
+                <Text style={[styles.authGateBody, { color: c.textMuted }]}>
+                  Enter your email to receive a donation receipt after payment.
+                </Text>
+                <TextInput
+                  value={guestEmailInput}
+                  onChangeText={setGuestEmailInput}
+                  placeholder="your@email.com"
+                  placeholderTextColor={c.textMuted}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  autoComplete="email"
+                  style={{
+                    borderWidth: 1.5,
+                    borderColor: c.border,
+                    borderRadius: 12,
+                    paddingHorizontal: 16,
+                    paddingVertical: 12,
+                    fontFamily: "SpaceGrotesk_400Regular",
+                    fontSize: 15,
+                    color: c.text,
+                    backgroundColor: c.background,
+                    width: "100%",
+                  }}
+                />
+                <Pressable
+                  style={[styles.authGatePrimaryBtn, { backgroundColor: c.green }]}
+                  onPress={() => {
+                    const email = guestEmailInput.trim().toLowerCase();
+                    if (!email || !email.includes("@") || !email.includes(".")) {
+                      Alert.alert("Invalid email", "Please enter a valid email address.");
+                      return;
+                    }
+                    setGuestEmail(email);
+                    setGuestMode(true);
+                  }}
+                >
+                  <Text style={styles.authGatePrimaryBtnText}>Proceed to Donate</Text>
+                </Pressable>
+                <Pressable
+                  style={{ paddingVertical: 8 }}
+                  onPress={() => setShowGuestEmailForm(false)}
+                >
+                  <Text style={[{ color: c.textMuted, fontFamily: "SpaceGrotesk_400Regular", fontSize: 13 }]}>
+                    ← Back to sign-in options
+                  </Text>
+                </Pressable>
+              </>
+            )}
+          </View>
+
+          <Pressable
+            style={styles.authGateCharityRow}
+            onPress={() => router.push("/(auth)/charity-login")}
+          >
+            <Text style={[styles.authGateCharityText, { color: c.textMuted }]}>Are you a charity? </Text>
+            <Text style={[styles.authGateCharityLink, { color: c.green }]}>Sign in here</Text>
           </Pressable>
         </View>
       </View>
@@ -282,6 +436,88 @@ export default function DonateScreen() {
     }
   }
 
+  async function attemptGuestWebCheckout(value: number): Promise<"redirecting" | "error"> {
+    try {
+      const res = await apiPost<{ url: string; sessionId: string }>(
+        "/api/payments/guest-donate-checkout",
+        {
+          orgId: org!.id,
+          amount: value,
+          email: guestEmail,
+          reinvestOptIn: educationEnabled,
+          reinvestPct: Math.round(educationRate * 1000) / 10,
+          ...(resolvedPartner ? { educationPartnerCode: resolvedPartner.code } : {}),
+          ...(campaignId ? { campaignId } : {}),
+        }
+      );
+      if (res.url) {
+        if (typeof window !== "undefined") {
+          window.location.href = res.url;
+        }
+        return "redirecting";
+      }
+      setErrorMsg("Failed to create checkout session. Please try again.");
+      return "error";
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      setErrorMsg(msg);
+      return "error";
+    }
+  }
+
+  async function attemptGuestNativePayment(value: number): Promise<"success" | "canceled" | "error"> {
+    try {
+      const intentRes = await apiPost<{
+        clientSecret: string;
+        paymentIntentId: string;
+        customerId: string;
+        ephemeralKey: string;
+      }>(
+        "/api/payments/guest-create-intent",
+        {
+          orgId: org!.id,
+          amount: value,
+          email: guestEmail,
+          reinvestOptIn: educationEnabled,
+          reinvestPct: Math.round(educationRate * 1000) / 10,
+          ...(resolvedPartner ? { educationPartnerCode: resolvedPartner.code } : {}),
+          ...(campaignId ? { campaignId } : {}),
+        }
+      );
+
+      const result = await presentNativePaymentSheet({
+        clientSecret: intentRes.clientSecret,
+        customerId: intentRes.customerId,
+        ephemeralKey: intentRes.ephemeralKey,
+        merchantName: "GiveBlack",
+        allowsDelayedPaymentMethods: false,
+      });
+
+      if (result.status === "success") {
+        try {
+          await apiPost<{ ok: boolean }>(
+            "/api/payments/guest-sync-native-donation",
+            { paymentIntentId: intentRes.paymentIntentId, email: guestEmail }
+          );
+        } catch {
+          // non-fatal: webhook may still apply the update
+        }
+        return "success";
+      }
+      if (result.status === "canceled") return "canceled";
+      if (result.status === "unavailable") {
+        setErrorMsg("Native Stripe payment is unavailable on this build. Please use an EAS development build or production build with Stripe enabled.");
+      } else {
+        setErrorMsg(result.message || "Payment failed. Please try again.");
+      }
+      return "error";
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      setErrorMsg(msg);
+      return "error";
+    }
+  }
+
   async function handleDonate() {
     const value = Number(amount);
     if (!value || value <= 0) {
@@ -297,16 +533,45 @@ export default function DonateScreen() {
     setStep("processing");
     setErrorMsg("");
 
-    const token = session!.accessToken;
+    if (Platform.OS === "web") {
+      if (guestMode) {
+        const webResult = await attemptGuestWebCheckout(value);
+        if (webResult === "error") {
+          setStep("error");
+          setLoading(false);
+        }
+        return;
+      }
+      setErrorMsg("Native Stripe checkout is only available in iOS/Android builds with Stripe native module enabled.");
+      setStep("error");
+      setLoading(false);
+      return;
+    }
 
     const nativeAvailable = await isNativeStripeAvailable();
-    if (!nativeAvailable || Platform.OS === "web") {
+    if (!nativeAvailable) {
       setErrorMsg("Native Stripe checkout is only available in iOS/Android builds with Stripe native module enabled.");
       setStep("error");
       setLoading(false);
       return;
     }
     setPaymentMethod("native");
+
+    if (guestMode) {
+      const guestResult = await attemptGuestNativePayment(value);
+      if (guestResult === "success") {
+        setStep("success");
+        void refresh();
+      } else if (guestResult === "canceled") {
+        setStep("amount");
+      } else {
+        setStep("error");
+      }
+      setLoading(false);
+      return;
+    }
+
+    const token = session!.accessToken;
     const nativeResult = await attemptNativePayment(token, value);
     if (nativeResult === "success") {
       setStep("success");
@@ -322,7 +587,7 @@ export default function DonateScreen() {
 
   const today = new Date();
   const dateStr = today.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
-  const donorName = isAnonymous ? "Anonymous" : (user?.fullName || user?.email || "Donor");
+  const donorName = isAnonymous ? "Anonymous" : (guestMode ? (guestEmail || "Guest") : (user?.fullName || user?.email || "Donor"));
   const receiptDonorName = isAnonymous ? "Anonymous Donor" : donorName;
   const receiptFileName = `GiveBlack-Receipt-${donationRef}.pdf`;
 
@@ -477,7 +742,11 @@ export default function DonateScreen() {
             }}
           >
             <Text style={[styles.receiptTitle, { color: c.text }]}>Donation Complete</Text>
-            <Text style={[styles.receiptSubtitle, { color: c.textMuted }]}>Thank you for your generosity</Text>
+            <Text style={[styles.receiptSubtitle, { color: c.textMuted }]}>
+              {guestMode
+                ? `Thank you! A receipt is being sent to ${guestEmail}`
+                : "Thank you for your generosity"}
+            </Text>
 
             <View style={[styles.receiptCard, { backgroundColor: c.cardBg }]}>
               <View style={styles.receiptHeader}>
@@ -551,6 +820,26 @@ export default function DonateScreen() {
               </Pressable>
             </View>
 
+            {guestMode && (
+              <View style={{ width: "100%", alignItems: "center", gap: 10, marginBottom: 4 }}>
+                <Text style={[styles.receiptSubtitle, { color: c.textMuted, fontSize: 13, marginBottom: 0 }]}>
+                  Create a free account to track your donations and access donor features.
+                </Text>
+                <Pressable
+                  style={[styles.authGateSecondaryBtn, { borderColor: c.green, width: "100%" }]}
+                  onPress={() => {
+                    const qp = new URLSearchParams();
+                    if (campaignId) qp.set("campaignId", campaignId);
+                    const qs = qp.toString();
+                    const returnTo = `/donate/${orgId}${qs ? `?${qs}` : ""}`;
+                    router.push({ pathname: "/(auth)/donor-signup", params: { returnTo } });
+                  }}
+                >
+                  <Text style={[styles.authGateSecondaryBtnText, { color: c.green }]}>Create Free Account</Text>
+                </Pressable>
+              </View>
+            )}
+
             <Pressable
               style={[styles.doneBtn, { backgroundColor: c.green }]}
               onPress={() => router.back()}
@@ -568,8 +857,8 @@ export default function DonateScreen() {
       <View style={[styles.container, { backgroundColor: c.background }]}>
         <AppHeader showBack title="Donate" showSearch={false} />
         <View style={[styles.centerContent, { paddingTop: 40 }]}>
-          <View style={[styles.checkCircle, { borderColor: "#FF4444" }]}>
-            <Ionicons name="close" size={48} color="#FF4444" />
+          <View style={[styles.checkCircle, { borderColor: c.danger }]}>
+            <Ionicons name="close" size={48} color={c.danger} />
           </View>
           <Text style={[styles.receiptTitle, { color: c.text }]}>Payment Failed</Text>
           <Text style={[styles.receiptSubtitle, { color: c.textMuted }]}>{errorMsg}</Text>
@@ -577,7 +866,7 @@ export default function DonateScreen() {
             <Text style={styles.doneBtnText}>Try Again</Text>
           </Pressable>
           <Pressable style={{ marginTop: 12 }} onPress={() => router.back()}>
-            <Text style={{ color: c.textMuted, fontFamily: "Poppins_500Medium" }}>Cancel</Text>
+            <Text style={{ color: c.textMuted, fontFamily: "SpaceGrotesk_500Medium" }}>Cancel</Text>
           </Pressable>
         </View>
       </View>
@@ -594,7 +883,7 @@ export default function DonateScreen() {
             <ActivityIndicator size="large" color={c.green} />
             <Text style={[styles.receiptTitle, { color: c.text, marginTop: 16 }]}>Processing Payment...</Text>
             <Text style={[styles.receiptSubtitle, { color: c.textMuted }]}>
-              {paymentMethod === "native" ? "Opening secure Stripe payment sheet..." : "Please wait while we process your donation."}
+              {Platform.OS === "web" && guestMode ? "Redirecting to Stripe Checkout..." : paymentMethod === "native" ? "Opening secure Stripe payment sheet..." : "Please wait while we process your donation."}
             </Text>
           </View>
 
@@ -664,7 +953,7 @@ export default function DonateScreen() {
                 <Ionicons name="school-outline" size={18} color={c.green} />
                 <Text style={{ color: c.text, fontSize: 13, marginLeft: 8, flex: 1 }}>
                   Reinvest attribution:{" "}
-                  <Text style={{ fontFamily: "Poppins_600SemiBold" }}>{resolvedPartner.name}</Text>
+                  <Text style={{ fontFamily: "SpaceGrotesk_600SemiBold" }}>{resolvedPartner.name}</Text>
                 </Text>
               </View>
             ) : null}
@@ -702,7 +991,7 @@ export default function DonateScreen() {
                         style={[
                           styles.sliderDot,
                           {
-                            backgroundColor: val / 100 <= educationRate ? c.green : c.border,
+                            backgroundColor: val / 100 <= educationRate ? c.green : c.sliderInactive,
                             width: val / 100 === educationRate ? 16 : 10,
                             height: val / 100 === educationRate ? 16 : 10,
                             borderRadius: val / 100 === educationRate ? 8 : 5,
@@ -746,7 +1035,7 @@ export default function DonateScreen() {
                         style={[
                           styles.sliderDot,
                           {
-                            backgroundColor: val / 100 <= endowmentRate ? c.green : c.border,
+                            backgroundColor: val / 100 <= endowmentRate ? c.green : c.sliderInactive,
                             width: val / 100 === endowmentRate ? 16 : 10,
                             height: val / 100 === endowmentRate ? 16 : 10,
                             borderRadius: val / 100 === endowmentRate ? 8 : 5,
@@ -810,7 +1099,7 @@ export default function DonateScreen() {
               <Ionicons name="school-outline" size={18} color={c.green} />
               <Text style={{ color: c.text, fontSize: 13, marginLeft: 8, flex: 1 }}>
                 Reinvest attribution:{" "}
-                <Text style={{ fontFamily: "Poppins_600SemiBold" }}>{resolvedPartner.name}</Text>
+                <Text style={{ fontFamily: "SpaceGrotesk_600SemiBold" }}>{resolvedPartner.name}</Text>
               </Text>
             </View>
           ) : null}
@@ -854,7 +1143,7 @@ export default function DonateScreen() {
                 ]}
                 onPress={() => selectPreset(preset)}
               >
-                <Text style={[styles.presetText, { color: c.text }, selectedPreset === preset && { color: "#fff", fontFamily: "Poppins_600SemiBold" }]}>
+                <Text style={[styles.presetText, { color: c.text }, selectedPreset === preset && { color: "#fff", fontFamily: "SpaceGrotesk_600SemiBold" }]}>
                   ${preset}
                 </Text>
               </Pressable>
@@ -952,7 +1241,7 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   content: { flex: 1, padding: 20 },
   centerContent: { flex: 1, alignItems: "center", justifyContent: "center", gap: 16, paddingHorizontal: 40 },
-  centerText: { fontFamily: "Poppins_600SemiBold", fontSize: 18, textAlign: "center" },
+  centerText: { fontFamily: "SpaceGrotesk_600SemiBold", fontSize: 18, textAlign: "center" },
 
   partnerBanner: {
     flexDirection: "row",
@@ -989,7 +1278,7 @@ const styles = StyleSheet.create({
     backgroundColor: "transparent",
   },
   processingStageLabel: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 11,
     textAlign: "center",
     maxWidth: 100,
@@ -1012,9 +1301,9 @@ const styles = StyleSheet.create({
   },
 
   btn: { paddingVertical: 14, paddingHorizontal: 32, borderRadius: 12, alignItems: "center" },
-  btnText: { fontFamily: "Poppins_600SemiBold", fontSize: 16, color: "#fff" },
+  btnText: { fontFamily: "SpaceGrotesk_600SemiBold", fontSize: 16, color: "#fff" },
 
-  sectionTitle: { fontFamily: "Poppins_700Bold", fontSize: 18, marginBottom: 16, textAlign: "center" },
+  sectionTitle: { fontFamily: "SpaceGrotesk_700Bold", fontSize: 18, marginBottom: 16, textAlign: "center" },
 
   amountDisplay: {
     borderWidth: 2,
@@ -1025,9 +1314,9 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   amountInputRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-  dollarPrefix: { fontFamily: "Poppins_700Bold", fontSize: 40 },
+  dollarPrefix: { fontFamily: "SpaceGrotesk_700Bold", fontSize: 40 },
   amountInput: {
-    fontFamily: "Poppins_700Bold",
+    fontFamily: "SpaceGrotesk_700Bold",
     fontSize: 40,
     minWidth: 80,
     textAlign: "center",
@@ -1045,7 +1334,7 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     flexBasis: "30%",
   },
-  presetText: { fontFamily: "Poppins_500Medium", fontSize: 16 },
+  presetText: { fontFamily: "SpaceGrotesk_500Medium", fontSize: 16 },
 
   anonymousRow: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 24 },
   checkbox: {
@@ -1056,7 +1345,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  anonymousText: { fontFamily: "Poppins_400Regular", fontSize: 15 },
+  anonymousText: { fontFamily: "SpaceGrotesk_400Regular", fontSize: 15 },
 
   guideCard: {
     borderWidth: 1,
@@ -1065,10 +1354,10 @@ const styles = StyleSheet.create({
     marginTop: 8,
     gap: 6,
   },
-  guideTitle: { fontFamily: "Poppins_600SemiBold", fontSize: 14, marginBottom: 0 },
-  guideText: { fontFamily: "Poppins_400Regular", fontSize: 13, lineHeight: 18 },
+  guideTitle: { fontFamily: "SpaceGrotesk_600SemiBold", fontSize: 14, marginBottom: 0 },
+  guideText: { fontFamily: "SpaceGrotesk_400Regular", fontSize: 13, lineHeight: 18 },
   guideLink: { paddingVertical: 4 },
-  guideLinkText: { fontFamily: "Poppins_600SemiBold", fontSize: 13 },
+  guideLinkText: { fontFamily: "SpaceGrotesk_600SemiBold", fontSize: 13 },
 
   amountGuideRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 10 },
   amountGuideStage: { flex: 1, alignItems: "center", gap: 4 },
@@ -1082,29 +1371,29 @@ const styles = StyleSheet.create({
     backgroundColor: "transparent",
     marginBottom: 0,
   },
-  amountGuideLabel: { fontFamily: "Poppins_400Regular", fontSize: 10, textAlign: "center", maxWidth: 90 },
-  amountGuideDetailTitle: { fontFamily: "Poppins_600SemiBold", fontSize: 13, marginTop: 8, marginBottom: 2 },
-  amountGuideDetailText: { fontFamily: "Poppins_400Regular", fontSize: 12.5, lineHeight: 17 },
+  amountGuideLabel: { fontFamily: "SpaceGrotesk_400Regular", fontSize: 10, textAlign: "center", maxWidth: 90 },
+  amountGuideDetailTitle: { fontFamily: "SpaceGrotesk_600SemiBold", fontSize: 13, marginTop: 8, marginBottom: 2 },
+  amountGuideDetailText: { fontFamily: "SpaceGrotesk_400Regular", fontSize: 12.5, lineHeight: 17 },
 
   card: { borderRadius: 16, padding: 20, marginBottom: 16 },
 
   feeRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 8 },
-  feeLabel: { fontFamily: "Poppins_400Regular", fontSize: 14, flex: 1 },
-  feeValue: { fontFamily: "Poppins_600SemiBold", fontSize: 14 },
-  feePercent: { fontFamily: "Poppins_500Medium", fontSize: 13, marginTop: 2 },
+  feeLabel: { fontFamily: "SpaceGrotesk_400Regular", fontSize: 14, flex: 1 },
+  feeValue: { fontFamily: "SpaceGrotesk_600SemiBold", fontSize: 14 },
+  feePercent: { fontFamily: "SpaceGrotesk_500Medium", fontSize: 13, marginTop: 2 },
   feeDivider: { height: 1, marginVertical: 8 },
   feeToggleRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 8 },
 
   sliderRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 8 },
-  sliderLabel: { fontFamily: "Poppins_400Regular", fontSize: 12 },
+  sliderLabel: { fontFamily: "SpaceGrotesk_400Regular", fontSize: 12 },
   dotSlider: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   sliderDot: { borderRadius: 5 },
 
-  totalLabel: { fontFamily: "Poppins_700Bold", fontSize: 15 },
-  totalValue: { fontFamily: "Poppins_700Bold", fontSize: 15 },
+  totalLabel: { fontFamily: "SpaceGrotesk_700Bold", fontSize: 15 },
+  totalValue: { fontFamily: "SpaceGrotesk_700Bold", fontSize: 15 },
 
   donateBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", borderRadius: 14, paddingVertical: 16, marginTop: 8 },
-  donateBtnText: { fontFamily: "Poppins_600SemiBold", fontSize: 18, color: "#fff" },
+  donateBtnText: { fontFamily: "SpaceGrotesk_600SemiBold", fontSize: 18, color: "#fff" },
 
   checkCircle: {
     width: 90,
@@ -1122,8 +1411,8 @@ const styles = StyleSheet.create({
     paddingTop: 60,
     paddingBottom: 40,
   },
-  receiptTitle: { fontFamily: "Poppins_700Bold", fontSize: 24, textAlign: "center" },
-  receiptSubtitle: { fontFamily: "Poppins_400Regular", fontSize: 15, textAlign: "center", marginTop: 4, marginBottom: 24 },
+  receiptTitle: { fontFamily: "SpaceGrotesk_700Bold", fontSize: 24, textAlign: "center" },
+  receiptSubtitle: { fontFamily: "SpaceGrotesk_400Regular", fontSize: 15, textAlign: "center", marginTop: 4, marginBottom: 24 },
 
   receiptCard: { borderRadius: 16, padding: 20, width: "100%", marginBottom: 24 },
   receiptHeader: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 16 },
@@ -1134,15 +1423,15 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  gbBadgeText: { fontFamily: "Poppins_700Bold", fontSize: 14, color: "#fff" },
-  receiptBrand: { fontFamily: "Poppins_700Bold", fontSize: 16 },
-  receiptLabel: { fontFamily: "Poppins_400Regular", fontSize: 11, letterSpacing: 1 },
+  gbBadgeText: { fontFamily: "SpaceGrotesk_700Bold", fontSize: 14, color: "#fff" },
+  receiptBrand: { fontFamily: "SpaceGrotesk_700Bold", fontSize: 16 },
+  receiptLabel: { fontFamily: "SpaceGrotesk_400Regular", fontSize: 11, letterSpacing: 1 },
   receiptDivider: { height: 1, marginVertical: 12 },
   receiptRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 6 },
-  receiptRowLabel: { fontFamily: "Poppins_400Regular", fontSize: 14, flex: 1 },
-  receiptRowValue: { fontFamily: "Poppins_600SemiBold", fontSize: 14 },
-  receiptTotalLabel: { fontFamily: "Poppins_700Bold", fontSize: 15 },
-  receiptTotalValue: { fontFamily: "Poppins_700Bold", fontSize: 20 },
+  receiptRowLabel: { fontFamily: "SpaceGrotesk_400Regular", fontSize: 14, flex: 1 },
+  receiptRowValue: { fontFamily: "SpaceGrotesk_600SemiBold", fontSize: 14 },
+  receiptTotalLabel: { fontFamily: "SpaceGrotesk_700Bold", fontSize: 15 },
+  receiptTotalValue: { fontFamily: "SpaceGrotesk_700Bold", fontSize: 20 },
 
   receiptActions: { flexDirection: "row", gap: 12, width: "100%", marginBottom: 16 },
   actionBtn: {
@@ -1154,7 +1443,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingVertical: 14,
   },
-  actionBtnText: { fontFamily: "Poppins_600SemiBold", fontSize: 15, color: "#fff" },
+  actionBtnText: { fontFamily: "SpaceGrotesk_600SemiBold", fontSize: 15, color: "#fff" },
   actionBtnOutline: {
     flex: 1,
     flexDirection: "row",
@@ -1165,7 +1454,7 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderWidth: 2,
   },
-  actionBtnOutlineText: { fontFamily: "Poppins_600SemiBold", fontSize: 15 },
+  actionBtnOutlineText: { fontFamily: "SpaceGrotesk_600SemiBold", fontSize: 15 },
 
   doneBtn: {
     width: "100%",
@@ -1174,5 +1463,105 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     paddingVertical: 16,
   },
-  doneBtnText: { fontFamily: "Poppins_600SemiBold", fontSize: 18, color: "#fff" },
+  doneBtnText: { fontFamily: "SpaceGrotesk_600SemiBold", fontSize: 18, color: "#fff" },
+
+  authGateWrap: {
+    flex: 1,
+    paddingHorizontal: 24,
+    paddingTop: 32,
+    paddingBottom: 40,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  authGateCard: {
+    width: "100%",
+    borderRadius: 20,
+    padding: 28,
+    alignItems: "center",
+    gap: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 4,
+  },
+  authGateIconRing: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    borderWidth: 1.5,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 4,
+  },
+  authGateHeading: {
+    fontFamily: "SpaceGrotesk_700Bold",
+    fontSize: 20,
+    textAlign: "center",
+    lineHeight: 28,
+  },
+  authGateBody: {
+    fontFamily: "SpaceGrotesk_400Regular",
+    fontSize: 14,
+    textAlign: "center",
+    lineHeight: 22,
+    marginBottom: 4,
+  },
+  authGatePrimaryBtn: {
+    width: "100%",
+    borderRadius: 30,
+    paddingVertical: 16,
+    alignItems: "center",
+  },
+  authGatePrimaryBtnText: {
+    fontFamily: "SpaceGrotesk_700Bold",
+    fontSize: 16,
+    color: Colors.white,
+  },
+  authGateSecondaryBtn: {
+    width: "100%",
+    borderRadius: 30,
+    paddingVertical: 15,
+    alignItems: "center",
+    borderWidth: 1.5,
+  },
+  authGateSecondaryBtnText: {
+    fontFamily: "SpaceGrotesk_600SemiBold",
+    fontSize: 16,
+  },
+  authGateBackLink: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingVertical: 4,
+    marginTop: 4,
+  },
+  authGateBackText: {
+    fontFamily: "SpaceGrotesk_400Regular",
+    fontSize: 13,
+  },
+  authGateCharityRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 20,
+  },
+  authGateCharityText: {
+    fontFamily: "SpaceGrotesk_400Regular",
+    fontSize: 13,
+  },
+  authGateCharityLink: {
+    fontFamily: "SpaceGrotesk_600SemiBold",
+    fontSize: 13,
+  },
+  authGateGuestBtn: {
+    paddingVertical: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  authGateGuestBtnText: {
+    fontFamily: "SpaceGrotesk_500Medium",
+    fontSize: 14,
+    textDecorationLine: "underline",
+  },
 });

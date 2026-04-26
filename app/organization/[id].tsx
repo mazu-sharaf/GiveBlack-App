@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -10,9 +10,11 @@ import {
 } from "react-native";
 import { Image } from "expo-image";
 import { useSafeInsets } from "@/lib/safe-area";
-import { router, useLocalSearchParams } from "expo-router";
+import { router, useLocalSearchParams, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import Colors from "@/constants/colors";
 import { useThemeColors } from "@/context/ThemeContext";
+import { useApp } from "@/context/AppContext";
 import AppHeader from "@/components/AppHeader";
 import OrgAvatar from "@/components/OrgAvatar";
 import { getApiUrl } from "@/lib/query-client";
@@ -34,7 +36,7 @@ interface OrgDetail {
   contact_email?: string;
   website?: string;
   org_tier?: string;
-  campaigns: Array<{
+  campaigns: {
     id: string;
     title: string;
     description?: string;
@@ -43,7 +45,7 @@ interface OrgDetail {
     raised: number;
     donor_count: number;
     status: string;
-  }>;
+  }[];
 }
 
 function resolveImgUrl(base: string, url?: string | null): string | undefined {
@@ -56,10 +58,17 @@ export default function OrganizationDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const insets = useSafeInsets();
   const c = useThemeColors();
+  const { setLastMeaningfulRoute } = useApp();
   const bottomPad = insets.bottom;
 
   const [org, setOrg] = useState<OrgDetail | null>(null);
   const [loading, setLoading] = useState(true);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (id) setLastMeaningfulRoute(`/organization/${id}`);
+    }, [id, setLastMeaningfulRoute])
+  );
 
   useEffect(() => {
     const fetchOrg = async () => {
@@ -241,8 +250,8 @@ export default function OrganizationDetailScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   centered: { flex: 1, alignItems: "center", justifyContent: "center", gap: 12 },
-  errorText: { fontFamily: "Poppins_500Medium", fontSize: 16 },
-  backText: { fontFamily: "Poppins_500Medium", fontSize: 14, marginTop: 8 },
+  errorText: { fontFamily: "SpaceGrotesk_500Medium", fontSize: 16 },
+  backText: { fontFamily: "SpaceGrotesk_500Medium", fontSize: 14, marginTop: 8 },
   headerBg: { height: 140, width: SCREEN_WIDTH },
   headerImage: { height: 180, width: SCREEN_WIDTH },
   headerOverlay: { paddingHorizontal: 16 },
@@ -254,28 +263,28 @@ const styles = StyleSheet.create({
   avatarWrap: { alignItems: "center", marginTop: -40 },
   body: { paddingHorizontal: 20, paddingTop: 12 },
   nameRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginBottom: 8 },
-  orgName: { fontFamily: "Poppins_700Bold", fontSize: 22, textAlign: "center" },
-  description: { fontFamily: "Poppins_400Regular", fontSize: 14, lineHeight: 22, textAlign: "center", marginBottom: 20 },
+  orgName: { fontFamily: "SpaceGrotesk_700Bold", fontSize: 22, textAlign: "center" },
+  description: { fontFamily: "SpaceGrotesk_400Regular", fontSize: 14, lineHeight: 22, textAlign: "center", marginBottom: 20 },
   statsRow: {
     flexDirection: "row", borderRadius: 14, paddingVertical: 16, paddingHorizontal: 12,
     marginBottom: 16,
   },
   statItem: { flex: 1, alignItems: "center" },
-  statValue: { fontFamily: "Poppins_700Bold", fontSize: 16, marginBottom: 4 },
-  statLabel: { fontFamily: "Poppins_400Regular", fontSize: 11 },
+  statValue: { fontFamily: "SpaceGrotesk_700Bold", fontSize: 16, marginBottom: 4 },
+  statLabel: { fontFamily: "SpaceGrotesk_400Regular", fontSize: 11 },
   statDivider: { width: 1, height: "100%" },
   infoRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 12, borderBottomWidth: 1, marginBottom: 16 },
-  infoText: { fontFamily: "Poppins_400Regular", fontSize: 14 },
-  sectionTitle: { fontFamily: "Poppins_600SemiBold", fontSize: 18, marginBottom: 12 },
+  infoText: { fontFamily: "SpaceGrotesk_400Regular", fontSize: 14 },
+  sectionTitle: { fontFamily: "SpaceGrotesk_600SemiBold", fontSize: 18, marginBottom: 12 },
   campaignCard: { flexDirection: "row", borderRadius: 14, overflow: "hidden", marginBottom: 12, padding: 12, gap: 12 },
   campaignImage: { width: 80, height: 80, borderRadius: 10 },
   campaignBody: { flex: 1, justifyContent: "center" },
-  campaignTitle: { fontFamily: "Poppins_600SemiBold", fontSize: 14, marginBottom: 8 },
+  campaignTitle: { fontFamily: "SpaceGrotesk_600SemiBold", fontSize: 14, marginBottom: 8 },
   progressBar: { height: 6, borderRadius: 3, overflow: "hidden", marginBottom: 6 },
   progressFill: { height: 6, borderRadius: 3 },
   campaignStats: { flexDirection: "row", gap: 8 },
-  campaignRaised: { fontFamily: "Poppins_600SemiBold", fontSize: 12 },
-  campaignGoal: { fontFamily: "Poppins_400Regular", fontSize: 12 },
+  campaignRaised: { fontFamily: "SpaceGrotesk_600SemiBold", fontSize: 12 },
+  campaignGoal: { fontFamily: "SpaceGrotesk_400Regular", fontSize: 12 },
   bottomBar: {
     position: "absolute", bottom: 0, left: 0, right: 0,
     paddingTop: 12, paddingHorizontal: 20, borderTopWidth: 1,
@@ -298,7 +307,7 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     minHeight: 52,
   },
-  volunteerBtnText: { fontFamily: "Poppins_600SemiBold", fontSize: 14 },
+  volunteerBtnText: { fontFamily: "SpaceGrotesk_600SemiBold", fontSize: 14 },
   donateBtn: {
     flex: 1,
     alignItems: "center",
@@ -308,5 +317,5 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     minHeight: 52,
   },
-  donateBtnText: { fontFamily: "Poppins_600SemiBold", fontSize: 14, color: "#FFFFFF", textAlign: "center" },
+  donateBtnText: { fontFamily: "SpaceGrotesk_600SemiBold", fontSize: 14, color: Colors.white, textAlign: "center" },
 });

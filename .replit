@@ -45,7 +45,7 @@ externalPort = 4200
 PORT = "5000"
 
 [agent]
-stack = "EXPO"
+stack = "BEST_EFFORT_FALLBACK"
 expertMode = true
 
 [workflows]
@@ -96,7 +96,6 @@ outputType = "console"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "node_modules/.bin/tsx watch apps/api/src/index.ts"
-waitForPort = 5000
 
 [[workflows.workflow]]
 name = "Start Frontend"
@@ -108,8 +107,7 @@ outputType = "console"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "EXPO_PACKAGER_PROXY_URL=https://$REPLIT_DEV_DOMAIN REACT_NATIVE_PACKAGER_HOSTNAME=$REPLIT_DEV_DOMAIN EXPO_PUBLIC_DOMAIN=$REPLIT_DEV_DOMAIN:5000 node_modules/.bin/expo start --localhost --clear"
-waitForPort = 8081
+args = "EXPO_PACKAGER_PROXY_URL=https://$REPLIT_DEV_DOMAIN REACT_NATIVE_PACKAGER_HOSTNAME=$REPLIT_DEV_DOMAIN EXPO_PUBLIC_DOMAIN=$REPLIT_DEV_DOMAIN:3000 EXPO_PUBLIC_REPLIT_API_URL=https://$REPLIT_DEV_DOMAIN:3000 node_modules/.bin/expo start --localhost --clear"
 
 [[workflows.workflow]]
 name = "Start Admin"
@@ -126,22 +124,7 @@ waitForPort = 8080
 [userenv]
 
 [userenv.shared]
-EXPO_PUBLIC_SUPABASE_URL = "https://mwapnzwgusstkgjguhur.supabase.co"
-EXPO_PUBLIC_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im13YXBuendndXNzdGtnamd1aHVyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE2Nzc5ODYsImV4cCI6MjA4NzI1Mzk4Nn0.5KxPMx4k5g4TsaQG6zXCTGVHuR0Us7uHgk45QPL5KY8"
-SUPABASE_URL = "https://mwapnzwgusstkgjguhur.supabase.co"
-SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im13YXBuendndXNzdGtnamd1aHVyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE2Nzc5ODYsImV4cCI6MjA4NzI1Mzk4Nn0.5KxPMx4k5g4TsaQG6zXCTGVHuR0Us7uHgk45QPL5KY8"
-EXPO_PUBLIC_DOMAIN = "giveblackapp.com"
-EXPO_PUBLIC_API_URL = "http://localhost:5000"
-BREVO_SENDER_EMAIL = "mazu@mawamedia.com"
-NODE_ENV = "development"
-ADMIN_EMAIL = "mazu@mawamedia.com"
-APP_URL = "https://giveblackapp.com"
-SUPPORT_EMAIL = "info@giveblackapp.com"
-STRIPE_PRICE_GROWTH = "price_1TA2CPBk2z7Pp8h03aNgWKxt"
-STRIPE_PRICE_INSTITUTIONAL = "price_1TA2DnBk2z7Pp8h0GFcDMfQ3"
-VITE_API_URL = "https://giveblackapp.com/app"
-CORS_ORIGINS = "*"
-JWT_ACCESS_TTL = "15m"
-JWT_REFRESH_TTL_DAYS = "30"
-API_HOST = "0.0.0.0"
-PORT = "5000"
+
+[postMerge]
+path = "scripts/post-merge.sh"
+timeoutMs = 120000

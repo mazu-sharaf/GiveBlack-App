@@ -89,7 +89,7 @@ export default function Confetti({ duration = 3000 }: { duration?: number }) {
   }, []);
 
   return (
-    <View style={StyleSheet.absoluteFill} pointerEvents="none">
+    <View style={[StyleSheet.absoluteFill, { pointerEvents: "none" }]}>
       {pieces.current.map((piece, i) => {
         const spin = piece.rotate.interpolate({
           inputRange: [0, 10],

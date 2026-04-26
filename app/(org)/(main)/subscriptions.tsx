@@ -12,6 +12,7 @@ import {
   Platform,
 } from "react-native";
 import { useSafeInsets } from "@/lib/safe-area";
+import Colors from "@/constants/colors";
 import { useThemeColors } from "@/context/ThemeContext";
 import { useAuth } from "@/context/AuthContext";
 import { apiPost, getApiUrl } from "@/lib/query-client";
@@ -46,7 +47,7 @@ const PLANS = [
       "14-day payout hold before funds transfer",
       "Standard support",
     ],
-    accent: "#64748b",
+    accent: Colors.planFreeAccent,
   },
   {
     id: "growth",
@@ -62,7 +63,7 @@ const PLANS = [
       "Everything in Free",
       "Priority support",
     ],
-    accent: "#2D9E6B",
+    accent: Colors.green,
     popular: true,
   },
   {
@@ -79,7 +80,7 @@ const PLANS = [
       "Everything in Growth",
       "Dedicated support",
     ],
-    accent: "#1a1a2e",
+    accent: Colors.planInstitutionalAccent,
   },
 ];
 
@@ -346,18 +347,18 @@ export default function SubscriptionsTab() {
                 {currentTier.charAt(0).toUpperCase() + currentTier.slice(1)}
               </Text>
             </View>
-            <View style={[styles.statusPill, { backgroundColor: cancelAtPeriodEnd ? "#f59e0b15" : c.green + "15" }]}>
-              <View style={[styles.statusDot, { backgroundColor: cancelAtPeriodEnd ? "#f59e0b" : c.green }]} />
-              <Text style={[styles.statusPillText, { color: cancelAtPeriodEnd ? "#f59e0b" : c.green }]}>
+            <View style={[styles.statusPill, { backgroundColor: cancelAtPeriodEnd ? c.warningAmber + "15" : c.green + "15" }]}>
+              <View style={[styles.statusDot, { backgroundColor: cancelAtPeriodEnd ? c.warningAmber : c.green }]} />
+              <Text style={[styles.statusPillText, { color: cancelAtPeriodEnd ? c.warningAmber : c.green }]}>
                 {cancelAtPeriodEnd ? "Canceling" : (subData?.subscription.status || "active")}
               </Text>
             </View>
           </View>
 
           {cancelAtPeriodEnd && nextBilling && (
-            <View style={[styles.cancelNotice, { backgroundColor: "#fef3c7", borderColor: "#fde68a" }]}>
-              <Ionicons name="warning-outline" size={16} color="#d97706" />
-              <Text style={[styles.cancelNoticeText, { color: "#92400e" }]}>
+            <View style={[styles.cancelNotice, { backgroundColor: c.cancelPillBg, borderColor: c.cancelPillBorder }]}>
+              <Ionicons name="warning-outline" size={16} color={c.warningAmber} />
+              <Text style={[styles.cancelNoticeText, { color: c.cancelPillText }]}>
                 Your plan will be canceled on {nextBilling}. You&apos;ll retain access until then.
               </Text>
             </View>
@@ -386,12 +387,12 @@ export default function SubscriptionsTab() {
               </Pressable>
               {!cancelAtPeriodEnd && (
                 <Pressable
-                  style={[styles.manageBillingBtn, { borderColor: "#fca5a5", flex: 1 }]}
+                  style={[styles.manageBillingBtn, { borderColor: c.danger + "66", flex: 1 }]}
                   onPress={handleCancelPlan}
                   disabled={busy}
                 >
-                  <Ionicons name="close-circle-outline" size={16} color="#ef4444" />
-                  <Text style={[styles.manageBillingText, { color: "#ef4444" }]}>Cancel Plan</Text>
+                  <Ionicons name="close-circle-outline" size={16} color={c.danger} />
+                  <Text style={[styles.manageBillingText, { color: c.danger }]}>Cancel Plan</Text>
                 </Pressable>
               )}
             </View>
@@ -409,14 +410,14 @@ export default function SubscriptionsTab() {
               style={[
                 styles.planCard,
                 {
-                  backgroundColor: isInstitutional ? "#111827" : c.cardBg,
-                  borderColor: isCurrent ? c.green : (isInstitutional ? "#1f2937" : c.border),
+                  backgroundColor: isInstitutional ? c.institutionalCardBg : c.cardBg,
+                  borderColor: isCurrent ? c.green : (isInstitutional ? c.institutionalCardBorder : c.border),
                   borderWidth: isCurrent ? 2 : 1,
                 },
               ]}
             >
               <View style={styles.planCardHeader}>
-                <Text style={[styles.planName, { color: isInstitutional ? "#ffffff" : c.text }]}>
+                <Text style={[styles.planName, { color: isInstitutional ? c.institutionalCardText : c.text }]}>
                   {plan.name}
                 </Text>
                 {plan.popular && !isCurrent && (
@@ -433,15 +434,15 @@ export default function SubscriptionsTab() {
               </View>
 
               <View style={styles.planPriceRow}>
-                <Text style={[styles.planPrice, { color: isInstitutional ? "#ffffff" : c.text }]}>
+                <Text style={[styles.planPrice, { color: isInstitutional ? c.institutionalCardText : c.text }]}>
                   {plan.price}
                 </Text>
-                <Text style={[styles.planPeriod, { color: isInstitutional ? "#9ca3af" : c.textMuted }]}>
+                <Text style={[styles.planPeriod, { color: isInstitutional ? c.institutionalCardTextMuted : c.textMuted }]}>
                   {plan.period}
                 </Text>
               </View>
 
-              <View style={[styles.planDivider, { backgroundColor: isInstitutional ? "#1f2937" : c.border }]} />
+              <View style={[styles.planDivider, { backgroundColor: isInstitutional ? c.institutionalCardDivider : c.border }]} />
 
               <View style={styles.planFeatures}>
                 {plan.features.map((feat, i) => (
@@ -449,7 +450,7 @@ export default function SubscriptionsTab() {
                     <View style={[styles.checkCircle, { backgroundColor: c.green + "15" }]}>
                       <Ionicons name="checkmark" size={12} color={c.green} />
                     </View>
-                    <Text style={[styles.featureText, { color: isInstitutional ? "#d1d5db" : c.text }]}>
+                    <Text style={[styles.featureText, { color: isInstitutional ? c.institutionalCardTextFaint : c.text }]}>
                       {feat}
                     </Text>
                   </View>
@@ -461,7 +462,7 @@ export default function SubscriptionsTab() {
                   style={[
                     styles.planButton,
                     {
-                      backgroundColor: isInstitutional ? "#ffffff" : c.green,
+                      backgroundColor: isInstitutional ? c.institutionalCardText : c.green,
                     },
                   ]}
                   onPress={() => setSummaryPlan(plan)}
@@ -470,7 +471,7 @@ export default function SubscriptionsTab() {
                   <Text
                     style={[
                       styles.planButtonText,
-                      { color: isInstitutional ? "#111827" : "#ffffff" },
+                      { color: isInstitutional ? c.institutionalCardBg : Colors.white },
                     ]}
                   >
                     Upgrade to {plan.name}
@@ -484,13 +485,13 @@ export default function SubscriptionsTab() {
                     {
                       backgroundColor: "transparent",
                       borderWidth: 1,
-                      borderColor: isInstitutional ? "#374151" : c.border,
+                      borderColor: isInstitutional ? c.institutionalCardDivider : c.border,
                     },
                   ]}
                   onPress={openBilling}
                   disabled={busy}
                 >
-                  <Text style={[styles.planButtonText, { color: isInstitutional ? "#d1d5db" : c.text }]}>
+                  <Text style={[styles.planButtonText, { color: isInstitutional ? c.institutionalCardTextFaint : c.text }]}>
                     Manage Subscription
                   </Text>
                 </Pressable>
@@ -620,13 +621,13 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   content: { paddingHorizontal: 20 },
   headerTitle: {
-    fontFamily: "Poppins_700Bold",
+    fontFamily: "SpaceGrotesk_700Bold",
     fontSize: 28,
     marginTop: 12,
     marginBottom: 4,
   },
   headerSubtitle: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 15,
     marginBottom: 24,
     lineHeight: 22,
@@ -642,8 +643,8 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "flex-start",
   },
-  currentPlanLabel: { fontFamily: "Poppins_400Regular", fontSize: 13 },
-  currentPlanName: { fontFamily: "Poppins_700Bold", fontSize: 22, marginTop: 2 },
+  currentPlanLabel: { fontFamily: "SpaceGrotesk_400Regular", fontSize: 13 },
+  currentPlanName: { fontFamily: "SpaceGrotesk_700Bold", fontSize: 22, marginTop: 2 },
   statusPill: {
     flexDirection: "row",
     alignItems: "center",
@@ -657,7 +658,7 @@ const styles = StyleSheet.create({
     height: 6,
     borderRadius: 3,
   },
-  statusPillText: { fontFamily: "Poppins_500Medium", fontSize: 12, textTransform: "capitalize" },
+  statusPillText: { fontFamily: "SpaceGrotesk_500Medium", fontSize: 12, textTransform: "capitalize" },
   cancelNotice: {
     flexDirection: "row",
     alignItems: "flex-start",
@@ -667,8 +668,8 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     borderWidth: 1,
   },
-  cancelNoticeText: { fontFamily: "Poppins_400Regular", fontSize: 13, flex: 1, lineHeight: 19 },
-  billingDate: { fontFamily: "Poppins_400Regular", fontSize: 13, marginTop: 12 },
+  cancelNoticeText: { fontFamily: "SpaceGrotesk_400Regular", fontSize: 13, flex: 1, lineHeight: 19 },
+  billingDate: { fontFamily: "SpaceGrotesk_400Regular", fontSize: 13, marginTop: 12 },
   usageMeter: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -676,8 +677,8 @@ const styles = StyleSheet.create({
     paddingTop: 16,
     borderTopWidth: 1,
   },
-  usageMeterLabel: { fontFamily: "Poppins_400Regular", fontSize: 13 },
-  usageMeterValue: { fontFamily: "Poppins_600SemiBold", fontSize: 14 },
+  usageMeterLabel: { fontFamily: "SpaceGrotesk_400Regular", fontSize: 13 },
+  usageMeterValue: { fontFamily: "SpaceGrotesk_600SemiBold", fontSize: 14 },
   currentPlanActions: {
     flexDirection: "row",
     gap: 10,
@@ -692,7 +693,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
   },
-  manageBillingText: { fontFamily: "Poppins_500Medium", fontSize: 13 },
+  manageBillingText: { fontFamily: "SpaceGrotesk_500Medium", fontSize: 13 },
   planCard: {
     borderRadius: 16,
     padding: 24,
@@ -713,15 +714,15 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     borderWidth: 1,
   },
-  tierBadgeText: { fontFamily: "Poppins_600SemiBold", fontSize: 11 },
-  planName: { fontFamily: "Poppins_700Bold", fontSize: 22 },
+  tierBadgeText: { fontFamily: "SpaceGrotesk_600SemiBold", fontSize: 11 },
+  planName: { fontFamily: "SpaceGrotesk_700Bold", fontSize: 22 },
   planPriceRow: {
     flexDirection: "row",
     alignItems: "baseline",
     marginBottom: 16,
   },
-  planPrice: { fontFamily: "Poppins_700Bold", fontSize: 36 },
-  planPeriod: { fontFamily: "Poppins_400Regular", fontSize: 15, marginLeft: 2 },
+  planPrice: { fontFamily: "SpaceGrotesk_700Bold", fontSize: 36 },
+  planPeriod: { fontFamily: "SpaceGrotesk_400Regular", fontSize: 15, marginLeft: 2 },
   planDivider: {
     height: 1,
     marginBottom: 18,
@@ -735,15 +736,15 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  featureText: { fontFamily: "Poppins_400Regular", fontSize: 14, flex: 1 },
+  featureText: { fontFamily: "SpaceGrotesk_400Regular", fontSize: 14, flex: 1 },
   planButton: {
     marginTop: 22,
     paddingVertical: 14,
     borderRadius: 12,
     alignItems: "center",
   },
-  planButtonText: { fontFamily: "Poppins_600SemiBold", fontSize: 15 },
-  sectionTitle: { fontFamily: "Poppins_600SemiBold", fontSize: 20, marginBottom: 16 },
+  planButtonText: { fontFamily: "SpaceGrotesk_600SemiBold", fontSize: 15 },
+  sectionTitle: { fontFamily: "SpaceGrotesk_600SemiBold", fontSize: 20, marginBottom: 16 },
   faqItem: {
     borderRadius: 14,
     padding: 16,
@@ -762,8 +763,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  faqQuestion: { fontFamily: "Poppins_600SemiBold", fontSize: 14, flex: 1, marginRight: 8 },
-  faqAnswer: { fontFamily: "Poppins_400Regular", fontSize: 13, marginTop: 12, lineHeight: 21 },
+  faqQuestion: { fontFamily: "SpaceGrotesk_600SemiBold", fontSize: 14, flex: 1, marginRight: 8 },
+  faqAnswer: { fontFamily: "SpaceGrotesk_400Regular", fontSize: 13, marginTop: 12, lineHeight: 21 },
 
   modalOverlay: {
     flex: 1,
@@ -783,7 +784,7 @@ const styles = StyleSheet.create({
     paddingVertical: 18,
     borderBottomWidth: 1,
   },
-  summaryTitle: { fontFamily: "Poppins_700Bold", fontSize: 20 },
+  summaryTitle: { fontFamily: "SpaceGrotesk_700Bold", fontSize: 20 },
   closeBtn: {
     width: 34,
     height: 34,
@@ -807,12 +808,12 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
   },
-  summaryPlanName: { fontFamily: "Poppins_700Bold", fontSize: 18 },
-  summaryPlanDesc: { fontFamily: "Poppins_400Regular", fontSize: 13, marginTop: 2 },
-  summaryPlanPrice: { fontFamily: "Poppins_700Bold", fontSize: 24, textAlign: "right" },
-  summaryPlanPeriod: { fontFamily: "Poppins_400Regular", fontSize: 13, textAlign: "right" },
+  summaryPlanName: { fontFamily: "SpaceGrotesk_700Bold", fontSize: 18 },
+  summaryPlanDesc: { fontFamily: "SpaceGrotesk_400Regular", fontSize: 13, marginTop: 2 },
+  summaryPlanPrice: { fontFamily: "SpaceGrotesk_700Bold", fontSize: 24, textAlign: "right" },
+  summaryPlanPeriod: { fontFamily: "SpaceGrotesk_400Regular", fontSize: 13, textAlign: "right" },
   summarySection: {
-    fontFamily: "Poppins_600SemiBold",
+    fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 11,
     letterSpacing: 0.8,
     marginBottom: 10,
@@ -830,7 +831,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 14,
   },
-  summaryFeatureText: { fontFamily: "Poppins_400Regular", fontSize: 14, flex: 1 },
+  summaryFeatureText: { fontFamily: "SpaceGrotesk_400Regular", fontSize: 14, flex: 1 },
   summaryBilling: {
     borderRadius: 14,
     padding: 4,
@@ -843,11 +844,11 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 14,
   },
-  summaryBillingLabel: { fontFamily: "Poppins_400Regular", fontSize: 14 },
-  summaryBillingValue: { fontFamily: "Poppins_500Medium", fontSize: 14 },
+  summaryBillingLabel: { fontFamily: "SpaceGrotesk_400Regular", fontSize: 14 },
+  summaryBillingValue: { fontFamily: "SpaceGrotesk_500Medium", fontSize: 14 },
   summaryDivider: { height: 1, marginHorizontal: 14 },
-  summaryTotalLabel: { fontFamily: "Poppins_600SemiBold", fontSize: 15 },
-  summaryTotalValue: { fontFamily: "Poppins_700Bold", fontSize: 18 },
+  summaryTotalLabel: { fontFamily: "SpaceGrotesk_600SemiBold", fontSize: 15 },
+  summaryTotalValue: { fontFamily: "SpaceGrotesk_700Bold", fontSize: 18 },
   summaryNote: {
     flexDirection: "row",
     alignItems: "flex-start",
@@ -856,7 +857,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     marginBottom: 20,
   },
-  summaryNoteText: { fontFamily: "Poppins_400Regular", fontSize: 13, flex: 1, lineHeight: 19 },
+  summaryNoteText: { fontFamily: "SpaceGrotesk_400Regular", fontSize: 13, flex: 1, lineHeight: 19 },
   summaryFooter: {
     paddingHorizontal: 20,
     paddingTop: 12,
@@ -872,9 +873,9 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     marginBottom: 12,
   },
-  summaryPayText: { fontFamily: "Poppins_700Bold", fontSize: 16, color: "#fff" },
+  summaryPayText: { fontFamily: "SpaceGrotesk_700Bold", fontSize: 16, color: "#fff" },
   summarySecure: {
-    fontFamily: "Poppins_400Regular",
+    fontFamily: "SpaceGrotesk_400Regular",
     fontSize: 12,
     textAlign: "center",
   },

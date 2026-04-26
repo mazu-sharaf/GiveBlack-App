@@ -40,6 +40,12 @@ export function buildServer() {
     logger: true,
     /** Campaign forms can send long descriptions; default 1MB is easy to exceed. */
     bodyLimit: 10 * 1024 * 1024,
+    /**
+     * In production the app sits behind a trusted reverse proxy (Replit gateway / CDN),
+     * so trust X-Forwarded-For to get the real client IP for rate limiting.
+     * Disabled in development to avoid IP-spoof bypass when running without a proxy.
+     */
+    trustProxy: env.NODE_ENV === "production",
   });
 
   app.register(cors, {
@@ -71,7 +77,10 @@ export function buildServer() {
   if (!process.env.VPS_BACKEND_URL) {
     app.register(fastifyStatic, {
       root: path.resolve(process.cwd(), "uploads"),
-      prefix: "/uploads/"
+      prefix: "/uploads/",
+      setHeaders(res) {
+        res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+      },
     });
   }
 
@@ -211,12 +220,13 @@ export function buildServer() {
   }
 
   app.get("/api/system/features", async () => {
+    const expoPushEnabled = Boolean(env.EXPO_TOKEN || (env as { EXPO_ACCESS_TOKEN?: string }).EXPO_ACCESS_TOKEN);
     return {
       auth: true,
       realtime: true,
       stripe: Boolean(env.STRIPE_SECRET_KEY),
-      brevo: Boolean(env.BREVO_API_KEY),
-      expoPush: Boolean(env.EXPO_ACCESS_TOKEN)
+      brevo: Boolean(env.BREVO_API_KEY && env.BREVO_SENDER_EMAIL),
+      expoPush: expoPushEnabled
     };
   });
 

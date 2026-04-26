@@ -3,17 +3,38 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const TOKEN_KEY = "@gb_access_token";
 const REFRESH_TOKEN_KEY = "@gb_refresh_token";
+const PROD_DOMAIN = "giveblackapp.com";
+const PROD_API_URL = "https://giveblackapp.com/app/";
+
+function normalizeUrl(url: string): string {
+  return url.replace(/\/?$/, "/");
+}
+
+function isLocalhost(url: string): boolean {
+  return url.includes("localhost") || url.includes("127.0.0.1");
+}
 
 export function getApiUrl(): string {
+  // EXPO_PUBLIC_REPLIT_API_URL is set only by the workflow command (not in .env),
+  // so Expo's internal dotenv loader cannot override it. This makes it the reliable
+  // dev override that always beats the production URL baked into .env.
+  const replitUrl = process.env.EXPO_PUBLIC_REPLIT_API_URL || "";
+  if (replitUrl && !isLocalhost(replitUrl)) return normalizeUrl(replitUrl);
+
   const envUrl = process.env.EXPO_PUBLIC_API_URL || "";
   if (Platform.OS === "web" && typeof window !== "undefined") {
-    if (envUrl && !envUrl.includes("localhost")) return envUrl.replace(/\/?$/, "/");
+    if (envUrl && !isLocalhost(envUrl)) return normalizeUrl(envUrl);
     const host = window.location.hostname;
     const protocol = window.location.protocol;
     return `${protocol}//${host}:5000/`;
   }
-  if (envUrl) return envUrl.replace(/\/?$/, "/");
-  return "https://giveblackapp.com/";
+  if (envUrl && !isLocalhost(envUrl)) return normalizeUrl(envUrl);
+  const domain = process.env.EXPO_PUBLIC_DOMAIN || "";
+  if (domain && !isLocalhost(domain)) {
+    return domain.replace(/\/+$/, "") === PROD_DOMAIN ? PROD_API_URL : `https://${domain}/`;
+  }
+  if (envUrl) return normalizeUrl(envUrl);
+  return PROD_API_URL;
 }
 
 async function tryRefreshToken(): Promise<string | null> {
