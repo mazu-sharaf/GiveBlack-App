@@ -14,6 +14,21 @@ import { navigateAfterAuth } from "@/lib/auth-navigation";
 import { Ionicons } from "@expo/vector-icons";
 import Colors from "@/constants/colors";
 import { useThemeColors } from "@/context/ThemeContext";
+import { useApp } from "@/context/AppContext";
+
+function parseDonationContext(returnTo?: string): { orgId: string; amount: number } | null {
+  if (!returnTo) return null;
+  const match = returnTo.match(/^\/donate\/([^?/]+)/);
+  if (!match) return null;
+  const orgId = match[1];
+  const search = returnTo.includes("?") ? returnTo.split("?")[1] : "";
+  const urlParams = new URLSearchParams(search);
+  const amountStr = urlParams.get("amount");
+  if (!amountStr) return null;
+  const amount = parseFloat(amountStr);
+  if (!Number.isFinite(amount) || amount <= 0) return null;
+  return { orgId, amount };
+}
 
 const WELCOME_SEEN_KEY = "@gb_welcome_seen";
 
@@ -44,12 +59,16 @@ const ACTIONS = [
 export default function SignupSuccessScreen() {
   const insets = useSafeInsets();
   const c = useThemeColors();
+  const { organizations } = useApp();
   const params = useLocalSearchParams<{ name?: string; email?: string; returnTo?: string }>();
   const returnTo = params.returnTo ? String(params.returnTo) : undefined;
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = insets.bottom;
 
   const firstName = params.name ? params.name.split(" ")[0] : null;
+
+  const donationCtx = parseDonationContext(returnTo);
+  const donationOrg = donationCtx ? organizations.find((o) => o.id === donationCtx.orgId) : null;
 
   useEffect(() => {
     const email = params.email;
@@ -93,6 +112,18 @@ export default function SignupSuccessScreen() {
       <Text style={[styles.subtitle, { color: c.textMuted }]}>
         Your account is ready. Here are a few ways to get started.
       </Text>
+
+      {donationCtx && donationOrg && (
+        <View style={[styles.donateBanner, { backgroundColor: c.green + "14", borderColor: c.green + "40" }]}>
+          <Ionicons name="heart" size={16} color={c.green} style={{ marginRight: 10, flexShrink: 0 }} />
+          <Text style={[styles.donateBannerText, { color: c.text }]}>
+            {"You're donating "}
+            <Text style={{ fontFamily: "SpaceGrotesk_700Bold", color: c.green }}>${donationCtx.amount % 1 === 0 ? donationCtx.amount.toFixed(0) : donationCtx.amount.toFixed(2)}</Text>
+            {" to "}
+            <Text style={{ fontFamily: "SpaceGrotesk_600SemiBold" }}>{donationOrg.name}</Text>
+          </Text>
+        </View>
+      )}
 
       <View style={styles.actions}>
         {ACTIONS.map((action) => (
@@ -201,5 +232,21 @@ const styles = StyleSheet.create({
   skipBtnText: {
     fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 15,
+  },
+  donateBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginBottom: 16,
+    width: "100%",
+  },
+  donateBannerText: {
+    fontFamily: "SpaceGrotesk_500Medium",
+    fontSize: 14,
+    flex: 1,
+    lineHeight: 20,
   },
 });
