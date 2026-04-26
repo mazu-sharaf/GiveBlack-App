@@ -478,14 +478,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       const { identityToken, fullName } = await getAppleOAuthPayload();
       const baseUrl = getApiUrl().replace(/\/$/, "");
+      const appleUrl = `${baseUrl}/api/auth/oauth/apple`;
+      console.log("[loginWithApple] posting to:", appleUrl);
       const body: Record<string, string> = { identityToken };
       if (fullName) body.fullName = fullName;
-      const response = await fetch(`${baseUrl}/api/auth/oauth/apple`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
+      let response: Response;
+      try {
+        response = await fetch(appleUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+      } catch (fetchErr: unknown) {
+        const msg = fetchErr instanceof Error ? fetchErr.message : String(fetchErr);
+        console.error("[loginWithApple] fetch FAILED (network error):", msg, "url:", appleUrl);
+        throw fetchErr;
+      }
+      console.log("[loginWithApple] response status:", response.status);
       const payload = (await response.json().catch(() => ({}))) as Record<string, unknown>;
+      console.log("[loginWithApple] response payload:", JSON.stringify(payload));
       if (!response.ok) {
         const m = mapOAuthHttpError(response.status, payload);
         return { success: false, error: m.error, errorType: m.errorType };
