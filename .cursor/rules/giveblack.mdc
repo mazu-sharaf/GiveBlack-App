@@ -10,8 +10,8 @@ You are helping on **GiveBlack**, a monorepo for a philanthropy app (Black-led o
 ## First-time setup (do all in order)
 
 1. **Clone** (if you do not have the repo yet):
-   - `git clone https://github.com/mazu-sharaf/GiveBlack-App.git`
-   - `cd GiveBlack-App`
+   - `git clone https://github.com/mazu-sharaf/GiveBlackMain.git`
+   - `cd GiveBlackMain` (or your chosen directory name)
 2. **Dependencies** (always from repository root):
    - `npm install`
 3. **Environment** — never commit secrets:
@@ -96,7 +96,7 @@ The word **run** alone is ambiguous — if the user only says **run**, ask which
 
 ## Git remotes
 
-- **GitHub**: `mazu-sharaf/GiveBlack-App` (often `origin` after clone).
+- **GitHub**: `mazu-sharaf/GiveBlackMain` (often `origin` after clone).
 - **GitLab** may exist as another remote — do not remove remotes without being asked.
 
 ## When unsure

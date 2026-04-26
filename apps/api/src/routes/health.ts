@@ -2,13 +2,16 @@ import type { FastifyPluginAsync } from "fastify";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { env } from "../config/env.js";
 
 export const healthRoutes: FastifyPluginAsync = async (app) => {
   app.get("/health", async () => {
+    const expoPushDeliveryConfigured = Boolean(env.EXPO_TOKEN || env.EXPO_ACCESS_TOKEN);
     return {
       ok: true,
       service: "giveblack-api",
-      ts: new Date().toISOString()
+      ts: new Date().toISOString(),
+      expoPushDeliveryConfigured
     };
   });
 

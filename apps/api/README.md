@@ -30,7 +30,7 @@ The same step runs automatically when executing `apps/api/scripts/seed-demo-camp
 - **Production URL:** `https://giveblackapp.com/support/` requires Nginx to proxy `/support` to the API (see `location ^~ /support` in [`deploy/nginx-giveblackapp.com.conf`](../deploy/nginx-giveblackapp.com.conf)) **before** the catch-all `location /` to the marketing site. After updating the site config, run `sudo nginx -t && sudo systemctl reload nginx`.
 
 ## Important endpoints
-- `GET /health`
+- `GET /health` — includes `expoPushDeliveryConfigured` (boolean, no secrets) when `EXPO_TOKEN` or `EXPO_ACCESS_TOKEN` is set. VPS pull/build/restart: [`deploy/VPS-POST-PULL.md`](../deploy/VPS-POST-PULL.md).
 - `POST /api/auth/signup`
 - `POST /api/auth/login`
 - `POST /api/auth/refresh`
