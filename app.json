@@ -64,7 +64,7 @@
       [
         "@stripe/stripe-react-native",
         {
-          "merchantIdentifier": "merchant.com.giveblack.app"
+          "merchantIdentifier": ""
         }
       ],
       "expo-font",

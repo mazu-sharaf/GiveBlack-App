@@ -48,13 +48,12 @@ export function canAccessNav(role: AdminRole, url: string): boolean {
 }
 
 /**
- * Strip a leading /admin *segment* only (e.g. /admin/users → /users).
- * Must not treat /admin-emails as /admin + emails; that broke RoleGuard redirects.
+ * Strip a leading /backoffice *segment* only (e.g. /backoffice/users → /users).
  */
 export function normalizeAdminPathname(pathname: string): string {
-  if (pathname === "/admin" || pathname === "/admin/") return "/";
-  if (pathname.startsWith("/admin/")) {
-    const rest = pathname.slice("/admin".length);
+  if (pathname === "/backoffice" || pathname === "/backoffice/") return "/";
+  if (pathname.startsWith("/backoffice/")) {
+    const rest = pathname.slice("/backoffice".length);
     return rest || "/";
   }
   return pathname;

@@ -5,7 +5,7 @@ const WEBSITE = "https://giveblackapp.com";
 const SUPPORT_EMAIL = "info@giveblackapp.com";
 
 export const receiptPdfRoutes: FastifyPluginAsync = async (app) => {
-  app.get("/receipt-pdf", async (request, reply) => {
+  const handler = async (request: any, reply: any) => {
     const q = request.query as Record<string, string>;
     const donationId = q.donationId;
 
@@ -154,5 +154,10 @@ export const receiptPdfRoutes: FastifyPluginAsync = async (app) => {
 
     const pdfBuffer = await pdfReady;
     return reply.send(pdfBuffer);
-  });
+  };
+
+  // NOTE: In production nginx only proxies `/c/*` and `/app/*` to the API.
+  // Keep `/receipt-pdf` for local/dev, and serve `/c/receipt-pdf` for the public donation thank-you flow.
+  app.get("/receipt-pdf", handler);
+  app.get("/c/receipt-pdf", handler);
 };

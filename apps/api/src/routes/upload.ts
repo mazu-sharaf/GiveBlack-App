@@ -2,6 +2,7 @@ import type { FastifyPluginAsync } from "fastify";
 import path from "node:path";
 import fs from "node:fs";
 import crypto from "node:crypto";
+import { optimizeUploadImage } from "../services/image-optimize.js";
 
 const UPLOADS_DIR = path.resolve(process.cwd(), "uploads");
 
@@ -27,10 +28,6 @@ export const uploadRoutes: FastifyPluginAsync = async (app) => {
         return reply.code(400).send({ error: "Only JPEG, PNG, WebP, GIF, HEIC and HEIF images are allowed" });
       }
 
-      const ext = extLower || ".jpg";
-      const name = `${crypto.randomUUID()}${ext}`;
-      const dest = path.join(UPLOADS_DIR, name);
-
       const chunks: Buffer[] = [];
       for await (const chunk of file.file) {
         chunks.push(chunk as Buffer);
@@ -40,8 +37,17 @@ export const uploadRoutes: FastifyPluginAsync = async (app) => {
       if (buffer.length > 8 * 1024 * 1024) {
         return reply.code(400).send({ error: "File too large (max 8 MB)" });
       }
+      let optimized: { buffer: Buffer; ext: ".jpg" };
+      try {
+        optimized = await optimizeUploadImage(buffer, { maxSidePx: 1600, jpegQuality: 86 });
+      } catch (e) {
+        request.log.error({ err: e }, "image optimize failed");
+        return reply.code(400).send({ error: "Unsupported image format. Please upload JPEG or PNG." });
+      }
 
-      fs.writeFileSync(dest, buffer);
+      const name = `${crypto.randomUUID()}${optimized.ext}`;
+      const dest = path.join(UPLOADS_DIR, name);
+      fs.writeFileSync(dest, optimized.buffer);
 
       const url = `/uploads/${name}`;
       return { url, filename: name };

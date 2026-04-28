@@ -69,6 +69,7 @@ export const publicRoutes: FastifyPluginAsync = async (app) => {
       const result = await db.query(
         `select c.id, c.title, c.description, c.story, c.about, c.main_image_url,
                 c.location, c.goal,
+                c.featured,
                 coalesce(cd.raised, 0) as raised,
                 coalesce(cd.donor_count, 0)::int as donor_count,
                 c.status,
@@ -87,7 +88,7 @@ export const publicRoutes: FastifyPluginAsync = async (app) => {
            where d.campaign_id = c.id and d.status = 'succeeded'
          ) cd on true
          where ${w}
-         order by c.created_at desc
+         order by c.featured desc, c.created_at desc
          limit 200`,
         values
       );
@@ -104,6 +105,7 @@ export const publicRoutes: FastifyPluginAsync = async (app) => {
       const campResult = await db.query(
         `select c.id, c.title, c.description, c.story, c.about, c.main_image_url,
                 c.location, c.goal,
+                c.featured,
                 coalesce(cd.raised, 0) as raised,
                 coalesce(cd.donor_count, 0)::int as donor_count,
                 c.status,
@@ -230,6 +232,7 @@ export const publicRoutes: FastifyPluginAsync = async (app) => {
   app.post("/api/volunteers", async (request, reply) => {
     const raw = (request.body ?? {}) as {
       orgId?: string;
+      campaignId?: string;
       name?: string;
       email?: string;
       skills?: string | string[];
@@ -270,10 +273,10 @@ export const publicRoutes: FastifyPluginAsync = async (app) => {
     }
     try {
       const result = await db.query(
-        `insert into volunteers (org_id, name, email, phone, skills, message)
-         values ($1, $2, $3, $4, $5, $6)
+        `insert into volunteers (org_id, campaign_id, name, email, phone, skills, message)
+         values ($1, $2, $3, $4, $5, $6, $7)
          returning id`,
-        [raw.orgId || null, raw.name, raw.email, phoneStr, skillsStr, messageStr]
+        [raw.orgId || null, raw.campaignId || null, raw.name, raw.email, phoneStr, skillsStr, messageStr]
       );
       const vid = result.rows[0]?.id;
       if (raw.orgId && vid) {

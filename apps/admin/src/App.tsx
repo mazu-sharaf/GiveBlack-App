@@ -4,6 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { HelmetProvider } from "react-helmet-async";
+import { GoogleOAuthProvider } from "@react-oauth/google";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { RoleGuard } from "@/components/RoleGuard";
 import { AdminLayout } from "@/components/AdminLayout";
@@ -31,6 +32,7 @@ import SettingsPage from "./pages/admin/SettingsPage";
 import EducationPartnersPage from "./pages/admin/EducationPartnersPage";
 import DonorDetailPage from "./pages/admin/DonorDetailPage";
 import CampaignPublicPage from "./pages/CampaignPublicPage";
+import OAuth2Redirect from "./pages/OAuth2Redirect";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient({
@@ -47,41 +49,44 @@ const AdminPage = ({ children }: { children: React.ReactNode }) => (
 
 const App = () => (
   <HelmetProvider>
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter basename="/admin">
-          <Routes>
-            <Route path="/login" element={<Login />} />
-            <Route path="/c/:slug" element={<CampaignPublicPage />} />
-            <Route path="/" element={<AdminPage><Dashboard /></AdminPage>} />
-            <Route path="/users" element={<AdminPage><UsersPage /></AdminPage>} />
-            <Route path="/organizations" element={<AdminPage><OrganizationsPage /></AdminPage>} />
-            <Route path="/organizations/:id" element={<AdminPage><OrganizationDetailPage /></AdminPage>} />
-            <Route path="/donations" element={<AdminPage><DonationsPage /></AdminPage>} />
-            <Route path="/donors/:email" element={<AdminPage><DonorDetailPage /></AdminPage>} />
-            <Route path="/campaigns" element={<AdminPage><CampaignsPage /></AdminPage>} />
-            <Route path="/campaigns/:id" element={<AdminPage><CampaignDetailPage /></AdminPage>} />
-            <Route path="/community-campaigns" element={<AdminPage><CommunityCampaignsPage /></AdminPage>} />
-            <Route path="/community-campaigns/:id" element={<AdminPage><CommunityCampaignDetailPage /></AdminPage>} />
-            <Route path="/charity-requests" element={<AdminPage><CharityRequestsPage /></AdminPage>} />
-            <Route path="/subscriptions" element={<AdminPage><SubscriptionsPage /></AdminPage>} />
-            <Route path="/volunteers" element={<AdminPage><VolunteersPage /></AdminPage>} />
-            <Route path="/categories" element={<AdminPage><CategoriesPage /></AdminPage>} />
-            <Route path="/ledger" element={<AdminPage><LedgerPage /></AdminPage>} />
-            <Route path="/fund-release" element={<AdminPage><FundReleasePage /></AdminPage>} />
-            <Route path="/transactions" element={<AdminPage><TransactionsPage /></AdminPage>} />
-            <Route path="/staff" element={<AdminPage><StaffPage /></AdminPage>} />
-            <Route path="/admin-emails" element={<AdminPage><AdminEmailsPage /></AdminPage>} />
-            <Route path="/broadcast" element={<AdminPage><BroadcastNotificationsPage /></AdminPage>} />
-            <Route path="/education-partners" element={<AdminPage><EducationPartnersPage /></AdminPage>} />
-            <Route path="/settings" element={<AdminPage><SettingsPage /></AdminPage>} />
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </BrowserRouter>
-      </TooltipProvider>
-    </QueryClientProvider>
+    <GoogleOAuthProvider clientId={import.meta.env.VITE_ADMIN_GOOGLE_CLIENT_ID || ""}>
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <BrowserRouter basename="/backoffice">
+            <Routes>
+              <Route path="/login" element={<Login />} />
+              <Route path="/oauth2redirect" element={<OAuth2Redirect />} />
+              <Route path="/c/:slug" element={<CampaignPublicPage />} />
+              <Route path="/" element={<AdminPage><Dashboard /></AdminPage>} />
+              <Route path="/users" element={<AdminPage><UsersPage /></AdminPage>} />
+              <Route path="/organizations" element={<AdminPage><OrganizationsPage /></AdminPage>} />
+              <Route path="/organizations/:id" element={<AdminPage><OrganizationDetailPage /></AdminPage>} />
+              <Route path="/donations" element={<AdminPage><DonationsPage /></AdminPage>} />
+              <Route path="/donors/:email" element={<AdminPage><DonorDetailPage /></AdminPage>} />
+              <Route path="/campaigns" element={<AdminPage><CampaignsPage /></AdminPage>} />
+              <Route path="/campaigns/:id" element={<AdminPage><CampaignDetailPage /></AdminPage>} />
+              <Route path="/community-campaigns" element={<AdminPage><CommunityCampaignsPage /></AdminPage>} />
+              <Route path="/community-campaigns/:id" element={<AdminPage><CommunityCampaignDetailPage /></AdminPage>} />
+              <Route path="/charity-requests" element={<AdminPage><CharityRequestsPage /></AdminPage>} />
+              <Route path="/subscriptions" element={<AdminPage><SubscriptionsPage /></AdminPage>} />
+              <Route path="/volunteers" element={<AdminPage><VolunteersPage /></AdminPage>} />
+              <Route path="/categories" element={<AdminPage><CategoriesPage /></AdminPage>} />
+              <Route path="/ledger" element={<AdminPage><LedgerPage /></AdminPage>} />
+              <Route path="/fund-release" element={<AdminPage><FundReleasePage /></AdminPage>} />
+              <Route path="/transactions" element={<AdminPage><TransactionsPage /></AdminPage>} />
+              <Route path="/staff" element={<AdminPage><StaffPage /></AdminPage>} />
+              <Route path="/admin-emails" element={<AdminPage><AdminEmailsPage /></AdminPage>} />
+              <Route path="/broadcast" element={<AdminPage><BroadcastNotificationsPage /></AdminPage>} />
+              <Route path="/education-partners" element={<AdminPage><EducationPartnersPage /></AdminPage>} />
+              <Route path="/settings" element={<AdminPage><SettingsPage /></AdminPage>} />
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </BrowserRouter>
+        </TooltipProvider>
+      </QueryClientProvider>
+    </GoogleOAuthProvider>
   </HelmetProvider>
 );
 

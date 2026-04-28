@@ -34,7 +34,7 @@ const SKILLS = [
 const AVAILABILITY_OPTIONS = ["Weekdays", "Weekends", "Flexible"];
 
 export default function VolunteerSignupScreen() {
-  const { orgId } = useLocalSearchParams<{ orgId: string }>();
+  const { orgId, campaignId } = useLocalSearchParams<{ orgId: string; campaignId?: string }>();
   const insets = useSafeInsets();
   const { organizations } = useApp();
   const { user, session } = useAuth();
@@ -84,6 +84,7 @@ export default function VolunteerSignupScreen() {
         body: JSON.stringify({
           userId: user?.id || null,
           orgId: orgId,
+          campaignId: campaignId || null,
           orgName: org?.name || "",
           name: name.trim(),
           email: email.trim(),

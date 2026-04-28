@@ -352,7 +352,7 @@ export default function CampaignDetailScreen() {
                 onPress={() =>
                   router.push({
                     pathname: "/volunteer/[orgId]",
-                    params: { orgId: camp.organizationId },
+                    params: { orgId: camp.organizationId, campaignId: id },
                   })
                 }
               >

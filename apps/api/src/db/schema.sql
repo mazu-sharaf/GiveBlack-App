@@ -10,8 +10,33 @@ create table if not exists users (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   avatar_url text null,
-  avatar_source text null
+  avatar_source text null,
+  two_factor_enabled boolean not null default false,
+  two_factor_secret_enc text null,
+  two_factor_recovery_codes jsonb null,
+  two_factor_updated_at timestamptz null,
+  admin_permissions jsonb null,
+  admin_oauth_provider text null,
+  admin_oauth_sub text null,
+  admin_otp_code_hash text null,
+  admin_otp_expires_at timestamptz null,
+  admin_otp_attempts int not null default 0
 );
+
+-- Ensure new columns exist on existing databases (create table does not alter).
+alter table users add column if not exists avatar_url text null;
+alter table users add column if not exists avatar_source text null;
+alter table users add column if not exists two_factor_enabled boolean not null default false;
+alter table users add column if not exists two_factor_secret_enc text null;
+alter table users add column if not exists two_factor_recovery_codes jsonb null;
+alter table users add column if not exists two_factor_updated_at timestamptz null;
+alter table users add column if not exists admin_permissions jsonb null;
+alter table users add column if not exists admin_oauth_provider text null;
+alter table users add column if not exists admin_oauth_sub text null;
+alter table users add column if not exists admin_otp_code_hash text null;
+alter table users add column if not exists admin_otp_expires_at timestamptz null;
+alter table users add column if not exists admin_otp_attempts int not null default 0;
+create index if not exists users_admin_oauth_sub_idx on users (admin_oauth_sub);
 
 create table if not exists oauth_identities (
   id uuid primary key default gen_random_uuid(),
@@ -85,6 +110,7 @@ create table if not exists campaigns (
   about text null,
   main_image_url text null,
   location text null,
+  featured boolean not null default false,
   goal numeric(12,2) not null default 0,
   raised numeric(12,2) not null default 0,
   donor_count integer not null default 0,
@@ -177,6 +203,7 @@ create table if not exists device_push_tokens (
 create table if not exists volunteers (
   id uuid primary key default gen_random_uuid(),
   org_id text null references organizations(id) on delete set null,
+  campaign_id text null references campaigns(id) on delete set null,
   name text null,
   email text null,
   phone text null,

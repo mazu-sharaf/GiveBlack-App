@@ -11,7 +11,7 @@ import {
 } from "react-native";
 import { Image } from "expo-image";
 import { useSafeInsets } from "@/lib/safe-area";
-import { router, useFocusEffect } from "expo-router";
+import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import Colors from "@/constants/colors";
 import { useThemeColors } from "@/context/ThemeContext";
@@ -28,10 +28,12 @@ export default function AllCampaignsScreen() {
   const insets = useSafeInsets();
   const c = useThemeColors();
   const { campaigns, categories, toggleFavorite, isFavorite, setLastMeaningfulRoute } = useApp();
+  const params = useLocalSearchParams<{ featured?: string }>();
+  const onlyFeatured = params?.featured === "1" || params?.featured === "true";
 
   useFocusEffect(
     useCallback(() => {
-      setLastMeaningfulRoute("/all-campaigns");
+      setLastMeaningfulRoute(onlyFeatured ? "/all-campaigns?featured=1" : "/all-campaigns");
     }, [setLastMeaningfulRoute])
   );
   const [search, setSearch] = useState("");
@@ -51,6 +53,9 @@ export default function AllCampaignsScreen() {
 
   const filtered = useMemo(() => {
     let results = [...campaigns];
+    if (onlyFeatured) {
+      results = results.filter((c) => Boolean((c as any)?.featured));
+    }
     if (search.trim()) {
       results = results.filter((c) =>
         (c.title || "").toLowerCase().includes(search.toLowerCase())
@@ -89,7 +94,7 @@ export default function AllCampaignsScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: c.background }]}>
-      <AppHeader showBack title="All Campaigns" showSearch={false} />
+      <AppHeader showBack title={onlyFeatured ? "Featured Campaigns" : "All Campaigns"} showSearch={false} />
       <View style={styles.searchRow}>
         <View style={[styles.searchBar, { backgroundColor: c.cardBg, borderColor: c.border }]}>
           <Ionicons name="search-outline" size={18} color={c.textMuted} />

@@ -224,7 +224,12 @@ export default function CampaignPublicPage() {
     }
   };
 
-  const shareUrl = typeof window !== "undefined" ? window.location.href : "";
+  // Public share URL should NOT include `/admin` (which is the SPA shell and not crawler-friendly).
+  // Canonical public share landing is served by the API at `/c/:id`.
+  const shareUrl =
+    typeof window !== "undefined" && slug
+      ? `${window.location.origin.replace(/\/$/, "")}/c/${encodeURIComponent(slug)}`
+      : "";
 
   const handleCopy = () => {
     navigator.clipboard.writeText(shareUrl);

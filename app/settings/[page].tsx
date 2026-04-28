@@ -1142,8 +1142,10 @@ function EditProfilePage() {
         body: JSON.stringify({ avatar_url: uploadJson.url }),
       });
       if (saveRes.ok) {
-        setLocalAvatarUrl(uploadJson.url);
-        await setAvatarUrl(uploadJson.url);
+        // Cache-bust after updates so users see the latest photo immediately.
+        const cacheBusted = `${uploadJson.url}${uploadJson.url.includes("?") ? "&" : "?"}v=${Date.now()}`;
+        setLocalAvatarUrl(cacheBusted);
+        await setAvatarUrl(cacheBusted);
       } else {
         Alert.alert("Error", "Image uploaded but failed to update profile.");
       }

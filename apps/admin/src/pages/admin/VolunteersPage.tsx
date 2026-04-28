@@ -21,6 +21,7 @@ interface Volunteer {
   message?: string;
   org_id: string | null;
   org_name?: string;
+  campaign_id?: string | null;
   status?: string;
   created_at: string;
 }
@@ -35,6 +36,7 @@ const STATUS_COLORS: Record<string, string> = {
 export default function VolunteersPage() {
   const [volunteers, setVolunteers] = useState<Volunteer[]>([]);
   const [orgs, setOrgs] = useState<{ id: string; name: string }[]>([]);
+  const [campaigns, setCampaigns] = useState<{ id: string; title: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -52,12 +54,14 @@ export default function VolunteersPage() {
       if (statusFilter !== "all") {
         opts.filters = [{ column: "status", op: "eq", value: statusFilter }];
       }
-      const [res, orgsRes] = await Promise.all([
-        dbQuery<Volunteer>("volunteers", opts),
+      const [res, orgsRes, campsRes] = await Promise.all([
+        dbQuery<Volunteer>("volunteers", { ...opts, select: "id, name, email, phone, skills, message, org_id, status, created_at, campaign_id" }),
         dbQuery<{ id: string; name: string }>("organizations", { select: "id, name", limit: 500 }),
+        dbQuery<{ id: string; title: string }>("campaigns", { select: "id, title", limit: 1000 }),
       ]);
       setVolunteers(res.data || []);
       setOrgs(orgsRes.data || []);
+      setCampaigns(campsRes.data || []);
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Failed to load volunteers");
     } finally {
@@ -94,6 +98,11 @@ export default function VolunteersPage() {
     if (vol.org_name) return vol.org_name;
     if (vol.org_id) return orgs.find((o) => o.id === vol.org_id)?.name || vol.org_id;
     return "--";
+  };
+
+  const getCampaignName = (vol: Volunteer) => {
+    if (!vol.campaign_id) return "—";
+    return campaigns.find((c) => c.id === vol.campaign_id)?.title || vol.campaign_id;
   };
 
   const exportCSV = () => {
@@ -160,6 +169,7 @@ export default function VolunteersPage() {
                     <TableHead className="hidden sm:table-cell">Skills</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead className="hidden md:table-cell">Organization</TableHead>
+                    <TableHead className="hidden lg:table-cell">Campaign</TableHead>
                     <TableHead className="hidden lg:table-cell">Date</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -195,13 +205,16 @@ export default function VolunteersPage() {
                           </SelectContent>
                         </Select>
                       </TableCell>
+                      <TableCell className="hidden lg:table-cell text-muted-foreground text-sm">
+                        {getCampaignName(v)}
+                      </TableCell>
                       <TableCell className="hidden lg:table-cell text-muted-foreground text-sm whitespace-nowrap">
                         {v.created_at ? format(new Date(v.created_at), "MMM d, yyyy") : "--"}
                       </TableCell>
                     </TableRow>
                   ))}
                   {volunteers.length === 0 && (
-                    <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">No volunteers found</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">No volunteers found</TableCell></TableRow>
                   )}
                 </TableBody>
               </Table>

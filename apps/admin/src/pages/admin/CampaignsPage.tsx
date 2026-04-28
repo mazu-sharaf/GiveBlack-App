@@ -1,20 +1,24 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { dbQuery } from "@/lib/api";
+import { dbQuery, dbMutate, deleteAdminCampaign } from "@/lib/api";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
-import { Search, Megaphone, Plus } from "lucide-react";
+import { Search, Megaphone, Plus, Share2, Copy, ExternalLink, Trash2, Star } from "lucide-react";
 import { format } from "date-fns";
+import { getCurrentRole } from "@/lib/admin-auth";
 
 interface Row {
   id: string;
   organization_id: string;
   title: string;
+  featured?: boolean;
   goal: number;
   raised: number;
   status: string;
@@ -34,10 +38,16 @@ export default function CampaignsPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const orgFilter = searchParams.get("org") || "";
+  const role = getCurrentRole();
+  const canDelete = role === "admin" || role === "super_admin";
+  const canFeature = canDelete;
 
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -46,7 +56,7 @@ export default function CampaignsPage() {
       if (orgFilter) filters.push({ column: "organization_id", op: "eq", value: orgFilter });
 
       const res = await dbQuery<Row>("campaigns", {
-        select: "id, organization_id, title, goal, raised, status, created_at",
+        select: "id, organization_id, title, featured, goal, raised, status, created_at",
         filters: filters.length ? filters : undefined,
         order: { column: "created_at", ascending: false },
         limit: 500,
@@ -76,6 +86,117 @@ export default function CampaignsPage() {
       return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
     });
   }, [rows, search]);
+
+  const campaignPublicUrl = (campaignId: string): string => {
+    if (typeof window === "undefined") return "";
+    return `${window.location.origin.replace(/\/$/, "")}/c/${encodeURIComponent(campaignId)}`;
+  };
+
+  const handleCopy = async (e: React.MouseEvent, campaignId: string) => {
+    e.stopPropagation();
+    const url = campaignPublicUrl(campaignId);
+    if (!url) return;
+    try {
+      await navigator.clipboard.writeText(url);
+      toast.success("Campaign link copied");
+    } catch {
+      toast.error("Could not copy link. Try opening it instead.");
+    }
+  };
+
+  const handleShare = async (e: React.MouseEvent, campaignId: string, title: string) => {
+    e.stopPropagation();
+    const url = campaignPublicUrl(campaignId);
+    if (!url) return;
+    try {
+      // Web Share API (mobile browsers)
+      if (typeof navigator !== "undefined" && "share" in navigator) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await (navigator as any).share({ title, text: `Support ${title} on GiveBlack!`, url });
+        return;
+      }
+    } catch {
+      // fallthrough
+    }
+    try {
+      await navigator.clipboard.writeText(url);
+      toast.success("Campaign link copied");
+    } catch {
+      window.open(url, "_blank", "noopener,noreferrer");
+    }
+  };
+
+  const handleOpen = (e: React.MouseEvent, campaignId: string) => {
+    e.stopPropagation();
+    const url = campaignPublicUrl(campaignId);
+    if (!url) return;
+    window.open(url, "_blank", "noopener,noreferrer");
+  };
+
+  const handleDelete = async (campaignId: string) => {
+    try {
+      await deleteAdminCampaign(campaignId, { force: true });
+      toast.success("Campaign deleted");
+      setRows((prev) => prev.filter((r) => r.id !== campaignId));
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Delete failed");
+    }
+  };
+
+  const pageIds = filtered.map((r) => r.id);
+  const selectedCount = selected.size;
+  const allPageSelected = pageIds.length > 0 && pageIds.every((id) => selected.has(id));
+  const somePageSelected = pageIds.some((id) => selected.has(id));
+  const toggleRowSelect = (id: string) =>
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  const togglePageSelect = () =>
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (allPageSelected) pageIds.forEach((id) => next.delete(id));
+      else pageIds.forEach((id) => next.add(id));
+      return next;
+    });
+
+  const bulkDeleteSelected = async () => {
+    if (!canDelete || selected.size === 0) return;
+    setBulkDeleting(true);
+    const ids = Array.from(selected);
+    try {
+      const results = await Promise.allSettled(ids.map((id) => deleteAdminCampaign(id, { force: true })));
+      const okIds: string[] = [];
+      const failed: Array<{ id: string; reason: string }> = [];
+      results.forEach((r, idx) => {
+        const id = ids[idx]!;
+        if (r.status === "fulfilled") okIds.push(id);
+        else failed.push({ id, reason: r.reason instanceof Error ? r.reason.message : "Delete failed" });
+      });
+      if (okIds.length) setRows((prev) => prev.filter((r) => !okIds.includes(r.id)));
+      setSelected(new Set(failed.map((f) => f.id)));
+      if (failed.length === 0) toast.success(`Deleted ${okIds.length} campaign${okIds.length === 1 ? "" : "s"}`);
+      else toast.error(`Deleted ${okIds.length}. Failed ${failed.length}. First: ${failed[0]?.reason || "Unknown"}`);
+    } finally {
+      setBulkDeleting(false);
+    }
+  };
+
+  const toggleFeatured = async (e: React.MouseEvent, row: Row) => {
+    e.stopPropagation();
+    if (!canFeature) return;
+    const next = !Boolean(row.featured);
+    setRows((prev) => prev.map((r) => (r.id === row.id ? { ...r, featured: next } : r)));
+    try {
+      await dbMutate("campaigns", "update", { featured: next }, [{ column: "id", op: "eq", value: row.id }]);
+      toast.success(next ? "Marked as featured" : "Removed from featured");
+    } catch (err: unknown) {
+      setRows((prev) => prev.map((r) => (r.id === row.id ? { ...r, featured: row.featured } : r)));
+      toast.error(err instanceof Error ? err.message : "Failed to update featured");
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -123,11 +244,19 @@ export default function CampaignsPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-10">
+                      <Checkbox
+                        checked={allPageSelected ? true : somePageSelected && !allPageSelected ? "indeterminate" : false}
+                        onCheckedChange={() => togglePageSelect()}
+                        aria-label="Select all on this page"
+                      />
+                    </TableHead>
                     <TableHead>Title</TableHead>
                     <TableHead className="hidden md:table-cell">Organization</TableHead>
                     <TableHead className="text-right">Goal</TableHead>
                     <TableHead className="text-right">Raised</TableHead>
                     <TableHead>Status</TableHead>
+                    <TableHead>Link</TableHead>
                     <TableHead className="hidden sm:table-cell">Created</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -138,7 +267,24 @@ export default function CampaignsPage() {
                       className="cursor-pointer hover:bg-muted/50"
                       onClick={() => navigate(`/campaigns/${r.id}`)}
                     >
-                      <TableCell className="font-medium">{r.title}</TableCell>
+                      <TableCell onClick={(e) => e.stopPropagation()}>
+                        <Checkbox
+                          checked={selected.has(r.id)}
+                          onCheckedChange={() => toggleRowSelect(r.id)}
+                          aria-label={`Select ${r.title || r.id}`}
+                        />
+                      </TableCell>
+                      <TableCell className="font-medium">
+                        <div className="flex items-center gap-2">
+                          <span className="truncate">{r.title}</span>
+                          {Boolean(r.featured) && (
+                            <Badge variant="outline" className="bg-amber-500/20 text-amber-400 border-amber-500/30 text-[10px]">
+                              <Star className="h-3 w-3 mr-0.5" />
+                              Featured
+                            </Badge>
+                          )}
+                        </div>
+                      </TableCell>
                       <TableCell className="hidden md:table-cell text-muted-foreground text-sm">
                         {r.organization_id}
                       </TableCell>
@@ -149,6 +295,87 @@ export default function CampaignsPage() {
                           {r.status}
                         </Badge>
                       </TableCell>
+                      <TableCell>
+                        {r.status === "active" ? (
+                          <div className="flex items-center gap-2">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              title="Share link"
+                              onClick={(e) => void handleShare(e, r.id, r.title)}
+                            >
+                              <Share2 className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              title="Copy link"
+                              onClick={(e) => void handleCopy(e, r.id)}
+                            >
+                              <Copy className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              title="Open public page"
+                              onClick={(e) => handleOpen(e, r.id)}
+                            >
+                              <ExternalLink className="h-4 w-4" />
+                            </Button>
+                            {canFeature && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className={[
+                                  "h-8 w-8",
+                                  Boolean(r.featured) ? "text-amber-500 hover:text-amber-500" : "text-muted-foreground",
+                                ].join(" ")}
+                                title={Boolean(r.featured) ? "Unfeature" : "Feature"}
+                                onClick={(e) => void toggleFeatured(e, r)}
+                              >
+                                <Star className="h-4 w-4" />
+                              </Button>
+                            )}
+                            {canDelete && (
+                              <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8 text-destructive hover:text-destructive"
+                                    title="Delete campaign"
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle>Delete campaign permanently?</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                      This cannot be undone. Campaigns with donations cannot be permanently deleted.
+                                    </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                    <AlertDialogAction
+                                      className="bg-destructive text-destructive-foreground"
+                                      onClick={() => void handleDelete(r.id)}
+                                    >
+                                      Delete
+                                    </AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              </AlertDialog>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground text-sm">—</span>
+                        )}
+                      </TableCell>
                       <TableCell className="hidden sm:table-cell text-muted-foreground text-sm">
                         {r.created_at ? format(new Date(r.created_at), "MMM d, yyyy") : "-"}
                       </TableCell>
@@ -156,7 +383,7 @@ export default function CampaignsPage() {
                   ))}
                   {filtered.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                      <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                         No campaigns found
                       </TableCell>
                     </TableRow>
@@ -167,6 +394,55 @@ export default function CampaignsPage() {
           )}
         </CardContent>
       </Card>
+
+      {canDelete && selectedCount > 0 && (
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 rounded-md border border-border bg-muted/20 px-3 py-2">
+          <span className="text-sm text-muted-foreground">
+            <strong className="text-foreground">{selectedCount}</strong> selected
+          </span>
+          <div className="flex items-center gap-2">
+            <Button type="button" variant="ghost" size="sm" onClick={() => setSelected(new Set())} disabled={bulkDeleting}>
+              Clear selection
+            </Button>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button type="button" variant="destructive" size="sm" disabled={bulkDeleting}>
+                  <Trash2 className="h-4 w-4 mr-1" /> Delete selected
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Delete selected campaigns?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This cannot be undone. Campaigns with donations cannot be permanently deleted. Type <strong>DELETE</strong> to confirm.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <div className="pt-2">
+                  <Input
+                    value={bulkDeleteConfirm}
+                    onChange={(e) => setBulkDeleteConfirm(e.target.value)}
+                    placeholder='Type "DELETE"'
+                    autoComplete="off"
+                  />
+                </div>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    className="bg-destructive text-destructive-foreground"
+                    disabled={bulkDeleteConfirm.trim().toUpperCase() !== "DELETE"}
+                    onClick={() => {
+                      setBulkDeleteConfirm("");
+                      void bulkDeleteSelected();
+                    }}
+                  >
+                    Delete
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

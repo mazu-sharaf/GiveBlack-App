@@ -14,9 +14,11 @@ import {
   Platform,
   KeyboardAvoidingView,
   useWindowDimensions,
+  Share,
 } from "react-native";
 import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
+import * as Clipboard from "expo-clipboard";
 import { useSafeInsets } from "@/lib/safe-area";
 import { useThemeColors } from "@/context/ThemeContext";
 import { useAuth } from "@/context/AuthContext";
@@ -85,6 +87,34 @@ export default function CampaignsTab() {
   const [firstCampaignRatingOrgId, setFirstCampaignRatingOrgId] = useState<string | null>(null);
 
   const base = getApiUrl().replace(/\/$/, "");
+  const publicHost = process.env.EXPO_PUBLIC_DOMAIN || "giveblackapp.com";
+
+  const campaignShareUrl = (campaignId: string) => `https://${publicHost}/c/${encodeURIComponent(campaignId)}`;
+
+  async function shareCampaignLink(e: any, camp: Campaign) {
+    try {
+      e?.stopPropagation?.();
+      const url = campaignShareUrl(camp.id);
+      await Share.share({
+        message: `Support ${camp.title} on GiveBlack! ${url}`,
+        url,
+        title: camp.title,
+      });
+    } catch {
+      // no-op
+    }
+  }
+
+  async function copyCampaignLink(e: any, camp: Campaign) {
+    try {
+      e?.stopPropagation?.();
+      const url = campaignShareUrl(camp.id);
+      await Clipboard.setStringAsync(url);
+      Alert.alert("Copied", "Campaign link copied to clipboard.");
+    } catch {
+      Alert.alert("Copy failed", "Could not copy the campaign link.");
+    }
+  }
 
   const loadData = useCallback(async () => {
     if (!session) return;
@@ -576,6 +606,24 @@ export default function CampaignsTab() {
                 </View>
                 <Text style={[styles.progressPercent, { color: c.textMuted }]}>{progress.toFixed(0)}% funded</Text>
                 <View style={styles.campActions}>
+                  {camp.status === "active" && (
+                    <>
+                      <Pressable
+                        style={[styles.actionChip, { borderColor: c.green }]}
+                        onPress={(e) => void shareCampaignLink(e, camp)}
+                      >
+                        <Ionicons name="share-social-outline" size={14} color={c.green} />
+                        <Text style={[styles.actionChipText, { color: c.green }]}>Share</Text>
+                      </Pressable>
+                      <Pressable
+                        style={[styles.actionChip, { borderColor: c.border }]}
+                        onPress={(e) => void copyCampaignLink(e, camp)}
+                      >
+                        <Ionicons name="link-outline" size={14} color={c.textMuted} />
+                        <Text style={[styles.actionChipText, { color: c.textMuted }]}>Copy link</Text>
+                      </Pressable>
+                    </>
+                  )}
                   {camp.status === "active" && (
                     <Pressable style={[styles.actionChip, { borderColor: c.statusPaused }]} onPress={() => updateStatus(camp.id, "paused")}>
                       <Ionicons name="pause" size={14} color={c.statusPaused} />

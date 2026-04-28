@@ -50,6 +50,30 @@ const start = async () => {
     await app.listen({ port: env.PORT, host: env.API_HOST });
     app.log.info(`API listening on ${env.API_HOST}:${env.PORT}`);
 
+    // Orphan uploads cleanup (disabled by default).
+    const cleanupEnabled = String(process.env.UPLOADS_CLEANUP_ENABLED || "").toLowerCase() === "true";
+    const cleanupDryRun = String(process.env.UPLOADS_CLEANUP_DRY_RUN || "true").toLowerCase() !== "false";
+    const cleanupMaxAgeDays = Math.max(1, parseInt(process.env.UPLOADS_CLEANUP_MAX_AGE_DAYS || "30", 10) || 30);
+    const cleanupIntervalHours = Math.max(1, parseInt(process.env.UPLOADS_CLEANUP_INTERVAL_HOURS || "24", 10) || 24);
+    if (cleanupEnabled && !process.env.VPS_BACKEND_URL) {
+      const { cleanupOrphanUploads } = await import("./services/uploads-cleanup.js");
+      const uploadsDir = path.resolve(process.cwd(), "uploads");
+      const tick = () => {
+        void cleanupOrphanUploads({
+          uploadsDir,
+          dryRun: cleanupDryRun,
+          maxAgeDays: cleanupMaxAgeDays,
+          logger: app.log,
+        }).catch((e) => app.log.error({ err: e }, "uploads cleanup failed"));
+      };
+      setInterval(tick, cleanupIntervalHours * 60 * 60 * 1000);
+      tick();
+      app.log.info(
+        { dryRun: cleanupDryRun, maxAgeDays: cleanupMaxAgeDays, intervalHours: cleanupIntervalHours },
+        "uploads cleanup scheduled"
+      );
+    }
+
     const brevoKey = (env.BREVO_API_KEY || "").trim();
     const brevoFrom = (env.BREVO_SENDER_EMAIL || "").trim();
     if (brevoKey && brevoFrom) {

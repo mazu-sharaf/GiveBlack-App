@@ -1,15 +1,19 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { dbQuery, dbMutate, resolveImageUrl, uploadFile } from "@/lib/api";
+import { dbQuery, dbMutate, deleteAdminCampaign, resolveImageUrl, uploadFile } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
+import { getCurrentRole } from "@/lib/admin-auth";
 import {
   ArrowLeft, Save, Pause, Play, XCircle, Upload, Trash2, Plus, Image as ImageIcon,
+  Share2, Copy, ExternalLink,
 } from "lucide-react";
 
 interface CampaignData {
@@ -21,6 +25,7 @@ interface CampaignData {
   about: string | null;
   main_image_url: string | null;
   location: string | null;
+  featured?: boolean;
   goal: number;
   raised: number;
   donor_count: number;
@@ -59,6 +64,9 @@ export default function CampaignDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const isNew = id === "new";
+  const role = getCurrentRole();
+  const canDelete = role === "admin" || role === "super_admin";
+  const canFeature = canDelete;
   const newCampaignIdRef = useRef<string>("");
   const mainImageInputRef = useRef<HTMLInputElement>(null);
   const galleryImageInputRef = useRef<HTMLInputElement>(null);
@@ -83,6 +91,7 @@ export default function CampaignDetailPage() {
     organization_id: "",
     raised: "",
     donor_count: "",
+    featured: false,
   });
 
   const loadCampaign = useCallback(async () => {
@@ -92,7 +101,7 @@ export default function CampaignDetailPage() {
     }
     try {
       const res = await dbQuery<CampaignData>("campaigns", {
-        select: "id, organization_id, title, description, story, about, main_image_url, location, goal, raised, donor_count, status, created_at",
+        select: "id, organization_id, title, description, story, about, main_image_url, location, featured, goal, raised, donor_count, status, created_at",
         filters: [{ column: "id", op: "eq", value: id! }],
         limit: 1,
       });
@@ -110,6 +119,7 @@ export default function CampaignDetailPage() {
           organization_id: c.organization_id || "",
           raised: String(c.raised || 0),
           donor_count: String(c.donor_count || 0),
+          featured: Boolean(c.featured),
         });
       }
 
@@ -142,6 +152,7 @@ export default function CampaignDetailPage() {
   }, [isNew]);
 
   const update = (key: string, value: string) => setForm((f) => ({ ...f, [key]: value }));
+  const updateBool = (key: string, value: boolean) => setForm((f) => ({ ...f, [key]: value }));
 
   const handleSave = async () => {
     if (!form.title.trim()) {
@@ -162,6 +173,7 @@ export default function CampaignDetailPage() {
         about: form.about || null,
         main_image_url: form.main_image_url || null,
         location: form.location || null,
+        featured: Boolean(form.featured),
         goal: Number(form.goal) || 0,
         raised: Number(form.raised) || 0,
         donor_count: Number(form.donor_count) || 0,
@@ -410,6 +422,47 @@ export default function CampaignDetailPage() {
     ? Math.min(100, (Number(form.raised || 0) / Number(form.goal)) * 100)
     : 0;
 
+  const campaignPublicUrl = (campaignId: string): string => {
+    if (typeof window === "undefined") return "";
+    return `${window.location.origin.replace(/\/$/, "")}/c/${encodeURIComponent(campaignId)}`;
+  };
+
+  const handleCopyPublicLink = async () => {
+    if (!campaign) return;
+    const url = campaignPublicUrl(campaign.id);
+    try {
+      await navigator.clipboard.writeText(url);
+      toast.success("Campaign link copied");
+    } catch {
+      toast.error("Could not copy link");
+    }
+  };
+
+  const handleSharePublicLink = async () => {
+    if (!campaign) return;
+    const url = campaignPublicUrl(campaign.id);
+    try {
+      if (typeof navigator !== "undefined" && "share" in navigator) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await (navigator as any).share({
+          title: form.title || "GiveBlack campaign",
+          text: `Support ${form.title || "this campaign"} on GiveBlack!`,
+          url,
+        });
+        return;
+      }
+    } catch {
+      // fallthrough
+    }
+    await handleCopyPublicLink();
+  };
+
+  const handleOpenPublicLink = () => {
+    if (!campaign) return;
+    const url = campaignPublicUrl(campaign.id);
+    window.open(url, "_blank", "noopener,noreferrer");
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3">
@@ -425,6 +478,19 @@ export default function CampaignDetailPage() {
           )}
         </div>
         <div className="flex gap-2">
+          {campaign?.status === "active" && (
+            <>
+              <Button variant="outline" size="sm" onClick={() => void handleSharePublicLink()}>
+                <Share2 className="h-4 w-4 mr-1" /> Share
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => void handleCopyPublicLink()}>
+                <Copy className="h-4 w-4 mr-1" /> Copy link
+              </Button>
+              <Button variant="outline" size="sm" onClick={handleOpenPublicLink}>
+                <ExternalLink className="h-4 w-4 mr-1" /> Open
+              </Button>
+            </>
+          )}
           {campaign && campaign.status !== "closed" && (
             <>
               {campaign.status === "pending_review" ? (
@@ -442,6 +508,42 @@ export default function CampaignDetailPage() {
               </Button>
             </>
           )}
+          {campaign && canDelete && (
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="destructive" size="sm">
+                  <Trash2 className="h-4 w-4 mr-1" /> Delete
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Delete campaign permanently?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This cannot be undone. Campaigns with donations cannot be permanently deleted.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    className="bg-destructive text-destructive-foreground"
+                    onClick={() => {
+                      void (async () => {
+                        try {
+                          await deleteAdminCampaign(campaign.id, { force: true });
+                          toast.success("Campaign deleted");
+                          navigate("/campaigns");
+                        } catch (e: unknown) {
+                          toast.error(e instanceof Error ? e.message : "Delete failed");
+                        }
+                      })();
+                    }}
+                  >
+                    Delete
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          )}
           <Button onClick={handleSave} disabled={saving}>
             <Save className="h-4 w-4 mr-1" /> {saving ? "Saving..." : "Save"}
           </Button>
@@ -453,6 +555,19 @@ export default function CampaignDetailPage() {
           <Card>
             <CardHeader><CardTitle>Campaign Details</CardTitle></CardHeader>
             <CardContent className="space-y-4">
+              {!isNew && (
+                <div className="flex items-center justify-between rounded-md border border-border px-3 py-2">
+                  <div>
+                    <div className="text-sm font-medium">Featured</div>
+                    <div className="text-xs text-muted-foreground">Show this campaign in the featured slider</div>
+                  </div>
+                  <Switch
+                    checked={Boolean(form.featured)}
+                    disabled={!canFeature}
+                    onCheckedChange={(v) => updateBool("featured", v)}
+                  />
+                </div>
+              )}
               {isNew && (
                 <div>
                   <label className="text-sm text-muted-foreground mb-1 block">Organization</label>

@@ -1,16 +1,19 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { dbQuery, fetchCategories, fetchOrganizationFundMetrics, resolveImageUrl } from "@/lib/api";
+import { dbMutate, dbQuery, deleteAdminOrganization, fetchCategories, fetchOrganizationFundMetrics, resolveImageUrl } from "@/lib/api";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { Search, Building2, Plus, Star, ExternalLink, LayoutGrid, List, CheckCircle2, Heart, Megaphone } from "lucide-react";
+import { getCurrentRole } from "@/lib/admin-auth";
 
 interface Org {
   id: string;
@@ -43,6 +46,11 @@ export default function OrganizationsPage() {
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [viewMode, setViewMode] = useState<"table" | "card">("table");
+  const role = getCurrentRole();
+  const canDelete = role === "admin" || role === "super_admin";
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState("");
 
   const loadCategories = async () => {
     try {
@@ -112,6 +120,72 @@ export default function OrganizationsPage() {
   const handleSearch = (e: React.FormEvent) => { e.preventDefault(); load(); };
 
   const getCategoryName = (catId: string) => categories.find((c) => c.id === catId)?.name || "";
+
+  const pageIds = orgs.map((o) => o.id);
+  const selectedCount = selected.size;
+  const allPageSelected = pageIds.length > 0 && pageIds.every((id) => selected.has(id));
+  const somePageSelected = pageIds.some((id) => selected.has(id));
+  const toggleRowSelect = (id: string) =>
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  const togglePageSelect = () =>
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (allPageSelected) pageIds.forEach((id) => next.delete(id));
+      else pageIds.forEach((id) => next.add(id));
+      return next;
+    });
+
+  const bulkDeleteSelected = async () => {
+    if (!canDelete || selected.size === 0) return;
+    setBulkDeleting(true);
+    const ids = Array.from(selected);
+    try {
+      const results = await Promise.allSettled(ids.map((id) => deleteAdminOrganization(id, { force: true })));
+      const okIds: string[] = [];
+      const failed: Array<{ id: string; reason: string }> = [];
+      results.forEach((r, idx) => {
+        const id = ids[idx]!;
+        if (r.status === "fulfilled") okIds.push(id);
+        else failed.push({ id, reason: r.reason instanceof Error ? r.reason.message : "Delete failed" });
+      });
+      if (okIds.length) setOrgs((prev) => prev.filter((o) => !okIds.includes(o.id)));
+      setSelected(new Set(failed.map((f) => f.id)));
+      if (failed.length === 0) toast.success(`Deleted ${okIds.length} organization${okIds.length === 1 ? "" : "s"}`);
+      else toast.error(`Deleted ${okIds.length}. Failed ${failed.length}. First: ${failed[0]?.reason || "Unknown"} (Use Archive instead)`);
+    } finally {
+      setBulkDeleting(false);
+    }
+  };
+
+  const bulkArchiveSelected = async () => {
+    if (!canDelete || selected.size === 0) return;
+    setBulkDeleting(true);
+    const ids = Array.from(selected);
+    try {
+      const now = new Date().toISOString();
+      const results = await Promise.allSettled(
+        ids.map((id) => dbMutate("organizations", "update", { archived_at: now }, [{ column: "id", op: "eq", value: id }]))
+      );
+      const okIds: string[] = [];
+      const failed: Array<{ id: string; reason: string }> = [];
+      results.forEach((r, idx) => {
+        const id = ids[idx]!;
+        if (r.status === "fulfilled") okIds.push(id);
+        else failed.push({ id, reason: r.reason instanceof Error ? r.reason.message : "Archive failed" });
+      });
+      if (okIds.length) setOrgs((prev) => prev.filter((o) => !okIds.includes(o.id)));
+      setSelected(new Set(failed.map((f) => f.id)));
+      if (failed.length === 0) toast.success(`Archived ${okIds.length} organization${okIds.length === 1 ? "" : "s"}`);
+      else toast.error(`Archived ${okIds.length}. Failed ${failed.length}. First: ${failed[0]?.reason || "Unknown"}`);
+    } finally {
+      setBulkDeleting(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -207,6 +281,13 @@ export default function OrganizationsPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-10">
+                      <Checkbox
+                        checked={allPageSelected ? true : somePageSelected && !allPageSelected ? "indeterminate" : false}
+                        onCheckedChange={() => togglePageSelect()}
+                        aria-label="Select all on this page"
+                      />
+                    </TableHead>
                     <TableHead>Organization</TableHead>
                     <TableHead className="hidden sm:table-cell">Category</TableHead>
                     <TableHead className="hidden sm:table-cell">Goal</TableHead>
@@ -222,6 +303,13 @@ export default function OrganizationsPage() {
                     const progress = Number(org.goal) > 0 ? Math.min(100, (raised / Number(org.goal)) * 100) : 0;
                     return (
                       <TableRow key={org.id} className="cursor-pointer hover:bg-muted/50" onClick={() => navigate(`/organizations/${org.id}`)}>
+                        <TableCell onClick={(e) => e.stopPropagation()}>
+                          <Checkbox
+                            checked={selected.has(org.id)}
+                            onCheckedChange={() => toggleRowSelect(org.id)}
+                            aria-label={`Select ${org.name || org.id}`}
+                          />
+                        </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-3">
                             <div className="h-10 w-10 rounded-lg flex items-center justify-center text-white text-sm font-bold shrink-0 overflow-hidden" style={{ backgroundColor: org.image_color || "#333" }}>
@@ -272,13 +360,98 @@ export default function OrganizationsPage() {
                     );
                   })}
                   {orgs.length === 0 && (
-                    <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">No organizations found</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">No organizations found</TableCell></TableRow>
                   )}
                 </TableBody>
               </Table>
             </div>
           </CardContent>
         </Card>
+      )}
+
+      {viewMode === "table" && canDelete && selectedCount > 0 && (
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 rounded-md border border-border bg-muted/20 px-3 py-2">
+          <span className="text-sm text-muted-foreground">
+            <strong className="text-foreground">{selectedCount}</strong> selected
+          </span>
+          <div className="flex items-center gap-2">
+            <Button type="button" variant="ghost" size="sm" onClick={() => setSelected(new Set())} disabled={bulkDeleting}>
+              Clear selection
+            </Button>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button type="button" variant="outline" size="sm" disabled={bulkDeleting}>
+                  Archive selected
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Archive selected organizations?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Archived organizations are hidden from public lists but keep donation history.
+                    Type <strong>ARCHIVE</strong> to confirm.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <div className="pt-2">
+                  <Input
+                    value={bulkDeleteConfirm}
+                    onChange={(e) => setBulkDeleteConfirm(e.target.value)}
+                    placeholder='Type "ARCHIVE"'
+                    autoComplete="off"
+                  />
+                </div>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    disabled={bulkDeleteConfirm.trim().toUpperCase() !== "ARCHIVE"}
+                    onClick={() => {
+                      setBulkDeleteConfirm("");
+                      void bulkArchiveSelected();
+                    }}
+                  >
+                    Archive
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button type="button" variant="destructive" size="sm" disabled={bulkDeleting}>
+                  Delete selected
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Delete selected organizations?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This cannot be undone. Organizations with donations cannot be permanently deleted. Type <strong>DELETE</strong> to confirm.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <div className="pt-2">
+                  <Input
+                    value={bulkDeleteConfirm}
+                    onChange={(e) => setBulkDeleteConfirm(e.target.value)}
+                    placeholder='Type "DELETE"'
+                    autoComplete="off"
+                  />
+                </div>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    className="bg-destructive text-destructive-foreground"
+                    disabled={bulkDeleteConfirm.trim().toUpperCase() !== "DELETE"}
+                    onClick={() => {
+                      setBulkDeleteConfirm("");
+                      void bulkDeleteSelected();
+                    }}
+                  >
+                    Delete
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
+        </div>
       )}
     </div>
   );

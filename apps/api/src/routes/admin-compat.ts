@@ -8,6 +8,8 @@ import { env } from "../config/env.js";
 import { getStripe } from "../services/stripe.js";
 import { stripeId } from "../lib/stripe-ids.js";
 import { maybeNotifyOrgSubscriptionPlanUpgrade } from "../services/user-push.js";
+import { sendBrevoEmail } from "../services/brevo.js";
+import { optimizeUploadImage } from "../services/image-optimize.js";
 
 const TABLES = new Set([
   "organizations",
@@ -192,25 +194,143 @@ function assertSafeSelect(table: string, selectCols: string, role: string): void
 }
 
 export const adminCompatRoutes: FastifyPluginAsync = async (app) => {
-  app.post("/api/admin/login", async (request, reply) => {
-    const body = (request.body ?? {}) as { email?: string; password?: string };
-    if (!body.email || !body.password) return reply.code(400).send({ error: "email and password required" });
-
-    const user = await db.query(
-      "select id, email, role, password_hash, full_name from users where email = $1 limit 1",
-      [body.email.toLowerCase()]
-    );
-    if (!user.rowCount) return reply.code(401).send({ error: "Invalid credentials" });
-    const row = user.rows[0] as { id: string; email: string; role: string; password_hash: string };
-    const bcrypt = await import("bcryptjs");
-    const ok = await bcrypt.default.compare(body.password, row.password_hash);
-    if (!ok) return reply.code(401).send({ error: "Invalid credentials" });
-    if (!["admin", "super_admin", "manager", "staff"].includes(row.role)) {
-      return reply.code(403).send({ error: "Admin panel access required" });
+  app.post("/api/admin/auth/google/verify", async (request, reply) => {
+    const body = (request.body ?? {}) as { idToken?: string };
+    const idToken = String(body.idToken || "").trim();
+    if (!idToken) return reply.code(400).send({ error: "idToken required" });
+    if (!env.ADMIN_GOOGLE_CLIENT_ID) {
+      return reply.code(503).send({ error: "Google admin login is not configured on the server" });
     }
-    const fullName = (row as Record<string, unknown>).full_name as string | null;
+
+    const { OAuth2Client } = await import("google-auth-library");
+    const client = new OAuth2Client(env.ADMIN_GOOGLE_CLIENT_ID);
+    let payload: any;
+    try {
+      const ticket = await client.verifyIdToken({ idToken, audience: env.ADMIN_GOOGLE_CLIENT_ID });
+      payload = ticket.getPayload();
+    } catch {
+      return reply.code(401).send({ error: "Invalid Google token" });
+    }
+    const email = String(payload?.email || "").toLowerCase().trim();
+    const sub = String(payload?.sub || "").trim();
+    const name = String(payload?.name || payload?.email || "").trim();
+    if (!email || !sub) return reply.code(401).send({ error: "Invalid Google token" });
+
+    const res = await db.query(
+      "select id, email, role, full_name, disabled_at from users where lower(email) = $1 limit 1",
+      [email]
+    );
+    if (!res.rowCount) {
+      return reply.code(403).send({ error: "Email is not authorized for admin access. Unauthorized access is prohibited." });
+    }
+    const row = res.rows[0] as { id: string; email: string; role: string; full_name: string | null; disabled_at: string | null };
+    if (row.disabled_at) return reply.code(403).send({ error: "Account disabled" });
+    if (!["admin", "super_admin", "manager", "staff"].includes(row.role)) {
+      return reply.code(403).send({ error: "Email is not authorized for admin access. Unauthorized access is prohibited." });
+    }
+
+    await db.query(
+      "update users set admin_oauth_provider = 'google', admin_oauth_sub = $2, updated_at = now() where id = $1",
+      [row.id, sub]
+    );
+    if (!row.full_name && name) {
+      await db.query("update users set full_name = $2, updated_at = now() where id = $1", [row.id, name]);
+    }
+
     const token = app.jwt.sign({ role: row.role, email: row.email }, { sub: row.id, expiresIn: "12h" });
-    return { success: true, token, role: row.role, name: fullName || row.email };
+    return { success: true, token, role: row.role, name: row.full_name || name || row.email };
+  });
+
+  app.post("/api/admin/login", async (request, reply) => {
+    return reply.code(410).send({
+      error: "Password login is disabled. Use Google sign-in or Email OTP.",
+    });
+  });
+
+  app.post("/api/admin/login/otp/start", async (request, reply) => {
+    const body = (request.body ?? {}) as { email?: string };
+    const email = String(body.email || "").toLowerCase().trim();
+    const warning = "Email is not authorized for admin access. Unauthorized access is prohibited.";
+    if (!email) return reply.code(400).send({ error: "email required" });
+
+    const res = await db.query(
+      "select id, email, role, disabled_at from users where lower(email) = $1 limit 1",
+      [email]
+    );
+    if (!res.rowCount) return reply.code(403).send({ error: warning });
+    const row = res.rows[0] as { id: string; role: string; disabled_at: string | null };
+    if (row.disabled_at) return reply.code(403).send({ error: warning });
+    if (!["admin", "super_admin", "manager", "staff"].includes(row.role)) return reply.code(403).send({ error: warning });
+
+    const code = String(Math.floor(100000 + Math.random() * 900000));
+    const bcrypt = await import("bcryptjs");
+    const hash = await bcrypt.default.hash(code, 12);
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+    await db.query(
+      "update users set admin_otp_code_hash = $2, admin_otp_expires_at = $3::timestamptz, admin_otp_attempts = 0, updated_at = now() where id = $1",
+      [row.id, hash, expiresAt]
+    );
+    // send email
+    try {
+      const { emailLayout } = await import("../services/email-template.js");
+      await sendBrevoEmail({
+        to: email,
+        subject: "Your GiveBlack admin login code",
+        html: emailLayout(
+          `<h2 style=\"color:#ffffff;margin:0 0 8px 0;font-size:22px;\">Admin login code</h2>
+           <p style=\"color:#cccccc;margin:0 0 16px 0;font-size:16px;\">Use this code to sign in:</p>
+           <p style=\"font-size:28px;font-weight:800;color:#ffffff;letter-spacing:2px;margin:0 0 16px 0;\">${code}</p>
+           <p style=\"color:#999999;font-size:13px;\">This code expires in 10 minutes.</p>`
+        ),
+        tags: ["giveblack", "admin-otp"],
+      });
+    } catch (e) {
+      request.log.error({ err: e, email }, "admin otp email send failed");
+      return reply.code(500).send({ error: "Failed to send login code. Please try again." });
+    }
+    return {
+      success: true,
+      message: "A one-time code has been sent to your email.",
+    };
+  });
+
+  app.post("/api/admin/login/otp/verify", async (request, reply) => {
+    const body = (request.body ?? {}) as { email?: string; code?: string };
+    const email = String(body.email || "").toLowerCase().trim();
+    const code = String(body.code || "").trim();
+    if (!email || !code) return reply.code(400).send({ error: "email and code required" });
+
+    const res = await db.query(
+      "select id, email, role, full_name, disabled_at, admin_otp_code_hash, admin_otp_expires_at, admin_otp_attempts from users where lower(email) = $1 limit 1",
+      [email]
+    );
+    // generic error message to avoid enumeration
+    const denyMsg =
+      "Invalid or expired code. Unauthorized access is prohibited.";
+    if (!res.rowCount) return reply.code(401).send({ error: denyMsg });
+    const row = res.rows[0] as any;
+    if (row.disabled_at) return reply.code(403).send({ error: denyMsg });
+    if (!["admin", "super_admin", "manager", "staff"].includes(row.role)) return reply.code(403).send({ error: denyMsg });
+
+    const attempts = Number(row.admin_otp_attempts || 0);
+    if (attempts >= 8) return reply.code(429).send({ error: "Too many attempts. Try again later." });
+    const exp = row.admin_otp_expires_at ? new Date(row.admin_otp_expires_at).getTime() : 0;
+    if (!exp || Date.now() > exp) return reply.code(401).send({ error: denyMsg });
+    if (!row.admin_otp_code_hash) return reply.code(401).send({ error: denyMsg });
+    const bcrypt = await import("bcryptjs");
+    const ok = await bcrypt.default.compare(code, row.admin_otp_code_hash);
+    if (!ok) {
+      await db.query("update users set admin_otp_attempts = admin_otp_attempts + 1 where id = $1", [row.id]);
+      return reply.code(401).send({ error: denyMsg });
+    }
+
+    await db.query(
+      "update users set admin_otp_code_hash = null, admin_otp_expires_at = null, admin_otp_attempts = 0, updated_at = now() where id = $1",
+      [row.id]
+    );
+
+    const token = app.jwt.sign({ role: row.role, email: row.email }, { sub: row.id, expiresIn: "12h" });
+    return { success: true, token, role: row.role, name: row.full_name || row.email };
   });
 
   app.post(
@@ -260,6 +380,18 @@ export const adminCompatRoutes: FastifyPluginAsync = async (app) => {
           if (orParts.length) where.push(`(${orParts.join(" or ")})`);
         }
         const userRole = (request.user as { role?: string })?.role || "";
+        const uid = String((request.user as { sub?: string } | undefined)?.sub || "");
+        const isAdmin = ["admin", "super_admin"].includes(userRole);
+        if (!isAdmin) {
+          const { getEffectiveAdminPermissions } = await import("../services/admin-permissions.js");
+          const perms = uid ? await getEffectiveAdminPermissions(uid) : null;
+          if (table === "app_settings" && perms && !perms.canAccessSettings) {
+            return reply.code(403).send({ data: null, error: { message: "Forbidden" }, count: null });
+          }
+          if (table === "users" && perms && !perms.canManageUsers) {
+            return reply.code(403).send({ data: null, error: { message: "Forbidden" }, count: null });
+          }
+        }
         let selectCols = "*";
         if (body.select && body.select.trim().length && body.select.trim() !== "*") {
           const parts = body.select.split(",").map((s) => s.trim()).filter(Boolean);
@@ -334,10 +466,26 @@ export const adminCompatRoutes: FastifyPluginAsync = async (app) => {
         const table = assertTable(body.table);
         const userRole = (request.user as { role?: string })?.role || "";
         const isAdmin = ["admin", "super_admin"].includes(userRole);
+        const uid = String((request.user as { sub?: string } | undefined)?.sub || "");
+        const { getEffectiveAdminPermissions } = await import("../services/admin-permissions.js");
+        const perms = uid ? await getEffectiveAdminPermissions(uid) : null;
 
         const ADMIN_ONLY_TABLES = new Set(["users", "staff_accounts", "app_settings", "education_partners"]);
         if (ADMIN_ONLY_TABLES.has(table) && !isAdmin) {
           return reply.code(403).send({ data: null, error: { message: `Only admins can modify ${table}` } });
+        }
+
+        // Permission-gated tables (even for managers).
+        if (!isAdmin && perms) {
+          if (table === "app_settings" && !perms.canAccessSettings) {
+            return reply.code(403).send({ data: null, error: { message: "Forbidden" } });
+          }
+          if (table === "org_subscriptions" && !perms.canManagePayments) {
+            return reply.code(403).send({ data: null, error: { message: "Forbidden" } });
+          }
+          if (table === "users" && !perms.canManageUsers) {
+            return reply.code(403).send({ data: null, error: { message: "Forbidden" } });
+          }
         }
 
         if (table === "users") {
@@ -352,6 +500,9 @@ export const adminCompatRoutes: FastifyPluginAsync = async (app) => {
             }
           }
           if (rowData.role !== undefined) {
+            if (!isAdmin && perms && !perms.canChangeRoles) {
+              return reply.code(403).send({ data: null, error: { message: "Forbidden" } });
+            }
             if (["admin", "super_admin"].includes(String(rowData.role))) {
               return reply.code(403).send({ data: null, error: { message: "Cannot assign admin/super_admin via this endpoint" } });
             }
@@ -516,7 +667,7 @@ export const adminCompatRoutes: FastifyPluginAsync = async (app) => {
 
   app.get(
     "/api/admin/subscriptions",
-    { preHandler: [app.authenticate, app.requireRole("admin", "super_admin")] },
+    { preHandler: [app.authenticate, app.requireAdminPermission("canManagePayments")] },
     async () => {
       const result = await db.query(
         `select distinct on (s.org_id) s.*,
@@ -541,7 +692,7 @@ export const adminCompatRoutes: FastifyPluginAsync = async (app) => {
   // Admin decides when subscriptions become active/inactive. Stripe lifecycle events should not auto-expire entitlements.
   app.post(
     "/api/admin/subscriptions/:id/add",
-    { preHandler: [app.authenticate, app.requireRole("admin", "super_admin")] },
+    { preHandler: [app.authenticate, app.requireAdminPermission("canManagePayments")] },
     async (request, reply) => {
       const { id } = request.params as { id: string };
       const body = (request.body ?? {}) as { tier?: string };
@@ -573,7 +724,7 @@ export const adminCompatRoutes: FastifyPluginAsync = async (app) => {
 
   app.post(
     "/api/admin/subscriptions/:id/remove",
-    { preHandler: [app.authenticate, app.requireRole("admin", "super_admin")] },
+    { preHandler: [app.authenticate, app.requireAdminPermission("canManagePayments")] },
     async (request, reply) => {
       const { id } = request.params as { id: string };
       const subRes = await db.query(`select * from org_subscriptions where id = $1 limit 1`, [id]);
@@ -598,7 +749,7 @@ export const adminCompatRoutes: FastifyPluginAsync = async (app) => {
 
   app.post(
     "/api/admin/subscriptions/org/:orgId/add",
-    { preHandler: [app.authenticate, app.requireRole("admin", "super_admin")] },
+    { preHandler: [app.authenticate, app.requireAdminPermission("canManagePayments")] },
     async (request, reply) => {
       const { orgId } = request.params as { orgId: string };
       const body = (request.body ?? {}) as { tier?: string };
@@ -641,7 +792,7 @@ export const adminCompatRoutes: FastifyPluginAsync = async (app) => {
 
   app.post(
     "/api/admin/subscriptions/org/:orgId/remove",
-    { preHandler: [app.authenticate, app.requireRole("admin", "super_admin")] },
+    { preHandler: [app.authenticate, app.requireAdminPermission("canManagePayments")] },
     async (request, reply) => {
       const { orgId } = request.params as { orgId: string };
       const orgRes = await db.query(`select id from organizations where id = $1 limit 1`, [orgId]);
@@ -678,7 +829,7 @@ export const adminCompatRoutes: FastifyPluginAsync = async (app) => {
 
   app.post(
     "/api/admin/subscriptions/:id/cancel",
-    { preHandler: [app.authenticate, app.requireRole("admin", "super_admin")] },
+    { preHandler: [app.authenticate, app.requireAdminPermission("canManagePayments")] },
     async (request, reply) => {
       const { id } = request.params as { id: string };
       const body = (request.body ?? {}) as { immediate?: boolean };
@@ -712,7 +863,7 @@ export const adminCompatRoutes: FastifyPluginAsync = async (app) => {
 
   app.post(
     "/api/admin/subscriptions/:id/resume",
-    { preHandler: [app.authenticate, app.requireRole("admin", "super_admin")] },
+    { preHandler: [app.authenticate, app.requireAdminPermission("canManagePayments")] },
     async (request, reply) => {
       const { id } = request.params as { id: string };
       const subRes = await db.query(`select * from org_subscriptions where id = $1 limit 1`, [id]);
@@ -742,7 +893,7 @@ export const adminCompatRoutes: FastifyPluginAsync = async (app) => {
 
   app.post(
     "/api/admin/subscriptions/:id/change-tier",
-    { preHandler: [app.authenticate, app.requireRole("admin", "super_admin")] },
+    { preHandler: [app.authenticate, app.requireAdminPermission("canManagePayments")] },
     async (request, reply) => {
       const { id } = request.params as { id: string };
       const body = (request.body ?? {}) as { tier?: string };
@@ -782,7 +933,7 @@ export const adminCompatRoutes: FastifyPluginAsync = async (app) => {
 
   app.post(
     "/api/admin/subscriptions/:id/ban",
-    { preHandler: [app.authenticate, app.requireRole("admin", "super_admin")] },
+    { preHandler: [app.authenticate, app.requireAdminPermission("canManagePayments")] },
     async (request, reply) => {
       const { id } = request.params as { id: string };
       const body = (request.body ?? {}) as { cancel_now?: boolean };
@@ -1038,21 +1189,17 @@ export const adminCompatRoutes: FastifyPluginAsync = async (app) => {
 
   app.post(
     "/api/admin/staff",
-    { preHandler: [app.authenticate, app.requireRole("admin", "super_admin")] },
+    { preHandler: [app.authenticate, app.requireAdminPermission("canManageUsers")] },
     async (request, reply) => {
-      const body = (request.body ?? {}) as { email: string; name: string; password: string; role: string };
-      if (!body.email || !body.name || !body.password) {
-        return reply.code(400).send({ error: "email, name, and password are required" });
-      }
+      const body = (request.body ?? {}) as { email: string; name: string; role: string; permissions?: unknown };
+      if (!body.email || !body.name) return reply.code(400).send({ error: "email and name are required" });
       if (!["admin", "manager", "staff"].includes(body.role || "")) {
         return reply.code(400).send({ error: "role must be admin, manager, or staff" });
       }
-      const bcrypt = await import("bcryptjs");
-      const hash = await bcrypt.default.hash(body.password, 12);
       try {
         await db.query(
-          `insert into users (email, full_name, password_hash, role) values ($1, $2, $3, $4)`,
-          [body.email.toLowerCase(), body.name, hash, body.role]
+          `insert into users (email, full_name, password_hash, role, admin_permissions) values ($1, $2, null, $3, $4::jsonb)`,
+          [body.email.toLowerCase(), body.name, body.role, JSON.stringify(body.permissions ?? null)]
         );
         return { success: true };
       } catch (e: unknown) {
@@ -1065,21 +1212,16 @@ export const adminCompatRoutes: FastifyPluginAsync = async (app) => {
 
   app.put(
     "/api/admin/staff",
-    { preHandler: [app.authenticate, app.requireRole("admin", "super_admin")] },
+    { preHandler: [app.authenticate, app.requireAdminPermission("canManageUsers")] },
     async (request, reply) => {
-      const body = (request.body ?? {}) as { targetEmail: string; name?: string; email?: string; password?: string; role?: string };
+      const body = (request.body ?? {}) as { targetEmail: string; name?: string; email?: string; role?: string; permissions?: unknown };
       if (!body.targetEmail) return reply.code(400).send({ error: "targetEmail is required" });
       const sets: string[] = [];
       const values: unknown[] = [];
       if (body.name) { values.push(body.name); sets.push(`full_name = $${values.length}`); }
       if (body.email) { values.push(body.email.toLowerCase()); sets.push(`email = $${values.length}`); }
       if (body.role && ["admin", "manager", "staff"].includes(body.role)) { values.push(body.role); sets.push(`role = $${values.length}`); }
-      if (body.password) {
-        const bcrypt = await import("bcryptjs");
-        const hash = await bcrypt.default.hash(body.password, 12);
-        values.push(hash);
-        sets.push(`password_hash = $${values.length}`);
-      }
+      if (body.permissions !== undefined) { values.push(JSON.stringify(body.permissions ?? null)); sets.push(`admin_permissions = $${values.length}::jsonb`); }
       if (!sets.length) return { success: true };
       values.push(body.targetEmail.toLowerCase());
       sets.push(`updated_at = now()`);
@@ -1090,7 +1232,7 @@ export const adminCompatRoutes: FastifyPluginAsync = async (app) => {
 
   app.delete(
     "/api/admin/staff",
-    { preHandler: [app.authenticate, app.requireRole("admin", "super_admin")] },
+    { preHandler: [app.authenticate, app.requireAdminPermission("canManageUsers")] },
     async (request, reply) => {
       const email = (request.query as Record<string, string>)?.email;
       if (!email) return reply.code(400).send({ error: "email query parameter required" });
@@ -1099,6 +1241,69 @@ export const adminCompatRoutes: FastifyPluginAsync = async (app) => {
         return reply.code(400).send({ error: "Cannot delete your own account" });
       }
       await db.query(`delete from users where email = $1`, [email.toLowerCase()]);
+      return { success: true };
+    }
+  );
+
+  // ── Admin deletes (dangerous; block when donations exist) ─────────────────
+
+  app.delete(
+    "/api/admin/users/:id",
+    { preHandler: [app.authenticate, app.requireAdminPermission("canManageUsers")] },
+    async (request, reply) => {
+      const { id } = request.params as { id: string };
+      const currentUser = request.user as { sub?: string };
+      if (!id) return reply.code(400).send({ error: "id required" });
+      if (currentUser?.sub && String(currentUser.sub) === String(id)) {
+        return reply.code(400).send({ error: "Cannot delete your own account" });
+      }
+      await db.query("delete from users where id = $1", [id]);
+      return { success: true };
+    }
+  );
+
+  app.delete(
+    "/api/admin/campaigns/:id",
+    { preHandler: [app.authenticate, app.requireRole("admin", "super_admin")] },
+    async (request, reply) => {
+      const { id } = request.params as { id: string };
+      const force = String((request.query as Record<string, unknown>)?.force ?? "").toLowerCase() === "true" ||
+        String((request.query as Record<string, unknown>)?.force ?? "") === "1";
+      if (!id) return reply.code(400).send({ error: "id required" });
+      const donations = await db.query("select count(*)::int as c from donations where campaign_id = $1", [id]);
+      const c = Number((donations.rows[0] as { c?: number } | undefined)?.c ?? 0);
+      if (!force && c > 0) {
+        return reply
+          .code(409)
+          .send({ error: "Cannot permanently delete a campaign with donations. Archive/pause it instead." });
+      }
+      await db.query("delete from campaigns where id = $1", [id]);
+      return { success: true };
+    }
+  );
+
+  app.delete(
+    "/api/admin/organizations/:id",
+    { preHandler: [app.authenticate, app.requireRole("admin", "super_admin")] },
+    async (request, reply) => {
+      const { id } = request.params as { id: string };
+      const force = String((request.query as Record<string, unknown>)?.force ?? "").toLowerCase() === "true" ||
+        String((request.query as Record<string, unknown>)?.force ?? "") === "1";
+      if (!id) return reply.code(400).send({ error: "id required" });
+      const donations = await db.query(
+        `select count(*)::int as c
+         from donations d
+         left join campaigns c on c.id = d.campaign_id
+         where d.org_id = $1 or c.organization_id = $1`,
+        [id]
+      );
+      const c = Number((donations.rows[0] as { c?: number } | undefined)?.c ?? 0);
+      if (!force && c > 0) {
+        return reply
+          .code(409)
+          .send({ error: "Cannot permanently delete an organization with donations. Archive it instead." });
+      }
+      await db.query("delete from organizations where id = $1", [id]);
       return { success: true };
     }
   );
@@ -1578,10 +1783,20 @@ export const adminCompatRoutes: FastifyPluginAsync = async (app) => {
 
       const targetDir = path.resolve(process.cwd(), "uploads", safeFolder);
       await fs.mkdir(targetDir, { recursive: true });
-      const targetFile = path.join(targetDir, fileName);
       const buffer = await file.toBuffer();
-      await fs.writeFile(targetFile, buffer);
-      const storedPath = `${safeFolder}/${fileName}`;
+      let optimized: { buffer: Buffer; ext: ".jpg" };
+      try {
+        optimized = await optimizeUploadImage(buffer, { maxSidePx: 1600, jpegQuality: 86 });
+      } catch (e) {
+        request.log.error({ err: e }, "admin storage image optimize failed");
+        return reply.code(400).send({ error: { message: "Unsupported image format. Please upload JPEG or PNG." } });
+      }
+
+      // Normalize extension to match actual bytes (JPEG).
+      const normalizedName = `${path.parse(fileName).name}.jpg`;
+      const targetFile = path.join(targetDir, normalizedName);
+      await fs.writeFile(targetFile, optimized.buffer);
+      const storedPath = `${safeFolder}/${normalizedName}`;
       const publicUrl = `/uploads/${storedPath}`;
       return {
         data: { path: storedPath, publicUrl },

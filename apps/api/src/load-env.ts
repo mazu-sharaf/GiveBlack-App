@@ -18,11 +18,12 @@ const candidates = [
 let loaded = false;
 for (const p of candidates) {
   if (existsSync(p)) {
-    dotenv.config({ path: p });
+    // Override PM2/systemd inherited env so edits in `.env` take effect after restart.
+    dotenv.config({ path: p, override: true });
     loaded = true;
     break;
   }
 }
 if (!loaded) {
-  dotenv.config();
+  dotenv.config({ override: true });
 }

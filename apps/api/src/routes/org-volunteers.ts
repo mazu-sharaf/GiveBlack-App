@@ -22,7 +22,7 @@ export const orgVolunteerRoutes: FastifyPluginAsync = async (app) => {
       if (!org) return reply.code(403).send({ error: "No organization linked to your account" });
 
       const result = await db.query(
-        `select id, org_id, name, email, phone, skills, message, status, created_at
+        `select id, org_id, campaign_id, name, email, phone, skills, message, status, created_at
          from volunteers
          where org_id = $1
          order by created_at desc`,

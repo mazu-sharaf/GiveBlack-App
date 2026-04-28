@@ -123,7 +123,10 @@ export default function HomeScreen() {
     if (!search.trim()) return campaigns;
     return campaigns.filter((c) => (c.title || "").toLowerCase().includes(search.toLowerCase()));
   }, [campaigns, search]);
-  const featuredCampaigns = filteredCampaigns.slice(0, 4);
+  const featuredCampaigns = React.useMemo(
+    () => filteredCampaigns.filter((c: any) => Boolean(c?.featured)).slice(0, 8),
+    [filteredCampaigns]
+  );
   const latest = filteredCampaigns.slice(0, 6);
 
   const bottomPad = insets.bottom;
@@ -237,22 +240,32 @@ export default function HomeScreen() {
         {/* Wallet/top-up card removed per latest design */}
 
         <View style={styles.sectionHeader}>
-          <Text style={[styles.sectionTitle, { color: c.text }]}>Feature Campaign</Text>
-          <Pressable onPress={() => router.push("/all-campaigns")}>
-            <Text style={[styles.seeAll, { color: c.green }]}>See all</Text>
+          <Text style={[styles.sectionTitle, { color: c.text }]}>Featured Campaigns</Text>
+          <Pressable onPress={() => router.push("/all-campaigns?featured=1")}>
+            <Text style={[styles.seeAll, { color: c.green }]}>More featured</Text>
           </Pressable>
         </View>
-        <Animated.ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.featuredRow}
-          decelerationRate="fast"
-          snapToInterval={CARD_WIDTH + 16}
-        >
-          {featuredCampaigns.map((camp, i) => {
-            return renderCampaignCard(camp, i);
-          })}
-        </Animated.ScrollView>
+        {featuredCampaigns.length === 0 ? (
+          <View style={[styles.emptyState, { backgroundColor: c.cardBg }]}>
+            <Ionicons name="star-outline" size={34} color={c.textMuted} />
+            <Text style={[styles.emptyStateTitle, { color: c.text }]}>No featured campaigns yet</Text>
+            <Text style={[styles.emptyStateDesc, { color: c.textMuted }]}>
+              Featured campaigns are selected by admins.
+            </Text>
+          </View>
+        ) : (
+          <Animated.ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.featuredRow}
+            decelerationRate="fast"
+            snapToInterval={CARD_WIDTH + 16}
+          >
+            {featuredCampaigns.map((camp, i) => {
+              return renderCampaignCard(camp, i);
+            })}
+          </Animated.ScrollView>
+        )}
 
         <View style={styles.sectionHeader}>
           <Text style={[styles.sectionTitle, { color: c.text }]}>Categories</Text>

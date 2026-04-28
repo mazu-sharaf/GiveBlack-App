@@ -33,6 +33,7 @@ declare module "fastify" {
   interface FastifyInstance {
     authenticate: (request: any, reply: any) => Promise<void>;
     requireRole: (...roles: string[]) => (request: any, reply: any) => Promise<void>;
+    requireAdminPermission: (perm: import("./services/admin-permissions.js").AdminPermissionKey) => (request: any, reply: any) => Promise<void>;
   }
 }
 
@@ -62,6 +63,10 @@ export function buildServer() {
             directives: {
               // Default is img-src 'self' data:; campaign pages embed org-hosted hero/gallery URLs.
               imgSrc: ["'self'", "data:", "https:", "blob:"],
+              // Admin Google sign-in requires loading Google Identity Services script + iframe.
+              scriptSrc: ["'self'", "https://accounts.google.com"],
+              frameSrc: ["'self'", "https://accounts.google.com"],
+              connectSrc: ["'self'", "https://accounts.google.com", "https://www.googleapis.com"],
             },
           },
     crossOriginEmbedderPolicy: false,
@@ -85,6 +90,18 @@ export function buildServer() {
     });
   }
 
+  // Static assets served by the API (shared by admin + mobile).
+  // Includes donor placeholder headshots at `/assets/donors/*`.
+  app.register(fastifyStatic, {
+    root: path.resolve(process.cwd(), "apps/api/assets"),
+    prefix: "/assets/",
+    decorateReply: false,
+    wildcard: true,
+    setHeaders(res) {
+      res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+    },
+  });
+
   app.decorate("authenticate", async (request: any, reply: any) => {
     try {
       await request.jwtVerify();
@@ -99,6 +116,20 @@ export function buildServer() {
       if (!role || !roles.includes(role)) {
         return reply.code(403).send({ error: "Forbidden" });
       }
+    };
+  });
+
+  app.decorate("requireAdminPermission", (perm) => {
+    return async (request: any, reply: any) => {
+      const role = request.user?.role;
+      if (!role || !["admin", "super_admin", "manager", "staff"].includes(role)) {
+        return reply.code(403).send({ error: "Forbidden" });
+      }
+      const uid = String(request.user?.sub || "");
+      if (!uid) return reply.code(403).send({ error: "Forbidden" });
+      const { getEffectiveAdminPermissions } = await import("./services/admin-permissions.js");
+      const perms = await getEffectiveAdminPermissions(uid);
+      if (!perms[perm]) return reply.code(403).send({ error: "Forbidden" });
     };
   });
 
@@ -197,8 +228,8 @@ export function buildServer() {
   if (env.NODE_ENV === "development") {
     app.register(httpProxy, {
       upstream: `http://127.0.0.1:${adminPort}`,
-      prefix: "/admin",
-      rewritePrefix: "/admin",
+      prefix: "/backoffice",
+      rewritePrefix: "/backoffice",
       websocket: false,
     });
   } else {
@@ -211,13 +242,15 @@ export function buildServer() {
     // route for /admin/*: it would return index.html for JS/CSS and break the app (blank white page).
     app.register(fastifyStatic, {
       root: adminSpaRoot,
-      prefix: "/admin/",
+      prefix: "/backoffice/",
       decorateReply: false,
       wildcard: true,
     });
-    app.get("/admin", async (_req, reply) => {
-      return reply.redirect("/admin/");
+    app.get("/backoffice", async (_req, reply) => {
+      return reply.redirect("/backoffice/");
     });
+    // Hide legacy /admin path.
+    app.get("/admin", async (_req, reply) => reply.code(404).send({ error: "Not Found" }));
   }
 
   app.get("/api/system/features", async () => {
@@ -260,12 +293,12 @@ export function buildServer() {
         return reply.code(502).send({ error: "Expo dev server not ready" });
       }
     }
-    // React Router: serve index.html for non-asset paths under /admin/ (production only).
+    // React Router: serve index.html for non-asset paths under /backoffice/ (production only).
     if (
       adminSpaRoot &&
-      request.method === "GET" &&
-      request.url.startsWith("/admin/") &&
-      !request.url.startsWith("/admin/assets/")
+      (request.method === "GET" || request.method === "HEAD") &&
+      request.url.startsWith("/backoffice/") &&
+      !request.url.startsWith("/backoffice/assets/")
     ) {
       return reply.sendFile("index.html", adminSpaRoot);
     }

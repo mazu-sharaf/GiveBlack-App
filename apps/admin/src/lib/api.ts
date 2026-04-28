@@ -79,12 +79,19 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   if (res.status === 401) {
     setApiToken(null);
     localStorage.removeItem("gb_admin_auth");
-    window.location.href = "/admin/login";
+    window.location.href = "/backoffice/login";
     throw new Error("Session expired. Please log in again.");
   }
   if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error((err as Record<string, string>).error || res.statusText);
+    const err = (await res.json().catch(() => ({}))) as unknown;
+    const e = err as Record<string, unknown>;
+    const raw =
+      (typeof e.error === "string" && e.error) ||
+      (typeof e.message === "string" && e.message) ||
+      (typeof e.error === "object" && e.error && typeof (e.error as any).message === "string" && (e.error as any).message) ||
+      (typeof (e as any).error?.details === "string" && (e as any).error.details) ||
+      "";
+    throw new Error(raw || res.statusText);
   }
   return res.json();
 }
@@ -108,6 +115,8 @@ export async function loginViaApi(email: string, password: string) {
         error?: string;
         success?: boolean;
         token?: string;
+        twoFactorRequired?: boolean;
+        tempToken?: string;
         role?: string;
         name?: string;
       })
@@ -115,6 +124,8 @@ export async function loginViaApi(email: string, password: string) {
     error?: string;
     success?: boolean;
     token?: string;
+    twoFactorRequired?: boolean;
+    tempToken?: string;
     role?: string;
     name?: string;
   };
@@ -132,10 +143,41 @@ export async function loginViaApi(email: string, password: string) {
     throw new Error(body.error || "Login failed. Please try again.");
   }
 
-  if (!body.success || !body.token) throw new Error("Login failed. Please try again.");
+  if (!body.success) throw new Error("Login failed. Please try again.");
 
+  if (body.twoFactorRequired) {
+    if (!body.tempToken) throw new Error("2FA challenge missing. Please try again.");
+    return { twoFactorRequired: true as const, tempToken: body.tempToken, role: body.role || "admin", name: body.name || email };
+  }
+
+  if (!body.token) throw new Error("Login failed. Please try again.");
   setApiToken(body.token);
   return { token: body.token, role: body.role || "admin", name: body.name || email };
+}
+
+export async function startAdminEmailOtp(email: string): Promise<{ success: boolean; message?: string }> {
+  return request<{ success: boolean; message?: string }>("/api/admin/login/otp/start", {
+    method: "POST",
+    body: JSON.stringify({ email }),
+  });
+}
+
+export async function verifyAdminEmailOtp(email: string, code: string) {
+  const res = await request<{ success: boolean; token: string; role: string; name: string }>("/api/admin/login/otp/verify", {
+    method: "POST",
+    body: JSON.stringify({ email, code }),
+  });
+  if (res.token) setApiToken(res.token);
+  return res;
+}
+
+export async function verifyGoogleAdmin(idToken: string) {
+  const res = await request<{ success: boolean; token: string; role: string; name: string }>("/api/admin/auth/google/verify", {
+    method: "POST",
+    body: JSON.stringify({ idToken }),
+  });
+  if (res.token) setApiToken(res.token);
+  return res;
 }
 
 export interface QueryOptions {
@@ -524,11 +566,14 @@ export async function deleteCategory(id: string) {
   });
 }
 
-export async function createStaff(body: { email: string; name: string; password: string; role: string }) {
+export async function createStaff(body: { email: string; name: string; role: string; permissions?: Record<string, boolean> | null }) {
   return request<{ success: boolean }>("/api/admin/staff", { method: "POST", body: JSON.stringify(body) });
 }
 
-export async function updateStaff(targetEmail: string, body: { name?: string; email?: string; password?: string; role?: string }) {
+export async function updateStaff(
+  targetEmail: string,
+  body: { name?: string; email?: string; role?: string; permissions?: Record<string, boolean> | null }
+) {
   return request<{ success: boolean }>("/api/admin/staff", {
     method: "PUT",
     body: JSON.stringify({ targetEmail, ...body }),
@@ -537,6 +582,20 @@ export async function updateStaff(targetEmail: string, body: { name?: string; em
 
 export async function deleteStaff(email: string) {
   return request<{ success: boolean }>(`/api/admin/staff?email=${encodeURIComponent(email)}`, { method: "DELETE" });
+}
+
+export async function deleteAdminUser(userId: string) {
+  return request<{ success: boolean }>(`/api/admin/users/${encodeURIComponent(userId)}`, { method: "DELETE" });
+}
+
+export async function deleteAdminCampaign(campaignId: string, opts?: { force?: boolean }) {
+  const qs = opts?.force ? "?force=1" : "";
+  return request<{ success: boolean }>(`/api/admin/campaigns/${encodeURIComponent(campaignId)}${qs}`, { method: "DELETE" });
+}
+
+export async function deleteAdminOrganization(orgId: string, opts?: { force?: boolean }) {
+  const qs = opts?.force ? "?force=1" : "";
+  return request<{ success: boolean }>(`/api/admin/organizations/${encodeURIComponent(orgId)}${qs}`, { method: "DELETE" });
 }
 
 export async function approveCharityRequest(id: string, notes: string) {

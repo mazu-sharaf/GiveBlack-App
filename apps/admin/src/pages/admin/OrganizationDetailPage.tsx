@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { dbQuery, dbQuerySingle, dbMutate, fetchCategories, resolveImageUrl, uploadFile } from "@/lib/api";
+import { dbQuery, dbQuerySingle, dbMutate, fetchCategories, resolveImageUrl, uploadFile, deleteAdminOrganization } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -161,7 +161,7 @@ export default function OrganizationDetailPage() {
 
   const handleDelete = async () => {
     try {
-      await dbMutate("organizations", "delete", {}, [{ column: "id", op: "eq", value: form.id }]);
+      await deleteAdminOrganization(form.id, { force: true });
       toast.success("Organization deleted");
       navigate("/organizations");
     } catch (err: unknown) {

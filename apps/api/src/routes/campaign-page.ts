@@ -39,6 +39,9 @@ export const campaignPageRoutes: FastifyPluginAsync = async (app) => {
   app.get("/c/:campaignId/thank-you", async (request, reply) => {
     const { campaignId } = request.params as { campaignId: string };
     const q = request.query as { session_id?: string };
+    const proto = (request.headers["x-forwarded-proto"] as string) || request.protocol || "https";
+    const host = (request.headers["x-forwarded-host"] as string) || request.hostname;
+    const baseUrl = `${proto}://${host}`;
 
     const campRes = await db.query(
       `SELECT c.title, o.name as org_name FROM campaigns c JOIN organizations o ON c.organization_id = o.id WHERE c.id = $1`,
@@ -51,6 +54,7 @@ export const campaignPageRoutes: FastifyPluginAsync = async (app) => {
     let donorName = "Donor";
     let isAnonymous = false;
     let reference = "";
+    let donationId = "";
     let donorEmailHint: string | null = null;
 
     if (q.session_id) {
@@ -82,6 +86,7 @@ export const campaignPageRoutes: FastifyPluginAsync = async (app) => {
             donorName = d.is_anonymous ? "Anonymous" : (d.donor_name || "Donor");
             isAnonymous = d.is_anonymous;
             reference = String(d.id).substring(0, 8).toUpperCase();
+            donationId = String(d.id || "");
             donorEmailHint = d.is_anonymous ? null : d.donor_email || null;
           }
         }
@@ -102,6 +107,8 @@ export const campaignPageRoutes: FastifyPluginAsync = async (app) => {
           donorName,
           isAnonymous,
           reference,
+          donationId,
+          baseUrl,
           campaignId,
           donorEmailHint,
           appleUrl,
@@ -426,6 +433,8 @@ function thankYouPage(
   donorName: string,
   isAnonymous: boolean,
   reference: string,
+  donationId: string,
+  baseUrl: string,
   campaignId: string,
   donorEmailHint: string | null,
   appleUrl: string,
@@ -434,6 +443,8 @@ function thankYouPage(
 ) {
   const amtStr = amount.toLocaleString("en-US", { style: "currency", currency: currency.toUpperCase() });
   const today = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+  const receiptUrl = donationId ? `/c/receipt-pdf?donationId=${encodeURIComponent(donationId)}` : "";
+  const receiptAbs = receiptUrl ? `${baseUrl.replace(/\/$/, "")}${receiptUrl}` : "";
   const accountBlock =
     !isAnonymous && donorEmailHint
       ? `<div class="account-hint">
@@ -487,6 +498,16 @@ ${thankYouStyles()}
         <div class="receipt-row"><span>Date</span><span>${today}</span></div>
         ${reference ? `<div class="receipt-row"><span>Reference</span><span style="font-family:monospace">${reference}</span></div>` : ""}
       </div>
+
+      ${receiptUrl ? `<div class="receipt-actions">
+        <a class="btn-primary" href="${receiptUrl}" download>Download receipt (PDF)</a>
+        <a class="btn-secondary-outline" href="${receiptUrl}" target="_blank" rel="noopener">Open receipt</a>
+        <div class="receipt-link-wrap">
+          <div class="receipt-link-label">Receipt link</div>
+          <input class="receipt-link" readonly value="${escHtml(receiptAbs)}" />
+          <div class="copy-hint">Tip: copy this link to share the receipt.</div>
+        </div>
+      </div>` : ""}
     </div>
 
     <div class="app-section">
@@ -565,6 +586,13 @@ function thankYouStyles() {
 .receipt-row:last-child{border-bottom:none;}
 .receipt-row span:first-child{color:#6b7280;}
 .receipt-row span:last-child{font-weight:600;color:#111;}
+.receipt-actions{display:flex;flex-direction:column;gap:10px;margin-top:16px;}
+.btn-secondary-outline{display:block;width:100%;padding:14px 16px;background:#fff;color:#111;border:1px solid #e5e7eb;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;transition:background 0.2s;}
+.btn-secondary-outline:hover{background:#f9fafb;}
+.copy-hint{min-height:18px;font-size:12px;color:#6b7280;text-align:center;}
+.receipt-link-wrap{border:1px solid #e5e7eb;border-radius:12px;padding:12px;background:#fff;}
+.receipt-link-label{font-size:12px;color:#6b7280;margin-bottom:6px;font-weight:600;}
+.receipt-link{width:100%;padding:10px 12px;border-radius:10px;border:1px solid #f3f4f6;background:#f9fafb;color:#111;font-size:12px;outline:none;}
 .app-section{padding:0 24px 24px;text-align:center;}
 .app-icon{width:56px;height:56px;background:#f0fdf4;border-radius:14px;display:flex;align-items:center;justify-content:center;margin:0 auto 12px;}
 .app-section h2{font-size:18px;font-weight:700;margin-bottom:6px;}
@@ -585,5 +613,10 @@ function thankYouStyles() {
 .claim-note{font-size:12px!important;color:#9ca3af!important;}
 .btn-secondary{display:inline-block;margin-top:8px;padding:10px 18px;background:#fff;color:#059669;border:2px solid #059669;border-radius:10px;font-size:14px;font-weight:600;text-decoration:none;}
 .btn-secondary:hover{background:#f0fdf4;}
+
+/* Keep buttons tappable on narrow screens */
+@media (max-width: 420px){
+  .btn-primary,.btn-secondary-outline{padding:14px 14px;}
+}
 `;
 }

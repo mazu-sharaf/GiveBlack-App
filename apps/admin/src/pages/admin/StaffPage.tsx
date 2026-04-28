@@ -22,18 +22,28 @@ const ROLE_COLORS: Record<string, string> = {
 };
 
 export default function StaffPage() {
-  interface StaffMember { id: string; email: string; full_name: string; role: string; created_at: string }
+  interface StaffMember { id: string; email: string; full_name: string; role: string; created_at: string; admin_permissions?: any }
   const [staffList, setStaffList] = useState<StaffMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editItem, setEditItem] = useState<StaffMember | null>(null);
-  const [form, setForm] = useState({ name: "", email: "", password: "", role: "staff" });
+  const [form, setForm] = useState({
+    name: "",
+    email: "",
+    role: "staff",
+    permissions: {
+      canManageUsers: false,
+      canChangeRoles: false,
+      canAccessSettings: false,
+      canManagePayments: false,
+    },
+  });
 
   const load = async () => {
     setLoading(true);
     try {
       const res = await dbQuery("users", {
-        select: "id, email, full_name, role, created_at",
+        select: "id, email, full_name, role, created_at, admin_permissions",
         filters: [],
         order: { column: "created_at", ascending: false },
         limit: 200,
@@ -51,29 +61,47 @@ export default function StaffPage() {
 
   const openCreate = () => {
     setEditItem(null);
-    setForm({ name: "", email: "", password: "", role: "staff" });
+    setForm({
+      name: "",
+      email: "",
+      role: "staff",
+      permissions: { canManageUsers: false, canChangeRoles: false, canAccessSettings: false, canManagePayments: false },
+    });
     setDialogOpen(true);
   };
 
   const openEdit = (item: Record<string, unknown>) => {
     setEditItem(item);
-    setForm({ name: String(item.full_name || ""), email: String(item.email || ""), password: "", role: String(item.role || "staff") });
+    const perms = (item as any).admin_permissions || {};
+    setForm({
+      name: String(item.full_name || ""),
+      email: String(item.email || ""),
+      role: String(item.role || "staff"),
+      permissions: {
+        canManageUsers: Boolean(perms.canManageUsers),
+        canChangeRoles: Boolean(perms.canChangeRoles),
+        canAccessSettings: Boolean(perms.canAccessSettings),
+        canManagePayments: Boolean(perms.canManagePayments),
+      },
+    });
     setDialogOpen(true);
   };
 
   const handleSave = async () => {
     try {
       if (editItem) {
-        const body: { name: string; role: string; password?: string } = { name: form.name, role: form.role };
-        if (form.password) body.password = form.password;
-        await updateStaff(String(editItem.email), body);
+        await updateStaff(String(editItem.email), {
+          name: form.name,
+          role: form.role,
+          permissions: form.permissions,
+        });
         toast.success("Staff updated");
       } else {
-        if (!form.email || !form.name || !form.password) {
-          toast.error("All fields are required for new staff");
+        if (!form.email || !form.name) {
+          toast.error("Name and email are required");
           return;
         }
-        await createStaff({ email: form.email, name: form.name, password: form.password, role: form.role });
+        await createStaff({ email: form.email, name: form.name, role: form.role, permissions: form.permissions });
         toast.success("Staff created");
       }
       setDialogOpen(false);
@@ -183,10 +211,6 @@ export default function StaffPage() {
               <Input type="email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} disabled={!!editItem} />
             </div>
             <div className="space-y-2">
-              <Label>{editItem ? "New Password (leave blank to keep)" : "Password"}</Label>
-              <Input type="password" value={form.password} onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))} />
-            </div>
-            <div className="space-y-2">
               <Label>Role</Label>
               <Select value={form.role} onValueChange={(v) => setForm((f) => ({ ...f, role: v }))}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
@@ -196,6 +220,30 @@ export default function StaffPage() {
                   <SelectItem value="staff">Staff</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Permissions (overrides)</Label>
+              <div className="grid grid-cols-1 gap-2 text-sm">
+                {(
+                  [
+                    ["canManageUsers", "Manage users / staff allowlist"],
+                    ["canChangeRoles", "Change roles"],
+                    ["canAccessSettings", "Access platform settings"],
+                    ["canManagePayments", "Manage payments/subscriptions"],
+                  ] as const
+                ).map(([k, label]) => (
+                  <label key={k} className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={Boolean((form.permissions as any)[k])}
+                      onChange={(e) =>
+                        setForm((f) => ({ ...f, permissions: { ...f.permissions, [k]: e.target.checked } }))
+                      }
+                    />
+                    <span className="text-muted-foreground">{label}</span>
+                  </label>
+                ))}
+              </div>
             </div>
           </div>
           <DialogFooter>

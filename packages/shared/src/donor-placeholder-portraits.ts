@@ -1,59 +1,42 @@
 /**
- * Curated portrait URLs (Unsplash + Pexels) depicting Black people, for GiveBlack
- * donor placeholders when no `avatar_url` is stored. Licenses permit this use.
- * Index is deterministic from user id + name (see hash below).
+ * Placeholder portrait URLs depicting Black people, for GiveBlack donors when no `avatar_url` is stored.
+ *
+ * We prefer a controlled, consistent set to avoid showing non-Black placeholders in the UI.
+ * The API serves local portraits at `/assets/donors/*` (see `apps/api/src/server.ts`).
  */
+
+const local = (filename: string) => `/assets/donors/${filename}`;
 
 const pexels = (id: number) =>
   `https://images.pexels.com/photos/${id}/pexels-photo-${id}.jpeg?auto=compress&cs=tinysrgb&w=256&h=256&fit=crop`;
 
-const unsplash = (photoSlug: string) =>
-  `https://images.unsplash.com/photo-${photoSlug}?auto=format&w=256&h=256&fit=crop&crop=faces&q=80`;
-
-/** Women / femme-presenting portraits */
+/** Women / femme-presenting portraits (Black headshots) */
 export const DONOR_PLACEHOLDER_PORTRAITS_WOMEN: readonly string[] = [
-  unsplash("1531123897727-8f129e1688ce"),
-  unsplash("1531384441138-2736e62e0919"),
-  unsplash("1594744803329-e58b31de8bf5"),
-  unsplash("1573496359142-b8d87734a5a2"),
-  unsplash("1607746882042-944635dfe10e"),
-  unsplash("1619895862022-09114b41f16f"),
-  pexels(2379004),
-  pexels(1181690),
-  pexels(1181686),
-  pexels(3771089),
-  pexels(3785079),
-  pexels(3785077),
-  pexels(3785078),
-  pexels(3783255),
-  pexels(3783200),
-  pexels(3783201),
-  pexels(3783202),
-  pexels(3783203),
-  pexels(3783204),
+  pexels(1181360),
+  pexels(1181498),
+  pexels(1181414),
+  pexels(1181605),
+  pexels(1405774),
+  pexels(2014775),
+  pexels(2876486),
+  pexels(4262424),
+  pexels(1667849),
+  pexels(1128316),
 ];
 
-/** Men / masc-presenting portraits */
+/** Men / masc-presenting portraits (Black headshots) */
 export const DONOR_PLACEHOLDER_PORTRAITS_MEN: readonly string[] = [
-  unsplash("1507003211169-0a1dd7228f2d"),
-  unsplash("1506794778202-cad84cf45f1d"),
-  unsplash("1560250097-0b93528c311a"),
-  unsplash("1544723795-3fb6469f5b39"),
+  // User-provided headshot (served by API).
+  local("david-hughes.png"),
+  pexels(936048),
+  pexels(1820919),
+  pexels(871495),
+  pexels(167964),
   pexels(2182970),
   pexels(1043471),
-  pexels(1043474),
   pexels(1043473),
   pexels(7717425),
-  pexels(7717025),
   pexels(5387290),
-  pexels(5387285),
-  pexels(5387295),
-  pexels(5387310),
-  pexels(5387312),
-  pexels(5387315),
-  pexels(5387330),
-  pexels(5387332),
-  pexels(5387335),
 ];
 
 const FEMALE_FIRST = new Set(
@@ -114,12 +97,16 @@ export function defaultDonorPlaceholderPortraitUrl(
   firstNameRaw: string,
   lastNameRaw?: string | null
 ): string {
+  const first = normalizeFirstToken(firstNameRaw);
+  const last = normalizeLastToken(lastNameRaw);
+  // Explicit override for the requested name → provided headshot.
+  if (first === "david" && last === "hughes") return local("david-hughes.png");
+
   const folder = inferPortraitFolder(firstNameRaw, userId);
   const pool = folder === "women" ? DONOR_PLACEHOLDER_PORTRAITS_WOMEN : DONOR_PLACEHOLDER_PORTRAITS_MEN;
   const seed = donorPlaceholderImageSeed(userId, firstNameRaw);
-  const last = normalizeLastToken(lastNameRaw);
   const idx =
-    fnv1a32(`${userId}|${normalizeFirstToken(firstNameRaw)}|${last}|${folder}|${seed}`) % pool.length;
+    fnv1a32(`${userId}|${first}|${last}|${folder}|${seed}`) % pool.length;
   return pool[idx] ?? pool[0]!;
 }
 

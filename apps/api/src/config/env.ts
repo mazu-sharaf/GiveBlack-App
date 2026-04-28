@@ -42,7 +42,16 @@ const schema = z.object({
   /** Comma-separated Google OAuth client IDs (Web, iOS, Android) for id_token audience checks */
   GOOGLE_OAUTH_CLIENT_IDS: z.string().optional(),
   /** Sign in with Apple: usually the iOS bundle id (e.g. com.giveblack.app) */
-  APPLE_CLIENT_ID: z.string().optional()
+  APPLE_CLIENT_ID: z.string().optional(),
+
+  /**
+   * Admin 2FA encryption key (base64). Required to enable TOTP 2FA at rest.
+   * Generate: `openssl rand -base64 32`
+   */
+  ADMIN_2FA_ENCRYPTION_KEY: z.string().optional(),
+
+  /** Google OAuth client id for Admin web login (Google Identity Services). */
+  ADMIN_GOOGLE_CLIENT_ID: z.string().optional(),
 });
 
 const parsed = schema.safeParse(process.env);

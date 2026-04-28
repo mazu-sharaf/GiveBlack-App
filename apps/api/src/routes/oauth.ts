@@ -188,9 +188,20 @@ async function findOrCreateOAuthDonor(
 
 export const oauthRoutes: FastifyPluginAsync = async (app) => {
   app.post("/api/auth/oauth/google", async (request, reply) => {
-    const audiences = env.GOOGLE_OAUTH_CLIENT_IDS?.split(",")
-      .map((s) => s.trim())
-      .filter(Boolean);
+    // IMPORTANT: use process.env for Expo public keys — the Zod env parser intentionally drops unknown keys.
+    const audiences = Array.from(
+      new Set(
+        [
+          ...(process.env.GOOGLE_OAUTH_CLIENT_IDS?.split(",") ?? []),
+          process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
+          process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
+          process.env.ADMIN_GOOGLE_CLIENT_ID,
+        ]
+          .flatMap((v) => (v ? String(v).split(",") : []))
+          .map((s) => s.trim())
+          .filter(Boolean)
+      )
+    );
     if (!audiences?.length) {
       return reply.code(503).send({ error: "Google sign-in is not configured on the server." });
     }
@@ -215,7 +226,21 @@ export const oauthRoutes: FastifyPluginAsync = async (app) => {
       const avatarUrl = clientPicture || tokenPicture;
       return findOrCreateOAuthDonor(app, request, reply, "google", payload.sub, email, name, avatarUrl);
     } catch (e: unknown) {
-      app.log.error({ err: e }, "google oauth verify failed");
+      // Log token audience for debugging (do not trust this without signature verification).
+      try {
+        const token = (request.body as any)?.idToken;
+        if (typeof token === "string" && token.includes(".")) {
+          const [, payloadB64] = token.split(".");
+          const json = Buffer.from(payloadB64.replace(/-/g, "+").replace(/_/g, "/"), "base64").toString("utf8");
+          const payload = JSON.parse(json) as { aud?: string | string[]; iss?: string; exp?: number; email?: string };
+          const aud = Array.isArray(payload.aud) ? payload.aud[0] : payload.aud;
+          app.log.error({ err: e, aud, iss: payload.iss, exp: payload.exp, email: payload.email, audiences }, "google oauth verify failed");
+        } else {
+          app.log.error({ err: e, audiences }, "google oauth verify failed");
+        }
+      } catch {
+        app.log.error({ err: e, audiences }, "google oauth verify failed");
+      }
       return reply.code(401).send({ error: "Invalid or expired Google token" });
     }
   });

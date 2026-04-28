@@ -42,6 +42,7 @@ export interface Campaign {
   about?: string;
   mainImageUrl?: string;
   location?: string;
+  featured?: boolean;
   goal: number;
   raised: number;
   donorCount: number;
@@ -179,6 +180,7 @@ function normalizeCampaign(raw: Record<string, unknown>): Campaign {
     description: raw.description != null ? String(raw.description) : undefined,
     story: raw.story != null ? String(raw.story) : undefined,
     about: raw.about != null ? String(raw.about) : undefined,
+    featured: Boolean(raw.featured),
     mainImageUrl: resolveImg(raw.main_image_url),
     location: raw.location != null ? String(raw.location) : undefined,
     goal: Number(raw.goal ?? 0),
