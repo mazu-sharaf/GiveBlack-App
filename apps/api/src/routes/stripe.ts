@@ -1228,9 +1228,35 @@ export const stripeRoutes: FastifyPluginAsync = async (app) => {
 
     await upsertOrgSubscriptionFromStripe(stripeSubscription as Record<string, unknown>, body.org_id);
 
-    const invoice = stripeSubscription.latest_invoice as Record<string, unknown> | undefined;
-    const paymentIntent = (invoice?.payment_intent ?? null) as Record<string, unknown> | null;
-    const clientSecret = (paymentIntent?.client_secret as string | undefined) || null;
+    // Stripe may return a latest invoice without a PaymentIntent when the invoice isn't finalized yet
+    // (observed with payment_behavior=default_incomplete). Finalize to ensure a PaymentIntent exists.
+    let invoice = stripeSubscription.latest_invoice as unknown;
+    let clientSecret: string | null = null;
+    try {
+      const invId =
+        typeof invoice === "string"
+          ? invoice
+          : invoice && typeof invoice === "object" && invoice !== null && "id" in invoice
+            ? String((invoice as { id?: string }).id || "")
+            : "";
+
+      const paymentIntentFromInvoice = (inv: any): any => inv?.payment_intent ?? null;
+
+      if (invId) {
+        const invObj = await stripe.invoices.retrieve(invId, { expand: ["payment_intent"] });
+        const pi = paymentIntentFromInvoice(invObj);
+        clientSecret = (pi?.client_secret as string | undefined) || null;
+
+        if (!clientSecret && invObj?.status === "open" && invObj?.collection_method === "charge_automatically") {
+          const finalized = await stripe.invoices.finalizeInvoice(invId, { expand: ["payment_intent"] });
+          const fpi = paymentIntentFromInvoice(finalized);
+          clientSecret = (fpi?.client_secret as string | undefined) || null;
+        }
+      }
+    } catch {
+      // Ignore finalization errors; fall back to SetupIntent if needed.
+    }
+
     let setupIntentClientSecret: string | null = null;
 
     // If Stripe does not require immediate payment (e.g., invoice auto-paid/proration = 0),
@@ -1315,6 +1341,46 @@ export const stripeRoutes: FastifyPluginAsync = async (app) => {
         "sync-native: Stripe subscription retrieve failed"
       );
       return reply.code(502).send({ error: "Unable to sync subscription from Stripe. Please try again." });
+    }
+
+    // If the subscription is still incomplete after a SetupIntent-only PaymentSheet flow,
+    // attempt to pay the open invoice using the customer's most recent saved payment method.
+    // This makes "test card paid" upgrades reflect immediately without relying on webhooks.
+    try {
+      const s: any = stripeSub as any;
+      const latestInvoice = s?.latest_invoice;
+      const invId =
+        typeof latestInvoice === "string"
+          ? latestInvoice
+          : latestInvoice && typeof latestInvoice === "object" && latestInvoice !== null && "id" in latestInvoice
+            ? String((latestInvoice as { id?: string }).id || "")
+            : "";
+      const invStatus =
+        latestInvoice && typeof latestInvoice === "object" && latestInvoice !== null
+          ? String((latestInvoice as any).status || "")
+          : "";
+      const amountDue =
+        latestInvoice && typeof latestInvoice === "object" && latestInvoice !== null
+          ? Number((latestInvoice as any).amount_due ?? 0)
+          : 0;
+
+      const customerId = String(s?.customer || "");
+      const shouldAttemptPay =
+        String(s?.status || "") === "incomplete" && invId && invStatus === "open" && amountDue > 0 && customerId;
+
+      if (shouldAttemptPay) {
+        const pms = await stripe.paymentMethods.list({ customer: customerId, type: "card", limit: 1 });
+        const pm = pms?.data?.[0];
+        if (pm?.id) {
+          await stripe.customers.update(customerId, { invoice_settings: { default_payment_method: pm.id } });
+          await stripe.invoices.pay(invId);
+          stripeSub = await stripe.subscriptions.retrieve(subscriptionId, {
+            expand: ["latest_invoice.payment_intent"],
+          });
+        }
+      }
+    } catch {
+      // best-effort
     }
 
     const subAsRecord = stripeSub as unknown as Record<string, unknown>;
