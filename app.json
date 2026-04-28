@@ -18,7 +18,7 @@
       "supportsTablet": false,
       "usesAppleSignIn": true,
       "appleTeamId": "W5NB3UT9SS",
-      "buildNumber": "12",
+      "buildNumber": "15",
       "bundleIdentifier": "com.giveblack.app",
       "associatedDomains": [
         "applinks:giveblackapp.com",
@@ -89,9 +89,7 @@
       ],
       [
         "@stripe/stripe-react-native",
-        {
-          "merchantIdentifier": "merchant.com.giveblack.app"
-        }
+        {}
       ],
       "expo-font",
       "expo-web-browser",
