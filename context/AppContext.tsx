@@ -148,7 +148,17 @@ function resolveImg(url: unknown): string | undefined {
   if (!s) return undefined;
   if (s.startsWith("http://") || s.startsWith("https://")) return s;
   const base = getImgBase();
-  return `${base}${s.startsWith("/") ? "" : "/"}${s}`;
+  const path = s.startsWith("/") ? s : `/${s}`;
+
+  // Uploads are served at site-root `/uploads/*` (nginx proxies to API).
+  // `EXPO_PUBLIC_API_URL` is usually `https://giveblackapp.com/app` for JSON routes,
+  // so do NOT prefix uploads with `/app` or images 404/blank.
+  if (path.startsWith("/uploads/")) {
+    const siteRoot = base.replace(/\/app\/?$/, "").replace(/\/$/, "");
+    return `${siteRoot}${path}`;
+  }
+
+  return `${base}${path}`;
 }
 
 function normalizeOrg(raw: Record<string, unknown>): Organization {
