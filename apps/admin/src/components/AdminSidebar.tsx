@@ -52,10 +52,10 @@ const navGroups = [
 ];
 
 const roleColors: Record<string, string> = {
-  admin: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
-  super_admin: "bg-red-500/20 text-red-400 border-red-500/30",
-  manager: "bg-blue-500/20 text-blue-400 border-blue-500/30",
-  staff: "bg-gray-500/20 text-gray-400 border-gray-500/30",
+  admin: "border-primary/30 bg-primary/15 text-primary",
+  super_admin: "border-red-500/30 bg-red-500/20 text-red-400",
+  manager: "border-teal-400/35 bg-teal-950/50 text-teal-300",
+  staff: "border-white/15 bg-white/10 text-[#a7acb1]",
 };
 
 export function AdminSidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -71,41 +71,47 @@ export function AdminSidebar({ open, onClose }: { open: boolean; onClose: () => 
   return (
     <aside
       className={cn(
-        "fixed inset-y-0 left-0 z-50 w-[min(18rem,100vw-2rem)] max-w-[85vw] bg-card border-r border-border flex flex-col transition-transform duration-200 ease-in-out",
+        "fixed inset-y-0 left-0 z-50 flex w-[min(260px,100vw-2rem)] max-w-[85vw] flex-col border-r border-white/10 bg-sidebar text-sidebar-foreground transition-transform duration-200 ease-in-out",
         "pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]",
         "lg:translate-x-0",
         open ? "translate-x-0" : "-translate-x-full"
       )}
     >
-      <div className="h-14 flex items-center justify-between px-4 border-b border-border shrink-0">
-        <div className="flex items-center gap-2.5 min-w-0">
-          <img
-            src={`${import.meta.env.BASE_URL}giveblack-icon.png`}
-            alt=""
-            aria-hidden
-            width={32}
-            height={32}
-            className="h-8 w-8 rounded-lg object-cover shrink-0 border border-border/60"
-          />
+      <div className="flex h-14 shrink-0 items-center justify-between border-b border-white/10 px-4 sm:h-[4.375rem]">
+        <div className="flex min-w-0 flex-1 items-center gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-white/10 bg-secondary/70">
+            <img
+              src={`${import.meta.env.BASE_URL}giveblack-icon.png`}
+              alt=""
+              aria-hidden
+              width={32}
+              height={32}
+              className="h-8 w-8 object-cover"
+            />
+          </div>
           <div className="min-w-0">
-            <h1 className="text-sm font-bold tracking-tight truncate">Give Black</h1>
-            <p className="text-[10px] text-muted-foreground leading-tight line-clamp-2">
-              Operations hub for impact-driven giving
-            </p>
+            <h1 className="truncate text-base font-semibold tracking-tight text-[#e6ecf0]">Give Black</h1>
+            <p className="line-clamp-2 text-[11px] leading-tight text-[#a7acb1]">Operations hub</p>
           </div>
         </div>
-        <Button variant="ghost" size="icon" className="h-7 w-7 lg:hidden" onClick={onClose}>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8 shrink-0 text-[#dee2e6] hover:bg-white/[0.06] hover:text-white lg:hidden"
+          onClick={onClose}
+          aria-label="Close menu"
+        >
           <X className="h-4 w-4" />
         </Button>
       </div>
 
-      <nav className="flex-1 overflow-y-auto py-2 px-3">
+      <nav className="gb-admin-scrollable flex-1 overflow-y-auto px-2 py-3">
         {navGroups.map((group) => {
           const visibleItems = group.items.filter((item) => canAccessNav(role, item.url));
           if (visibleItems.length === 0) return null;
           return (
-            <div key={group.label} className="mb-4">
-              <p className="text-[10px] font-semibold text-muted-foreground/60 uppercase tracking-widest px-2 mb-1.5">
+            <div key={group.label} className="mb-5">
+              <p className="mb-2 px-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#b0afaf]">
                 {group.label}
               </p>
               <div className="space-y-0.5">
@@ -117,14 +123,16 @@ export function AdminSidebar({ open, onClose }: { open: boolean; onClose: () => 
                     onClick={() => onClose()}
                     className={({ isActive }) =>
                       cn(
-                        "flex items-center gap-2.5 px-2.5 py-2 rounded-md text-sm font-medium transition-colors",
+                        "flex items-center gap-3 rounded-lg px-2 py-2 text-sm font-medium transition-colors",
                         isActive
-                          ? "bg-emerald-600/15 text-emerald-500"
-                          : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                          ? "bg-white/[0.06] text-white"
+                          : "text-[#a7acb1] hover:bg-white/[0.05] hover:text-white"
                       )
                     }
                   >
-                    <item.icon className="h-4 w-4 shrink-0" />
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-white/5 bg-white/[0.04] text-[#dee2e6]">
+                      <item.icon className="h-4 w-4" />
+                    </span>
                     <span className="truncate">{item.title}</span>
                   </NavLink>
                 ))}
@@ -134,21 +142,22 @@ export function AdminSidebar({ open, onClose }: { open: boolean; onClose: () => 
         })}
       </nav>
 
-      <div className="border-t border-border p-3 space-y-2 shrink-0">
-        <div className="flex items-center gap-2.5 px-2">
-          <div className="h-8 w-8 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold text-primary shrink-0">
+      <div className="shrink-0 space-y-2 border-t border-white/10 p-3">
+        <div className="flex items-center gap-3 px-1">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/25 text-xs font-bold text-primary">
             {name.charAt(0).toUpperCase() || "A"}
           </div>
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-medium truncate">{name}</p>
-            <Badge variant="outline" className={cn("text-[9px] px-1.5 py-0", roleColors[role])}>
+            <p className="truncate text-sm font-medium text-[#e6ecf0]">{name}</p>
+            <Badge variant="outline" className={cn("mt-0.5 border px-1.5 py-0 text-[9px]", roleColors[role])}>
               {role}
             </Badge>
           </div>
         </div>
         <button
+          type="button"
           onClick={handleLogout}
-          className="flex items-center gap-2 text-sm text-muted-foreground hover:text-destructive transition-colors w-full px-2 py-1.5 rounded-md hover:bg-muted/50"
+          className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-sm text-[#a7acb1] transition-colors hover:bg-white/[0.05] hover:text-red-400"
         >
           <LogOut className="h-4 w-4" />
           <span>Sign Out</span>

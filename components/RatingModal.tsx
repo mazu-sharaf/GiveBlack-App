@@ -222,7 +222,7 @@ export default function RatingModal({
     variant === "first_donation"
       ? "If GiveBlack made donating easy, a quick star rating helps other donors find us."
       : variant === "first_campaign"
-        ? "You’re making an impact. Share how we’re doing on the store — it helps us grow."
+        ? "You’re making an impact. Share how we’re doing on the store; it helps us grow."
         : "Your support means the world. Help others discover us by leaving a rating!";
 
   const iconName =

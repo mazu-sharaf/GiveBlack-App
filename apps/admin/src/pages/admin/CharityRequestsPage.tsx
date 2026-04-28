@@ -16,7 +16,7 @@ import { format } from "date-fns";
 
 const statusColors: Record<string, string> = {
   pending: "bg-amber-500/20 text-amber-400 border-amber-500/30",
-  approved: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
+  approved: "bg-primary/20 text-primary border-primary/30",
   rejected: "bg-red-500/20 text-red-400 border-red-500/30",
 };
 
@@ -43,7 +43,7 @@ interface CharityRequest {
 }
 
 function maskDigitsLast4(value: string | null | undefined): string {
-  if (!value || !String(value).trim()) return "—";
+  if (!value || !String(value).trim()) return "-";
   const s = String(value).replace(/\s/g, "");
   if (s.length <= 4) return `···${s}`;
   return `···${s.slice(-4)}`;
@@ -268,7 +268,7 @@ export default function CharityRequestsPage() {
                   {requests.map((r) => (
                     <TableRow key={r.id}>
                       <TableCell className="font-medium">{r.charity_name || "--"}</TableCell>
-                      <TableCell className="hidden lg:table-cell text-muted-foreground">{r.category || "—"}</TableCell>
+                      <TableCell className="hidden lg:table-cell text-muted-foreground">{r.category || "-"}</TableCell>
                       <TableCell className="hidden sm:table-cell text-muted-foreground">{r.contact_email || "--"}</TableCell>
                       <TableCell className="hidden md:table-cell text-muted-foreground truncate max-w-[200px]">{r.description?.slice(0, 80) || "--"}</TableCell>
                       <TableCell>
@@ -313,22 +313,22 @@ export default function CharityRequestsPage() {
               <div><strong>Contact Name:</strong><br />{reviewRequest?.contact_name || "--"}</div>
               <div><strong>Contact Email:</strong><br />{reviewRequest?.contact_email || "--"}</div>
               <div><strong>Phone:</strong><br />{reviewRequest?.contact_phone || "--"}</div>
-              <div><strong>Category:</strong><br />{reviewRequest?.category || "—"}</div>
+              <div><strong>Category:</strong><br />{reviewRequest?.category || "-"}</div>
             </div>
             <div><strong>Website:</strong> {reviewRequest?.website || "--"}</div>
             <div><strong>Description:</strong><br />{reviewRequest?.description || "--"}</div>
             <div className="border-t border-border pt-3 space-y-2">
               <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Payout / verification</div>
               <div className="grid grid-cols-2 gap-2">
-                <div><strong>Tax ID:</strong><br />{reviewRequest?.tax_id || "—"}</div>
+                <div><strong>Tax ID:</strong><br />{reviewRequest?.tax_id || "-"}</div>
                 <div><strong>Routing:</strong><br />{maskDigitsLast4(reviewRequest?.routing_number)}</div>
-                <div><strong>Account last 4:</strong><br />{reviewRequest?.account_last4 || "—"}</div>
-                <div><strong>Account number (masked):</strong><br />{reviewRequest?.account_number ? maskDigitsLast4(reviewRequest.account_number) : "—"}</div>
+                <div><strong>Account last 4:</strong><br />{reviewRequest?.account_last4 || "-"}</div>
+                <div><strong>Account number (masked):</strong><br />{reviewRequest?.account_number ? maskDigitsLast4(reviewRequest.account_number) : "-"}</div>
               </div>
               {(reviewRequest?.bank_name || reviewRequest?.account_holder_name) && (
                 <div>
                   <strong>Bank / holder:</strong>{" "}
-                  {[reviewRequest?.bank_name, reviewRequest?.account_holder_name].filter(Boolean).join(" · ") || "—"}
+                  {[reviewRequest?.bank_name, reviewRequest?.account_holder_name].filter(Boolean).join(" · ") || "-"}
                 </div>
               )}
             </div>
@@ -378,7 +378,7 @@ export default function CharityRequestsPage() {
             {reviewRequest?.status === "pending" && (
               <div className="space-y-3 border-t border-border pt-3">
                 <div>
-                  <label className="text-xs font-medium text-muted-foreground">Admin notes (optional, for approval — internal only)</label>
+                  <label className="text-xs font-medium text-muted-foreground">Admin notes (optional, for approval; internal only)</label>
                   <Textarea
                     placeholder="Internal notes when approving..."
                     value={adminNotes}
@@ -387,7 +387,7 @@ export default function CharityRequestsPage() {
                   />
                 </div>
                 <div>
-                  <label className="text-xs font-medium text-muted-foreground">Rejection reason (optional — included in email to applicant when you reject)</label>
+                  <label className="text-xs font-medium text-muted-foreground">Rejection reason (optional; included in email to applicant when you reject)</label>
                   <Textarea
                     placeholder="Reason shown to applicant in rejection email..."
                     value={rejectionReason}
@@ -403,7 +403,7 @@ export default function CharityRequestsPage() {
               <Button variant="destructive" onClick={handleReject} disabled={processing}>
                 <XCircle className="h-4 w-4 mr-1" /> Reject
               </Button>
-              <Button onClick={handleApprove} disabled={processing} className="bg-emerald-600 hover:bg-emerald-700">
+              <Button onClick={handleApprove} disabled={processing} className="bg-primary hover:bg-primary/90">
                 <CheckCircle className="h-4 w-4 mr-1" /> Approve
               </Button>
             </DialogFooter>

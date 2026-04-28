@@ -176,7 +176,7 @@ export default function AdminEmailsPage() {
                 disabled={!canAdd}
               />
             </div>
-            <Button type="submit" disabled={adding || !canAdd} className="bg-emerald-600 hover:bg-emerald-700">
+            <Button type="submit" disabled={adding || !canAdd} className="bg-primary hover:bg-primary/90">
               <Plus className="h-4 w-4 mr-1" /> {adding ? "Adding..." : "Add"}
             </Button>
           </form>

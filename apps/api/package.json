@@ -6,13 +6,14 @@
   "main": "dist/index.js",
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "build": "tsc -p tsconfig.json",
+    "build": "npm run -w @giveblack/shared build && tsc -p tsconfig.json",
     "start": "node dist/index.js",
     "db:init": "node ./scripts/init-db.mjs",
     "review-accounts": "node ./scripts/provision-review-accounts.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@giveblack/shared": "*",
     "@fastify/cors": "^10.1.0",
     "@fastify/helmet": "^13.0.2",
     "@fastify/http-proxy": "^11.4.1",

@@ -69,12 +69,12 @@ export async function registerPushTokenWithAuth(accessToken: string): Promise<st
   if (Platform.OS === "web" || !Notifications || !Device) return null;
 
   if (!Device.isDevice) {
-    console.log("[push] Skipping push registration — not a physical device");
+    console.log("[push] Skipping push registration: not a physical device");
     return null;
   }
 
   if (isExpoGo) {
-    console.log("[push] Skipping remote push registration — Expo Go does not support remote/background push notifications (SDK 53+). Build a development build via EAS to enable push.");
+    console.log("[push] Skipping remote push registration: Expo Go does not support remote/background push notifications (SDK 53+). Build a development build via EAS to enable push.");
     return null;
   }
 

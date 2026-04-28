@@ -59,7 +59,7 @@ export function buildServer() {
         : {
             useDefaults: true,
             directives: {
-              // Default is img-src 'self' data: — campaign pages embed org-hosted hero/gallery URLs.
+              // Default is img-src 'self' data:; campaign pages embed org-hosted hero/gallery URLs.
               imgSrc: ["'self'", "data:", "https:", "blob:"],
             },
           },
@@ -207,7 +207,7 @@ export function buildServer() {
       "apps/admin/dist"
     );
     // wildcard: true registers all files under dist (e.g. /admin/assets/*.js). Do NOT use a catch-all
-    // route for /admin/* — it would return index.html for JS/CSS and break the app (blank white page).
+    // route for /admin/*: it would return index.html for JS/CSS and break the app (blank white page).
     app.register(fastifyStatic, {
       root: adminSpaRoot,
       prefix: "/admin/",

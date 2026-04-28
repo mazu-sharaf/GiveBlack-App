@@ -56,7 +56,7 @@ function ImpactContent() {
           setTopDonors(json.donors || []);
         }
       } catch {
-        // Network error — show empty state
+        // Network error: show empty state
       } finally {
         setLoading(false);
       }
@@ -178,9 +178,25 @@ export default function ImpactScreen() {
           <Text style={[styles.lockedEmptyMsg, { color: c.textMuted }]}>
             Sign in or create a free account to view your giving history and global rank.
           </Text>
-          <Pressable style={[styles.lockedEmptyBtn, { backgroundColor: c.green }]} onPress={() => setShowGuestSheet(true)}>
-            <Text style={styles.lockedEmptyBtnText}>Create Account</Text>
-          </Pressable>
+          <View style={styles.lockedCtas}>
+            <Pressable
+              style={[styles.lockedEmptyBtn, { backgroundColor: c.green }]}
+              onPress={() => setShowGuestSheet(true)}
+            >
+              <Text style={styles.lockedEmptyBtnText}>Create Account</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.lockedEmptyBtnSecondary, { borderColor: c.border }]}
+              onPress={() =>
+                router.push({
+                  pathname: "/(auth)/donor-login",
+                  params: { returnTo: "/(account)/impact" },
+                })
+              }
+            >
+              <Text style={[styles.lockedEmptyBtnSecondaryText, { color: c.text }]}>Sign in</Text>
+            </Pressable>
+          </View>
         </View>
         <GuestLockSheet
           visible={showGuestSheet}
@@ -191,6 +207,12 @@ export default function ImpactScreen() {
             router.push({
               pathname: "/(auth)/donor-signup",
               params: { returnTo: "/(account)/impact", feature: "impact" },
+            })
+          }
+          onSignIn={() =>
+            router.push({
+              pathname: "/(auth)/donor-login",
+              params: { returnTo: "/(account)/impact" },
             })
           }
           onDismiss={() => setShowGuestSheet(false)}
@@ -234,6 +256,23 @@ const styles = StyleSheet.create({
     fontFamily: "SpaceGrotesk_600SemiBold",
     fontSize: 15,
     color: Colors.white,
+  },
+  lockedCtas: {
+    width: "100%",
+    gap: 10,
+    marginTop: 8,
+  },
+  lockedEmptyBtnSecondary: {
+    borderRadius: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 32,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  lockedEmptyBtnSecondaryText: {
+    fontFamily: "SpaceGrotesk_600SemiBold",
+    fontSize: 15,
   },
   headerCard: {
     flexDirection: "row",

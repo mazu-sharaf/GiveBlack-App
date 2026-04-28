@@ -57,14 +57,14 @@ export async function navigateAfterAuth(role: AuthAppRole, returnTo?: string): P
 
   const explicitDestination = resolveReturnTo(returnTo);
   if (explicitDestination) {
-    // Clear any persisted intent — the explicit returnTo already encodes the
+    // Clear any persisted intent: the explicit returnTo already encodes the
     // destination, so the intent is no longer needed.
     clearDonationIntent();
     resetNavigationStackThenReplace(explicitDestination);
     return;
   }
 
-  // No returnTo in navigation params — check for a persisted donation intent.
+  // No returnTo in navigation params: check for a persisted donation intent.
   const intent = await loadDonationIntent();
   if (intent) {
     await clearDonationIntent();

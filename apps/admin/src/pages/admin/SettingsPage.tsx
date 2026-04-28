@@ -74,7 +74,7 @@ export default function SettingsPage() {
     <div className="space-y-6 max-w-2xl">
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold flex items-center gap-2"><Settings className="h-6 w-6" /> Settings</h2>
-        <Button onClick={handleSave} disabled={saving} className="bg-emerald-600 hover:bg-emerald-700">
+        <Button onClick={handleSave} disabled={saving} className="bg-primary hover:bg-primary/90">
           <Save className="h-4 w-4 mr-1" /> {saving ? "Saving..." : "Save All"}
         </Button>
       </div>

@@ -37,7 +37,7 @@ const MAX_DONOR_NOTIFICATION_RECIPIENTS = 5000;
 
 /**
  * Everyone who can appear in admin Users except platform operators.
- * Includes donor, user, charity, charity_owner, etc. — matches how roles are stored across signup + admin edits.
+ * Includes donor, user, charity, charity_owner, etc., matching how roles are stored across signup + admin edits.
  */
 const NOTIFY_RECIPIENT_ROLE_WHERE =
   "disabled_at is null and role is not null and role not in ('admin', 'super_admin', 'manager', 'staff')";

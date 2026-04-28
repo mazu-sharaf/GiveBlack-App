@@ -49,7 +49,7 @@ export function canAccessNav(role: AdminRole, url: string): boolean {
 
 /**
  * Strip a leading /admin *segment* only (e.g. /admin/users → /users).
- * Must not treat /admin-emails as /admin + emails — that broke RoleGuard redirects.
+ * Must not treat /admin-emails as /admin + emails; that broke RoleGuard redirects.
  */
 export function normalizeAdminPathname(pathname: string): string {
   if (pathname === "/admin" || pathname === "/admin/") return "/";

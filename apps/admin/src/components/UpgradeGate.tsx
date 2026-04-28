@@ -39,7 +39,7 @@ export function UpgradeGate({ feature, currentTier, overlay = false, children }:
           to grow your organization's impact.
         </p>
         <Button onClick={() => navigate("/subscriptions")} className="mt-2">
-          <ArrowRight className="h-4 w-4 mr-1" /> Upgrade to {tierInfo.name} — ${tierInfo.price}/mo
+          <ArrowRight className="h-4 w-4 mr-1" /> Upgrade to {tierInfo.name} (${tierInfo.price}/mo)
         </Button>
       </CardContent>
     </Card>

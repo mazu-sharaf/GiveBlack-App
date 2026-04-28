@@ -16,7 +16,7 @@ import { format } from "date-fns";
 import { getCurrentRole } from "@/lib/admin-auth";
 
 const ROLE_COLORS: Record<string, string> = {
-  admin: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
+  admin: "bg-primary/20 text-primary border-primary/30",
   super_admin: "bg-red-500/20 text-red-400 border-red-500/30",
   manager: "bg-blue-500/20 text-blue-400 border-blue-500/30",
   staff: "bg-gray-500/20 text-gray-400 border-gray-500/30",
@@ -236,7 +236,7 @@ export default function UsersPage() {
                         {user.disabled_at ? (
                           <Badge variant="outline" className="bg-red-500/20 text-red-400 border-red-500/30">Disabled</Badge>
                         ) : (
-                          <Badge variant="outline" className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30">Active</Badge>
+                          <Badge variant="outline" className="bg-primary/20 text-primary border-primary/30">Active</Badge>
                         )}
                       </TableCell>
                       <TableCell>
@@ -251,7 +251,7 @@ export default function UsersPage() {
                             onClick={() => toggleDisabled(user)}
                             title={user.disabled_at ? "Enable user" : "Disable user"}
                           >
-                            {user.disabled_at ? <UserCheck className="h-4 w-4 text-emerald-500" /> : <UserX className="h-4 w-4 text-red-400" />}
+                            {user.disabled_at ? <UserCheck className="h-4 w-4 text-primary" /> : <UserX className="h-4 w-4 text-red-400" />}
                           </Button>
                         </div>
                       </TableCell>
@@ -305,7 +305,7 @@ export default function UsersPage() {
                     {userDonations.map((d) => (
                       <div key={d.id} className="flex items-center justify-between text-sm bg-muted/50 rounded px-3 py-1.5">
                         <div>
-                          <span className="font-medium text-emerald-500">${Number(d.amount).toLocaleString()}</span>
+                          <span className="font-medium text-primary">${Number(d.amount).toLocaleString()}</span>
                           <span className="text-muted-foreground ml-2">{d.org_name || "--"}</span>
                         </div>
                         <span className="text-xs text-muted-foreground">{d.created_at ? format(new Date(d.created_at), "MMM d, yyyy") : ""}</span>

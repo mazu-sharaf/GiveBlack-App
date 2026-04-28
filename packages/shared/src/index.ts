@@ -1,3 +1,5 @@
+export * from "./donor-placeholder-portraits.js";
+
 export type UserRole = "super_admin" | "admin" | "charity_owner" | "donor";
 
 export interface AuthUser {

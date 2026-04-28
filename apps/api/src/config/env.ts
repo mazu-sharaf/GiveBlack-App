@@ -39,7 +39,7 @@ const schema = z.object({
   DONOR_LOGIN_WEB_URL: z.string().optional(),
   /** Comma-separated Google OAuth client IDs (Web, iOS, Android) for id_token audience checks */
   GOOGLE_OAUTH_CLIENT_IDS: z.string().optional(),
-  /** Sign in with Apple — usually the iOS bundle id (e.g. com.giveblack.app) */
+  /** Sign in with Apple: usually the iOS bundle id (e.g. com.giveblack.app) */
   APPLE_CLIENT_ID: z.string().optional()
 });
 

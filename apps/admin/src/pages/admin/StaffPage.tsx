@@ -15,7 +15,7 @@ import { Shield, Plus, Pencil, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 
 const ROLE_COLORS: Record<string, string> = {
-  admin: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
+  admin: "bg-primary/20 text-primary border-primary/30",
   super_admin: "bg-red-500/20 text-red-400 border-red-500/30",
   manager: "bg-blue-500/20 text-blue-400 border-blue-500/30",
   staff: "bg-gray-500/20 text-gray-400 border-gray-500/30",
@@ -100,7 +100,7 @@ export default function StaffPage() {
           <h2 className="text-2xl font-bold flex items-center gap-2"><Shield className="h-6 w-6" /> Staff Management</h2>
           <p className="text-sm text-muted-foreground mt-1">{staffList.length} staff members</p>
         </div>
-        <Button onClick={openCreate} className="bg-emerald-600 hover:bg-emerald-700">
+        <Button onClick={openCreate} className="bg-primary hover:bg-primary/90">
           <Plus className="h-4 w-4 mr-1" /> Add Staff
         </Button>
       </div>
@@ -202,7 +202,7 @@ export default function StaffPage() {
             <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
             <AlertDialog>
               <AlertDialogTrigger asChild>
-                <Button className="bg-emerald-600 hover:bg-emerald-700">
+                <Button className="bg-primary hover:bg-primary/90">
                   Save
                 </Button>
               </AlertDialogTrigger>

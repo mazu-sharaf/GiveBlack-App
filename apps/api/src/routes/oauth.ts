@@ -242,14 +242,14 @@ export const oauthRoutes: FastifyPluginAsync = async (app) => {
       app.log.info({ aud: tokenAud, iss: decoded.iss, sub: decoded.sub, exp: decoded.exp }, "apple token claims");
 
       // Accepted audiences:
-      // 1. The configured bundle ID (com.giveblack.app) — production / EAS native builds
-      // 2. host.exp.Exponent — Expo Go development testing (different Apple sub from native build)
+      // 1. The configured bundle ID (com.giveblack.app): production / EAS native builds
+      // 2. host.exp.Exponent: Expo Go development testing (different Apple sub from native build)
       const acceptedAudiences = [env.APPLE_CLIENT_ID, "host.exp.Exponent"].filter(Boolean) as string[];
       const matchingAudience = acceptedAudiences.find((aud) => aud === tokenAud);
       if (!matchingAudience) {
         app.log.error({ tokenAud, acceptedAudiences }, "apple aud mismatch");
         return reply.code(401).send({
-          error: `Apple token audience mismatch — token has "${tokenAud}", server accepts: ${acceptedAudiences.join(", ")}`,
+          error: `Apple token audience mismatch: token has "${tokenAud}", server accepts: ${acceptedAudiences.join(", ")}`,
         });
       }
 

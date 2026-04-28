@@ -138,7 +138,7 @@ export const campaignPageRoutes: FastifyPluginAsync = async (app) => {
         org_name: string;
       };
       const plainDesc = stripHtmlForMeta(
-        row.description || `Support ${row.org_name} on Give Black — ${row.title}.`
+        row.description || `Support ${row.org_name} on Give Black: ${row.title}.`
       ).slice(0, 300);
       const pageTitle = `Support ${row.title} on Give Black`;
       const ogImage = resolveCampaignOgImage(row.main_image_url, publicBase, defaultOg);
@@ -400,7 +400,7 @@ function notFoundPage() {
   return `<!DOCTYPE html>
 <html lang="en"><head>
 <meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Campaign Not Found — GiveBlack</title>
+<title>Campaign Not Found | GiveBlack</title>
 <style>${baseStyles()}
 .center{display:flex;align-items:center;justify-content:center;min-height:100vh;text-align:center;}
 .center h1{font-size:24px;margin-bottom:8px;}
@@ -451,7 +451,7 @@ function thankYouPage(
   return `<!DOCTYPE html>
 <html lang="en"><head>
 <meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Thank You — GiveBlack</title>
+<title>Thank You | GiveBlack</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
 <style>${baseStyles()}
@@ -522,7 +522,7 @@ ${thankYouStyles()}
   </div>
 
   <footer class="page-footer">
-    <div>GiveBlack — Simplifying giving for Black organizations globally</div>
+    <div>GiveBlack: simplifying giving for Black organizations globally</div>
   </footer>
 </main>
 

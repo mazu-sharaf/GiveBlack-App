@@ -65,7 +65,7 @@ interface AuthContextValue {
   /** Dismiss the display-name prompt without saving (Skip). */
   dismissDisplayNamePrompt: () => void;
   login: (email: string, password: string, type: "donor" | "charity") => Promise<{ success: boolean; error?: string; errorType?: "invalid_credentials" | "email_not_confirmed" | "network" | "other" }>;
-  /** Donor welcome screen — native Google → API → same session as password login. */
+  /** Donor welcome screen: native Google, API, same session as password login. */
   loginWithGoogle: () => Promise<{ success: boolean; error?: string; errorType?: OAuthLoginErrorType }>;
   /** iOS only (no-op / error on Android). */
   loginWithApple: () => Promise<{ success: boolean; error?: string; errorType?: OAuthLoginErrorType }>;
@@ -449,7 +449,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         body: JSON.stringify({ name: trimmed }),
       });
     } catch {
-      // non-fatal — name is saved locally regardless
+      // non-fatal: name is saved locally regardless
     }
     setUser((prev) => (prev ? { ...prev, name: trimmed } : prev));
     if (user) {

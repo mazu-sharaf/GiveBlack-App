@@ -999,7 +999,7 @@ function SharePage() {
   const handleShare = async () => {
     try {
       await Share.share({
-        message: "Join me on GiveBlack — the world's go-to app for Black Philanthropy! Download now and make a difference. https://giveblack.org",
+        message: "Join me on GiveBlack, the world's go-to app for Black Philanthropy! Download now and make a difference. https://giveblack.org",
         title: "Share GiveBlack",
       });
     } catch (e) {}
@@ -1733,7 +1733,7 @@ function HowToDonatePage() {
           id="safe-payments"
           title="How your payment gets safe hands (Stripe)"
           body={
-            "GiveBlack does not charge you platform fees.\n\nPayments are processed by Stripe (PCI DSS Level 1 compliant). Your card details are tokenized by Stripe and never stored on GiveBlack servers. Standard payment processing fees charged by Stripe may apply and are borne by the receiving organization.\n\nIn the app, GiveBlack requests a payment intent from our backend, then shows the Stripe PaymentSheet on your device—so card entry happens inside Stripe’s secure UI."
+            "GiveBlack does not charge you platform fees.\n\nPayments are processed by Stripe (PCI DSS Level 1 compliant). Your card details are tokenized by Stripe and never stored on GiveBlack servers. Standard payment processing fees charged by Stripe may apply and are borne by the receiving organization.\n\nIn the app, GiveBlack requests a payment intent from our backend, then shows the Stripe PaymentSheet on your device, so card entry happens inside Stripe’s secure UI."
           }
         />
         <View style={[styles.sep, { backgroundColor: c.border }]} />
@@ -1741,7 +1741,7 @@ function HowToDonatePage() {
           id="verification"
           title="How verification works (orgs and people behind them)"
           body={
-            "Organization accounts are subject to an additional verification and approval process.\n\nGiveBlack verifies that organizations listed on the app are registered 501(c)(3) nonprofits (or equivalent entities). We may also request documentation, and organizations are expected to maintain their status and respond to questions.\n\nEven with verification, GiveBlack does not guarantee the actions or outcomes of any organization—so donors are encouraged to do their own research too."
+            "Organization accounts are subject to an additional verification and approval process.\n\nGiveBlack verifies that organizations listed on the app are registered 501(c)(3) nonprofits (or equivalent entities). We may also request documentation, and organizations are expected to maintain their status and respond to questions.\n\nEven with verification, GiveBlack does not guarantee the actions or outcomes of any organization, so donors are encouraged to do their own research too."
           }
         />
         <View style={[styles.sep, { backgroundColor: c.border }]} />
@@ -1844,7 +1844,7 @@ function PrivacySettingsPage() {
 }
 
 const INVITE_SHARE_MESSAGE =
-  "I just joined GiveBlack — a platform that connects donors with Black-led causes and community programs. Come support with me! https://giveblackapp.com";
+  "I just joined GiveBlack, a platform that connects donors with Black-led causes and community programs. Come support with me! https://giveblackapp.com";
 
 function InviteFriendsPage() {
   const c = useThemeColors();

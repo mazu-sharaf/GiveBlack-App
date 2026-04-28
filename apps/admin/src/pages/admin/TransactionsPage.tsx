@@ -11,8 +11,8 @@ import { Search, CreditCard, Download } from "lucide-react";
 import { format } from "date-fns";
 
 const statusColors: Record<string, string> = {
-  completed: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
-  succeeded: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
+  completed: "bg-primary/20 text-primary border-primary/30",
+  succeeded: "bg-primary/20 text-primary border-primary/30",
   pending: "bg-amber-500/20 text-amber-400 border-amber-500/30",
   failed: "bg-red-500/20 text-red-400 border-red-500/30",
   refunded: "bg-blue-500/20 text-blue-400 border-blue-500/30",
@@ -93,7 +93,7 @@ export default function TransactionsPage() {
                       <TableCell className="text-muted-foreground text-sm whitespace-nowrap">
                         {t.created_at ? format(new Date(t.created_at), "MMM d, yyyy HH:mm") : "--"}
                       </TableCell>
-                      <TableCell className="text-right font-semibold text-emerald-500">${Number(t.amount || 0).toLocaleString()}</TableCell>
+                      <TableCell className="text-right font-semibold text-primary">${Number(t.amount || 0).toLocaleString()}</TableCell>
                       <TableCell>
                         <Badge variant="outline" className={statusColors[t.status] || ""}>{t.status || "unknown"}</Badge>
                       </TableCell>

@@ -56,7 +56,7 @@ export function emailLayout(content: string): string {
                 </tr>
                 <tr>
                   <td style="border-top:1px solid ${EMAIL_BRAND.border};padding:24px 32px;background:${EMAIL_BRAND.surface};">
-                    <p style="margin:0 0 8px 0;font-size:12px;color:${EMAIL_BRAND.footer};text-align:center;">GiveBlack — Empowering communities through giving</p>
+                    <p style="margin:0 0 8px 0;font-size:12px;color:${EMAIL_BRAND.footer};text-align:center;">GiveBlack: empowering communities through giving</p>
                     <p style="margin:0;font-size:12px;color:${EMAIL_BRAND.footer};text-align:center;">
                       <a href="${APP_URL}" style="color:${EMAIL_BRAND.primary};text-decoration:none;">${APP_URL.replace(/^https?:\/\//, "")}</a>
                       &nbsp;·&nbsp;

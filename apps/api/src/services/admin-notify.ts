@@ -61,7 +61,7 @@ export async function notifyAdminsNewCharityRequest(input: {
     </div>
     <div style="text-align:center;margin-bottom:8px;">${ctaButton(reviewUrl, "Review in admin")}</div>
   `;
-  await notifyAdmins("New charity request — GiveBlack admin", content, ["giveblack", "admin-charity-request"]);
+  await notifyAdmins("New charity request: GiveBlack admin", content, ["giveblack", "admin-charity-request"]);
 }
 
 export async function notifyAdminsNewCampaign(input: {
@@ -81,7 +81,7 @@ export async function notifyAdminsNewCampaign(input: {
     </div>
     <div style="text-align:center;margin-bottom:8px;">${ctaButton(detailUrl, "Review campaign")}</div>
   `;
-  await notifyAdmins("New campaign pending approval — GiveBlack admin", content, ["giveblack", "admin-campaign-pending"]);
+  await notifyAdmins("New campaign pending approval: GiveBlack admin", content, ["giveblack", "admin-campaign-pending"]);
 }
 
 /** Email volunteer when their request is approved by the organization (mobile org dashboard). */

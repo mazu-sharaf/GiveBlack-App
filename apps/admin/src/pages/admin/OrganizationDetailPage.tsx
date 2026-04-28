@@ -186,7 +186,7 @@ export default function OrganizationDetailPage() {
               <div
                 className={[
                   "h-20 w-20 rounded-xl border-2 border-dashed flex items-center justify-center overflow-hidden bg-muted relative",
-                  dragOver === "logo" ? "border-emerald-500 ring-2 ring-emerald-500/20" : "border-border",
+                  dragOver === "logo" ? "border-primary ring-2 ring-primary/20" : "border-border",
                 ].join(" ")}
                 onDragEnter={(e) => {
                   e.preventDefault();
@@ -252,7 +252,7 @@ export default function OrganizationDetailPage() {
             <div
               className={[
                 "w-full h-32 rounded-lg border-2 border-dashed flex items-center justify-center overflow-hidden bg-muted relative",
-                dragOver === "cover" ? "border-emerald-500 ring-2 ring-emerald-500/20" : "border-border",
+                dragOver === "cover" ? "border-primary ring-2 ring-primary/20" : "border-border",
               ].join(" ")}
               onDragEnter={(e) => {
                 e.preventDefault();
@@ -393,7 +393,7 @@ export default function OrganizationDetailPage() {
             </div>
             <div className="flex flex-wrap items-center gap-3 rounded-lg border border-border px-3 py-2">
               <span className="text-sm text-muted-foreground">Stripe payouts enabled</span>
-              <Badge variant={form.payouts_enabled ? "default" : "secondary"} className={form.payouts_enabled ? "bg-emerald-600" : ""}>
+              <Badge variant={form.payouts_enabled ? "default" : "secondary"} className={form.payouts_enabled ? "bg-primary" : ""}>
                 {form.payouts_enabled ? "Yes" : "No"}
               </Badge>
               <span className="text-xs text-muted-foreground">(Usually set by Stripe Connect / webhooks; toggle to override.)</span>
@@ -448,7 +448,7 @@ export default function OrganizationDetailPage() {
                 </AlertDialog>
               )}
             </div>
-            <Button onClick={handleSave} disabled={saving} className="bg-emerald-600 hover:bg-emerald-700">
+            <Button onClick={handleSave} disabled={saving} className="bg-primary hover:bg-primary/90">
               <Save className="h-4 w-4 mr-1" /> {saving ? "Saving..." : "Save"}
             </Button>
           </div>

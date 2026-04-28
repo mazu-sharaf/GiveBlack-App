@@ -22,7 +22,7 @@ interface Row {
 }
 
 const statusColors: Record<string, string> = {
-  active: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
+  active: "bg-primary/20 text-primary border-primary/30",
   paused: "bg-amber-500/20 text-amber-400 border-amber-500/30",
   completed: "bg-blue-500/20 text-blue-400 border-blue-500/30",
   closed: "bg-red-500/20 text-red-400 border-red-500/30",
@@ -150,7 +150,7 @@ export default function CampaignsPage() {
                         </Badge>
                       </TableCell>
                       <TableCell className="hidden sm:table-cell text-muted-foreground text-sm">
-                        {r.created_at ? format(new Date(r.created_at), "MMM d, yyyy") : "—"}
+                        {r.created_at ? format(new Date(r.created_at), "MMM d, yyyy") : "-"}
                       </TableCell>
                     </TableRow>
                   ))}

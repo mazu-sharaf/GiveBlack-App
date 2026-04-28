@@ -36,7 +36,7 @@ const TIER_PRICES: Record<string, number> = {
 };
 
 const statusColors: Record<string, string> = {
-  active: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
+  active: "bg-primary/20 text-primary border-primary/30",
   trialing: "bg-blue-500/20 text-blue-400 border-blue-500/30",
   past_due: "bg-amber-500/20 text-amber-400 border-amber-500/30",
   canceled: "bg-red-500/20 text-red-400 border-red-500/30",
@@ -89,7 +89,7 @@ export default function SubscriptionsPage() {
   };
 
   const summaryCards = [
-    { title: "Monthly Recurring Revenue", value: `$${mrr.toLocaleString()}`, icon: DollarSign, color: "text-emerald-500", bg: "bg-emerald-500/10" },
+    { title: "Monthly Recurring Revenue", value: `$${mrr.toLocaleString()}`, icon: DollarSign, color: "text-primary", bg: "bg-primary/10" },
     { title: "Annual Run Rate", value: `$${arr.toLocaleString()}`, icon: TrendingUp, color: "text-blue-500", bg: "bg-blue-500/10" },
     { title: "Active Subscriptions", value: activeCount, icon: Zap, color: "text-purple-500", bg: "bg-purple-500/10" },
     { title: "Past Due", value: pastDueCount, icon: CreditCard, color: pastDueCount > 0 ? "text-amber-500" : "text-muted-foreground", bg: pastDueCount > 0 ? "bg-amber-500/10" : "bg-muted/50" },
@@ -191,7 +191,7 @@ export default function SubscriptionsPage() {
                       <TableCell>
                         <Badge variant="outline" className={statusColors[s.status] || ""}>{s.status}</Badge>
                       </TableCell>
-                      <TableCell className="text-right hidden sm:table-cell font-medium text-emerald-500">
+                      <TableCell className="text-right hidden sm:table-cell font-medium text-primary">
                         ${s.amount || TIER_PRICES[s.tier] || 0}
                       </TableCell>
                       <TableCell className="hidden md:table-cell text-muted-foreground text-sm">

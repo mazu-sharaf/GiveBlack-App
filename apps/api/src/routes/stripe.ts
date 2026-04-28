@@ -6,7 +6,12 @@ import { env } from "../config/env.js";
 import { getStripe, verifyStripeWebhook } from "../services/stripe.js";
 import { broadcastChannel } from "../realtime/hub.js";
 import { computeReinvestAllocation } from "../lib/education-reinvest.js";
-import { incrementOrgTotalsFromDonation, markDonationSucceededWithPayout } from "../lib/org-payout-hold.js";
+import {
+  incrementOrgTotalsFromDonation,
+  markDonationSucceededWithPayout,
+  repairSucceededDonationsLegacyHold,
+  syncOrganizationRaisedFromSucceededDonations,
+} from "../lib/org-payout-hold.js";
 import { stripeId } from "../lib/stripe-ids.js";
 import { TIER_LIMITS } from "../lib/tier-limits.js";
 import { maybeNotifyOrgSubscriptionPlanUpgrade } from "../services/user-push.js";
@@ -151,7 +156,7 @@ function applySubscriptionPaidHeuristic(subAsRecord: Record<string, unknown>): v
   const isPaymentConfirmed = paymentIntentStatus === "succeeded" || paymentIntentStatus === "processing";
   const invoiceStatus = inv?.status as string | undefined;
   const invoicePaid = invoiceStatus === "paid";
-  // Paid invoice but PI not expanded in payload (webhook) — still counts as activated for our tier logic.
+  // Paid invoice but PI not expanded in payload (webhook): still counts as activated for our tier logic.
   if (isPaymentConfirmed || invoicePaid) {
     subAsRecord.status = "active";
   }
@@ -914,7 +919,7 @@ export const stripeRoutes: FastifyPluginAsync = async (app) => {
                 `;
                 await sendBrevoEmail({
                   to: guestEmailForReceipt,
-                  subject: `Your donation to ${orgNameForReceipt} — Receipt`,
+                  subject: `Your donation to ${orgNameForReceipt} - Receipt`,
                   html: emailLayout(content),
                   tags: ["giveblack", "donation-receipt", "guest"],
                 });
@@ -1291,16 +1296,40 @@ export const stripeRoutes: FastifyPluginAsync = async (app) => {
       );
       subscriptionId = String((subRes.rows[0] as Record<string, unknown> | undefined)?.stripe_subscription_id || "");
     }
-    if (!subscriptionId) return reply.code(400).send({ error: "No subscription found for this organization" });
+    if (!subscriptionId) {
+      request.log.warn(
+        { orgId: body.org_id, callerUserId: user.sub, providedSubscriptionId: body.subscription_id || null },
+        "sync-native: missing subscription id"
+      );
+      return reply.code(400).send({ error: "No subscription found for this organization" });
+    }
 
-    const stripeSub = await stripe.subscriptions.retrieve(subscriptionId, {
-      expand: ["latest_invoice.payment_intent"],
-    });
+    let stripeSub: unknown;
+    try {
+      stripeSub = await stripe.subscriptions.retrieve(subscriptionId, {
+        expand: ["latest_invoice.payment_intent"],
+      });
+    } catch (err) {
+      request.log.error(
+        { err, orgId: body.org_id, callerUserId: user.sub, subscriptionId },
+        "sync-native: Stripe subscription retrieve failed"
+      );
+      return reply.code(502).send({ error: "Unable to sync subscription from Stripe. Please try again." });
+    }
 
     const subAsRecord = stripeSub as unknown as Record<string, unknown>;
     applySubscriptionPaidHeuristic(subAsRecord);
 
-    const saved = await upsertOrgSubscriptionFromStripe(subAsRecord, body.org_id);
+    let saved: Awaited<ReturnType<typeof upsertOrgSubscriptionFromStripe>>;
+    try {
+      saved = await upsertOrgSubscriptionFromStripe(subAsRecord, body.org_id);
+    } catch (err) {
+      request.log.error(
+        { err, orgId: body.org_id, callerUserId: user.sub, subscriptionId },
+        "sync-native: subscription upsert failed"
+      );
+      return reply.code(500).send({ error: "Subscription sync failed. Please try again." });
+    }
     return {
       org_id: saved.orgId,
       subscription: {
@@ -1805,7 +1834,22 @@ export const stripeRoutes: FastifyPluginAsync = async (app) => {
         }
       }
 
-      return { ok: true, fixed, checked: pendingRes.rows.length, errors };
+      let repaired_hold = 0;
+      const repairClient = await db.connect();
+      try {
+        await repairClient.query("BEGIN");
+        repaired_hold = await repairSucceededDonationsLegacyHold(repairClient);
+        await syncOrganizationRaisedFromSucceededDonations(repairClient);
+        await repairClient.query("COMMIT");
+      } catch (e: unknown) {
+        await repairClient.query("ROLLBACK").catch(() => {});
+        const msg = e instanceof Error ? e.message : String(e);
+        errors.push(`post-reconcile repair: ${msg}`);
+      } finally {
+        repairClient.release();
+      }
+
+      return { ok: true, fixed, repaired_hold, checked: pendingRes.rows.length, errors };
     }
   );
 
@@ -2217,7 +2261,7 @@ export const stripeRoutes: FastifyPluginAsync = async (app) => {
         `;
         await sendBrevoEmail({
           to: guestEmail,
-          subject: `Your donation to ${donInfo.org_name} — Receipt`,
+          subject: `Your donation to ${donInfo.org_name} - Receipt`,
           html: emailLayout(content),
           tags: ["giveblack", "donation-receipt", "guest"],
         });

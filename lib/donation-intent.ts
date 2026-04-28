@@ -16,7 +16,7 @@ export async function saveDonationIntent(intent: DonationIntent): Promise<void> 
       JSON.stringify({ ...intent, savedAt: Date.now() }),
     );
   } catch {
-    // non-critical — ignore
+    // non-critical: ignore
   }
 }
 
@@ -53,6 +53,6 @@ export async function clearDonationIntent(): Promise<void> {
   try {
     await AsyncStorage.removeItem(INTENT_KEY);
   } catch {
-    // non-critical — ignore
+    // non-critical: ignore
   }
 }

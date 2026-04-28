@@ -260,7 +260,7 @@ export default function CampaignPublicPage() {
 
   const ogDescription = campaign.description
     ? campaign.description.slice(0, 155)
-    : `Support ${campaign.title} on Give Black — $${Number(campaign.raised).toLocaleString()} raised so far.`;
+    : `Support ${campaign.title} on Give Black. $${Number(campaign.raised).toLocaleString()} raised so far.`;
 
   const shareOgImage =
     resolveImageUrl(campaign.main_image_url) ||
@@ -270,7 +270,7 @@ export default function CampaignPublicPage() {
   return (
     <div className="min-h-screen bg-background">
       <Helmet>
-        <title>{`${campaign.title} — Give Black`}</title>
+        <title>{`${campaign.title} | Give Black`}</title>
         <meta name="description" content={ogDescription} />
         <meta property="og:title" content={`Support ${campaign.title} on Give Black`} />
         <meta property="og:description" content={ogDescription} />
@@ -429,9 +429,9 @@ export default function CampaignPublicPage() {
                 </div>
 
                 {isCompleted && (
-                  <div className="flex items-center gap-2 rounded-lg bg-emerald-500/10 border border-emerald-500/30 p-3">
-                    <Check className="h-5 w-5 text-emerald-500 shrink-0" />
-                    <p className="text-sm font-semibold text-emerald-500">Campaign Goal Reached</p>
+                  <div className="flex items-center gap-2 rounded-lg bg-primary/10 border border-primary/30 p-3">
+                    <Check className="h-5 w-5 text-primary shrink-0" />
+                    <p className="text-sm font-semibold text-primary">Campaign Goal Reached</p>
                   </div>
                 )}
 
@@ -551,7 +551,7 @@ export default function CampaignPublicPage() {
                             </Button>
                           </>
                         ) : (
-                          <p className="text-xs font-medium text-emerald-600">Signed in. Add an optional message below, then donate.</p>
+                          <p className="text-xs font-medium text-primary">Signed in. Add an optional message below, then donate.</p>
                         )}
                       </div>
                     )}
@@ -614,7 +614,7 @@ export default function CampaignPublicPage() {
                 </>)}
 
                 {isCompleted && (
-                  <p className="text-sm text-center text-emerald-500 font-medium">
+                  <p className="text-sm text-center text-primary font-medium">
                     This campaign has been fully funded. Thank you to all donors!
                   </p>
                 )}
@@ -626,7 +626,7 @@ export default function CampaignPublicPage() {
 
       <footer className="border-t border-border mt-16 py-6">
         <div className="max-w-5xl mx-auto px-4 text-center text-xs text-muted-foreground">
-          Powered by <strong>Give Black</strong> — reinvesting in Black education
+          Powered by <strong>Give Black</strong>, reinvesting in Black education
         </div>
       </footer>
     </div>

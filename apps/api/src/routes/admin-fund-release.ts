@@ -2,9 +2,49 @@ import type { FastifyPluginAsync } from "fastify";
 import { db } from "../lib/db.js";
 import { env } from "../config/env.js";
 import { getStripe } from "../services/stripe.js";
+import { transferInHoldDonationsForOrg } from "../lib/org-connect-release.js";
 
 export const adminFundReleaseRoutes: FastifyPluginAsync = async (app) => {
   const adminOnly = [app.authenticate, app.requireRole("admin", "super_admin")];
+  const orgMetricsReaders = [app.authenticate, app.requireRole("admin", "super_admin", "manager", "staff")];
+
+  app.get(
+    "/api/admin/organization-fund-metrics",
+    { preHandler: orgMetricsReaders },
+    async () => {
+      const result = await db.query(
+        `select o.id as org_id,
+           coalesce((
+             select sum(d.amount::numeric)
+             from donations d
+             left join campaigns c on c.id = d.campaign_id
+             where d.status = 'succeeded'
+               and coalesce(d.org_id, c.organization_id) = o.id
+           ), 0)::numeric as raised_from_donations,
+           coalesce((
+             select sum(coalesce(d.net_amount_cents, 0))
+             from donations d
+             left join campaigns c on c.id = d.campaign_id
+             where d.status = 'succeeded'
+               and d.payout_transfer_status = 'in_hold'
+               and coalesce(d.org_id, c.organization_id) = o.id
+           ), 0)::bigint as on_hold_cents
+         from organizations o`
+      );
+      const rows = result.rows as Array<{
+        org_id: string;
+        raised_from_donations: string | number;
+        on_hold_cents: string | bigint;
+      }>;
+      return {
+        metrics: rows.map((r) => ({
+          org_id: r.org_id,
+          raised_from_donations: Number(r.raised_from_donations),
+          on_hold_cents: Number(r.on_hold_cents),
+        })),
+      };
+    }
+  );
 
   app.get(
     "/api/admin/fund-release/summary",
@@ -23,20 +63,23 @@ export const adminFundReleaseRoutes: FastifyPluginAsync = async (app) => {
              limit 1
            ), 'free') as plan_tier,
            coalesce(sum(case
-             when d.payout_transfer_status = 'in_hold'
-              and d.payout_release_at is not null
-              and now() < d.payout_release_at
-             then d.net_amount_cents else 0 end), 0)::bigint as pending_cents,
+             when d.id is not null
+              and (d.payout_release_at is null or now() < d.payout_release_at)
+             then coalesce(d.net_amount_cents, 0) else 0 end), 0)::bigint as pending_cents,
            coalesce(sum(case
-             when d.payout_transfer_status = 'in_hold'
+             when d.id is not null
               and d.payout_release_at is not null
               and now() >= d.payout_release_at
-             then d.net_amount_cents else 0 end), 0)::bigint as eligible_cents
+             then coalesce(d.net_amount_cents, 0) else 0 end), 0)::bigint as eligible_cents
          from organizations o
          left join donations d
-           on d.org_id = o.id
-          and d.status = 'succeeded'
+           on d.status = 'succeeded'
           and d.payout_transfer_status = 'in_hold'
+          and coalesce(d.net_amount_cents, 0) > 0
+          and coalesce(
+            d.org_id,
+            (select c.organization_id from campaigns c where c.id = d.campaign_id limit 1)
+          ) = o.id
          group by o.id, o.name, o.stripe_account_id, o.payouts_enabled
          order by o.name asc`
       );
@@ -83,76 +126,17 @@ export const adminFundReleaseRoutes: FastifyPluginAsync = async (app) => {
       const client = await db.connect();
       try {
         await client.query("BEGIN");
-
-        const orgRes = await client.query(
-          "select id, stripe_account_id, payouts_enabled from organizations where id = $1 for update",
-          [orgId]
-        );
-        const org = orgRes.rows[0] as
-          | { id: string; stripe_account_id: string | null; payouts_enabled: boolean }
-          | undefined;
-        if (!org) {
+        const result = await transferInHoldDonationsForOrg(client, stripe, orgId, "all_in_hold");
+        if (!result.ok) {
           await client.query("ROLLBACK");
-          return reply.code(404).send({ error: "Organization not found" });
+          return reply.code(result.statusCode).send({ error: result.error });
         }
-        if (!org.stripe_account_id) {
-          await client.query("ROLLBACK");
-          return reply.code(400).send({ error: "Organization has no Stripe Connect account" });
-        }
-        if (!org.payouts_enabled) {
-          await client.query("ROLLBACK");
-          return reply.code(400).send({ error: "Stripe payouts are not enabled for this organization" });
-        }
-
-        const donRes = await client.query(
-          `select id, net_amount_cents from donations
-           where org_id = $1
-             and status = 'succeeded'
-             and payout_transfer_status = 'in_hold'
-             and payout_release_at is not null
-             and now() >= payout_release_at
-           for update`,
-          [orgId]
-        );
-
-        const donations = donRes.rows as Array<{ id: string; net_amount_cents: string | number | null }>;
-        let totalCents = 0;
-        const ids: string[] = [];
-        for (const d of donations) {
-          const cents = Number(d.net_amount_cents ?? 0);
-          if (cents > 0) {
-            totalCents += cents;
-            ids.push(d.id);
-          }
-        }
-
-        if (totalCents <= 0 || ids.length === 0) {
-          await client.query("ROLLBACK");
-          return reply.code(400).send({ error: "No eligible balance to release" });
-        }
-
-        const transfer = await stripe.transfers.create({
-          amount: totalCents,
-          currency: "usd",
-          destination: org.stripe_account_id,
-          metadata: { org_id: orgId, donation_count: String(ids.length) },
-        });
-
-        await client.query(
-          `update donations
-           set payout_transfer_status = 'released',
-               stripe_transfer_id = $2
-           where id = any($1::uuid[])`,
-          [ids, transfer.id]
-        );
-
         await client.query("COMMIT");
-
         return {
           success: true,
-          transfer_id: transfer.id,
-          amount_cents: totalCents,
-          donation_count: ids.length,
+          transfer_id: result.transfer_id,
+          amount_cents: result.amount_cents,
+          donation_count: result.donation_count,
         };
       } catch (e: unknown) {
         await client.query("ROLLBACK");

@@ -643,28 +643,28 @@ export default function SettingsTab() {
                 <Ionicons name="business-outline" size={18} color={c.textMuted} />
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.infoLabel, { color: c.textMuted }]}>Organization Name</Text>
-                  <Text style={[styles.infoValue, { color: c.text }]}>{orgName || "—"}</Text>
+                  <Text style={[styles.infoValue, { color: c.text }]}>{orgName || "-"}</Text>
                 </View>
               </View>
               <View style={[styles.infoRow, { borderBottomColor: c.border }]}>
                 <Ionicons name="grid-outline" size={18} color={c.textMuted} />
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.infoLabel, { color: c.textMuted }]}>Category</Text>
-                  <Text style={[styles.infoValue, { color: c.text }]}>{orgCategoryName || "—"}</Text>
+                  <Text style={[styles.infoValue, { color: c.text }]}>{orgCategoryName || "-"}</Text>
                 </View>
               </View>
               <View style={[styles.infoRow, { borderBottomColor: c.border }]}>
                 <Ionicons name="document-text-outline" size={18} color={c.textMuted} />
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.infoLabel, { color: c.textMuted }]}>Description</Text>
-                  <Text style={[styles.infoValue, { color: c.text }]} numberOfLines={2}>{orgDesc || "—"}</Text>
+                  <Text style={[styles.infoValue, { color: c.text }]} numberOfLines={2}>{orgDesc || "-"}</Text>
                 </View>
               </View>
               <View style={[styles.infoRow, { borderBottomColor: c.border }]}>
                 <Ionicons name="globe-outline" size={18} color={c.textMuted} />
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.infoLabel, { color: c.textMuted }]}>Website</Text>
-                  <Text style={[styles.infoValue, { color: c.green }]}>{orgUrl || "—"}</Text>
+                  <Text style={[styles.infoValue, { color: c.green }]}>{orgUrl || "-"}</Text>
                 </View>
               </View>
               <View style={[styles.infoRow, { borderBottomColor: c.border }]}>
@@ -673,7 +673,7 @@ export default function SettingsTab() {
                   <Text style={[styles.infoLabel, { color: c.textMuted }]}>Bank</Text>
                   <Text style={[styles.infoValue, { color: c.text }]}>
                     {!bankName && !accountHolder && !routingNumber && !accountLast4
-                      ? "—"
+                      ? "-"
                       : [
                           bankName || null,
                           accountHolder || null,
@@ -793,7 +793,7 @@ export default function SettingsTab() {
               <View style={{ flex: 1 }}>
                 <Text style={[styles.settingText, { color: c.text }]}>Push notifications</Text>
                 <Text style={[styles.aboutValue, { color: c.textMuted, marginTop: 2 }]}>
-                  Donations, volunteers, campaign status — saved to your account
+                  Donations, volunteers, campaign status: saved to your account
                 </Text>
               </View>
             </View>

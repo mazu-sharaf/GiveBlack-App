@@ -132,7 +132,7 @@ export async function insertUserNotification(
   );
 }
 
-/** Admin approved charity request — always deliver (no notification_preferences gate). */
+/** Admin approved charity request: always deliver (no notification_preferences gate). */
 export async function notifyCharityApplicationApproved(
   userId: string,
   charityName: string,
@@ -262,7 +262,7 @@ export async function notifyDonationFromPaymentIntent(stripePaymentIntentId: str
   await notifyUsers({
     userIds: charityIds,
     title: "New donation",
-    body: `${amtStr} — ${campLabel}`,
+    body: `${amtStr}: ${campLabel}`,
     data: {
       type: "donation",
       audience: "org",
@@ -436,7 +436,7 @@ export async function notifyCampaignWentLive(input: {
   if (orgDonorIds.length) {
     await notifyUsers({
       userIds: orgDonorIds,
-      title: `New campaign — ${orgName}`,
+      title: `New campaign: ${orgName}`,
       body: `${input.title} just launched. Tap to view.`,
       data: { type: "campaign", audience: "donor", campaignId: input.campaignId, orgId: input.orgId },
       preferenceKey: "donor_new_campaigns_from_orgs_i_supported",

@@ -13,14 +13,14 @@ import { Search, Handshake, ExternalLink } from "lucide-react";
 import { format } from "date-fns";
 
 const statusColors: Record<string, string> = {
-  active: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
+  active: "bg-primary/20 text-primary border-primary/30",
   draft: "bg-gray-500/20 text-gray-400 border-gray-500/30",
   ended: "bg-blue-500/20 text-blue-400 border-blue-500/30",
   suspended: "bg-red-500/20 text-red-400 border-red-500/30",
 };
 
 const verifyColors: Record<string, string> = {
-  verified: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
+  verified: "bg-primary/20 text-primary border-primary/30",
   pending: "bg-amber-500/20 text-amber-400 border-amber-500/30",
   flagged: "bg-red-500/20 text-red-400 border-red-500/30",
 };
@@ -125,7 +125,7 @@ export default function CommunityCampaignsPage() {
                       </TableCell>
                       <TableCell className="hidden sm:table-cell text-muted-foreground text-sm">{c.creator_name || "--"}</TableCell>
                       <TableCell className="text-right text-muted-foreground">${Number(c.goal || c.goal_amount || 0).toLocaleString()}</TableCell>
-                      <TableCell className="text-right font-medium text-emerald-500">${Number(c.raised || c.raised_amount || 0).toLocaleString()}</TableCell>
+                      <TableCell className="text-right font-medium text-primary">${Number(c.raised || c.raised_amount || 0).toLocaleString()}</TableCell>
                       <TableCell><Badge variant="outline" className={statusColors[c.status] || ""}>{c.status}</Badge></TableCell>
                       <TableCell><Badge variant="outline" className={verifyColors[c.verification_status] || ""}>{c.verification_status}</Badge></TableCell>
                       <TableCell className="hidden md:table-cell text-muted-foreground text-sm">

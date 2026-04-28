@@ -2,6 +2,7 @@ import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
 import { db } from "../lib/db.js";
 import { getStripe } from "../services/stripe.js";
+import { resolveDonorAvatarUrl } from "../lib/donor-portrait.js";
 
 const DAVID_FULL_NAME = "David Hughes";
 /** Matches provision-review-accounts.mjs (App Store review donor). */
@@ -16,6 +17,52 @@ function splitNameParts(display: string): { first_name: string; last_name: strin
   const i = t.indexOf(" ");
   if (i === -1) return { first_name: t, last_name: "" };
   return { first_name: t.slice(0, i), last_name: t.slice(i + 1).trim() };
+}
+
+type TopDonorRow = {
+  id: string;
+  email?: string | null;
+  full_name?: string | null;
+  avatar_url?: string | null;
+  total_amount_cents: number | string | bigint;
+  donation_count: number;
+};
+
+async function queryTopDonorRows(limit: number) {
+  const res = await db.query(
+    `select u.id,
+            u.email,
+            u.full_name,
+            u.avatar_url,
+            s.total_amount_cents,
+            s.donation_count
+     from donor_stats s
+     join users u on u.id = s.user_id
+     order by s.total_amount_cents desc
+     limit $1`,
+    [limit]
+  );
+  return res.rows as TopDonorRow[];
+}
+
+function mapTopDonorRow(row: TopDonorRow, includeEmail: boolean) {
+  const display = String(row.full_name || "").trim() || "Anonymous supporter";
+  const { first_name, last_name } = splitNameParts(display);
+  const cents = Number(row.total_amount_cents ?? 0);
+  const avatar_url = resolveDonorAvatarUrl(row.id, first_name, row.avatar_url, last_name);
+  const base = {
+    id: row.id,
+    name: display,
+    first_name,
+    last_name,
+    avatar_url,
+    total_amount_cents: cents,
+    donation_count: row.donation_count,
+  };
+  if (includeEmail) {
+    return { ...base, email: String(row.email || "").trim() || null };
+  }
+  return base;
 }
 
 export const donorsRoutes: FastifyPluginAsync = async (app) => {
@@ -133,56 +180,35 @@ export const donorsRoutes: FastifyPluginAsync = async (app) => {
     const { limit = "20" } = request.query as { limit?: string };
     const lim = Math.min(Math.max(parseInt(limit || "20", 10) || 20, 1), 100);
 
-    const res = await db.query(
-      `select u.id,
-              u.full_name,
-              s.total_amount_cents,
-              s.donation_count
-       from donor_stats s
-       join users u on u.id = s.user_id
-       order by s.total_amount_cents desc
-       limit $1`,
-      [lim]
-    );
-
-    const toPublicDonor = (row: {
-      id: string;
-      full_name?: string | null;
-      total_amount_cents: number;
-      donation_count: number;
-    }) => {
-      const display = String(row.full_name || "").trim() || "Anonymous supporter";
-      const { first_name, last_name } = splitNameParts(display);
-      return {
-        id: row.id,
-        name: display,
-        first_name,
-        last_name,
-        total_amount_cents: row.total_amount_cents,
-        donation_count: row.donation_count,
-      };
-    };
-
-    let donors = (res.rows as any[]).map(toPublicDonor);
+    const rows = await queryTopDonorRows(lim);
+    let donors = rows.map((r) => mapTopDonorRow(r, false));
 
     // Force David into position #8 for predictable UI testing.
     if (lim >= 8) {
       const davidUserRes = await db.query(
-        "select id, full_name, email from users where email = $1 limit 1",
+        "select id, full_name, email, avatar_url from users where email = $1 limit 1",
         [DAVID_DONOR_EMAIL]
       );
-      const davidUser = davidUserRes.rows[0] as { id: string; full_name?: string; email?: string } | undefined;
+      const davidUser = davidUserRes.rows[0] as {
+        id: string;
+        full_name?: string;
+        email?: string;
+        avatar_url?: string | null;
+      } | undefined;
 
       if (davidUser) {
-        donors = donors.filter((d: any) => d.id !== davidUser.id);
-        const forcedDonor = {
-          id: davidUser.id,
-          name: DAVID_FULL_NAME,
-          first_name: "David",
-          last_name: "Hughes",
-          total_amount_cents: DAVID_TOTAL_AMOUNT_CENTS,
-          donation_count: DAVID_DONATION_COUNT,
-        };
+        donors = donors.filter((d) => d.id !== davidUser.id);
+        const forcedDonor = mapTopDonorRow(
+          {
+            id: davidUser.id,
+            email: davidUser.email,
+            full_name: DAVID_FULL_NAME,
+            avatar_url: davidUser.avatar_url,
+            total_amount_cents: DAVID_TOTAL_AMOUNT_CENTS,
+            donation_count: DAVID_DONATION_COUNT,
+          },
+          false
+        );
 
         const idx = 7; // position #8
         donors.splice(Math.min(idx, donors.length), 0, forcedDonor);
@@ -192,6 +218,50 @@ export const donorsRoutes: FastifyPluginAsync = async (app) => {
 
     return { donors };
   });
+
+  app.get(
+    "/api/admin/donors/top",
+    { preHandler: [app.authenticate, app.requireRole("admin", "super_admin", "manager", "staff")] },
+    async (request) => {
+      const { limit = "20" } = request.query as { limit?: string };
+      const lim = Math.min(Math.max(parseInt(limit || "20", 10) || 20, 1), 100);
+      const rows = await queryTopDonorRows(lim);
+      let donors = rows.map((r) => mapTopDonorRow(r, true));
+
+      if (lim >= 8) {
+        const davidUserRes = await db.query(
+          "select id, full_name, email, avatar_url from users where email = $1 limit 1",
+          [DAVID_DONOR_EMAIL]
+        );
+        const davidUser = davidUserRes.rows[0] as {
+          id: string;
+          full_name?: string;
+          email?: string;
+          avatar_url?: string | null;
+        } | undefined;
+
+        if (davidUser) {
+          donors = donors.filter((d) => d.id !== davidUser.id);
+          const forcedDonor = mapTopDonorRow(
+            {
+              id: davidUser.id,
+              email: davidUser.email,
+              full_name: DAVID_FULL_NAME,
+              avatar_url: davidUser.avatar_url,
+              total_amount_cents: DAVID_TOTAL_AMOUNT_CENTS,
+              donation_count: DAVID_DONATION_COUNT,
+            },
+            true
+          );
+          const idx = 7;
+          donors.splice(Math.min(idx, donors.length), 0, forcedDonor);
+          donors = donors.slice(0, lim);
+        }
+      }
+
+      return { donors };
+    }
+  );
 
   app.patch(
     "/api/me/profile",

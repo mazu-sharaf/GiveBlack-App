@@ -75,7 +75,7 @@ export default function DonateScreen() {
     }
   }, [suggestedAmount]);
 
-  // The user has reached the donate screen — clear any persisted intent so it
+  // The user has reached the donate screen: clear any persisted intent so it
   // isn't applied again if they later navigate through auth for an unrelated reason.
   useEffect(() => {
     clearDonationIntent();
@@ -283,7 +283,7 @@ export default function DonateScreen() {
                     : "You're one step away from supporting "}
                   <Text style={{ color: c.text, fontFamily: "SpaceGrotesk_600SemiBold" }}>{org.name}</Text>
                   {suggestedAmount
-                    ? " — create a free account to complete your donation."
+                    ? ". Create a free account to complete your donation."
                     : ". It's free and takes 30 seconds."}
                 </Text>
 
@@ -682,7 +682,7 @@ export default function DonateScreen() {
         setTimeout(() => URL.revokeObjectURL(url), 5000);
       } else {
         // iOS/Android: there is no public "Downloads" folder apps can write to. Open the system
-        // sheet so the user can Save to Files, AirDrop, Mail, etc.—same as a real "export".
+        // sheet so the user can Save to Files, AirDrop, Mail, etc., same as a real "export".
         const canShare = await Sharing.isAvailableAsync();
         if (!canShare) {
           Alert.alert(

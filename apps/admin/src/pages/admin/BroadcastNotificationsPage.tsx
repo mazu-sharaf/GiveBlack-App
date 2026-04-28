@@ -189,14 +189,14 @@ export default function BroadcastNotificationsPage() {
   const recipientLabelSingular = recipientTab === "donors" ? "donor" : "charity account";
   const emptyHint =
     recipientTab === "donors"
-      ? "No eligible accounts yet—only admin, manager, and staff exist, everyone is disabled, or the API failed to load (check Network for /donor-recipients)."
+      ? "No eligible accounts yet: only admin, manager, and staff exist, everyone is disabled, or the API failed to load (check Network for /donor-recipients)."
       : "No charity_owner accounts yet, or the API failed to load (check Network for /charity-recipients).";
 
   return (
     <div className="space-y-6 max-w-5xl">
       <div>
         <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-          <Bell className="h-7 w-7 text-emerald-500" />
+          <Bell className="h-7 w-7 text-primary" />
           Notify users
         </h1>
         <p className="text-muted-foreground text-sm mt-1">
@@ -210,7 +210,7 @@ export default function BroadcastNotificationsPage() {
           type="button"
           variant={recipientTab === "donors" ? "default" : "ghost"}
           size="sm"
-          className={recipientTab === "donors" ? "bg-emerald-600 hover:bg-emerald-700" : ""}
+          className={recipientTab === "donors" ? "bg-primary hover:bg-primary/90" : ""}
           onClick={() => setRecipientTab("donors")}
         >
           Donors & general users
@@ -219,7 +219,7 @@ export default function BroadcastNotificationsPage() {
           type="button"
           variant={recipientTab === "charities" ? "default" : "ghost"}
           size="sm"
-          className={recipientTab === "charities" ? "bg-emerald-600 hover:bg-emerald-700" : ""}
+          className={recipientTab === "charities" ? "bg-primary hover:bg-primary/90" : ""}
           onClick={() => setRecipientTab("charities")}
         >
           Charities (org accounts)
@@ -237,7 +237,7 @@ export default function BroadcastNotificationsPage() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Users className="h-5 w-5 text-emerald-500" />
+            <Users className="h-5 w-5 text-primary" />
             Select recipients
           </CardTitle>
           <CardDescription>
@@ -339,9 +339,9 @@ export default function BroadcastNotificationsPage() {
                           aria-label={`Select ${d.full_name || d.email}`}
                         />
                       </TableCell>
-                      <TableCell className="font-medium">{d.full_name || "—"}</TableCell>
+                      <TableCell className="font-medium">{d.full_name || "-"}</TableCell>
                       <TableCell className="text-muted-foreground">{d.email}</TableCell>
-                      <TableCell className="text-muted-foreground text-sm capitalize">{d.role || "—"}</TableCell>
+                      <TableCell className="text-muted-foreground text-sm capitalize">{d.role || "-"}</TableCell>
                     </TableRow>
                   ))
                 )}
@@ -386,7 +386,7 @@ export default function BroadcastNotificationsPage() {
         <CardHeader>
           <CardTitle>Compose push</CardTitle>
           <CardDescription>
-            Text should be short—users see it on the lock screen and in the in-app notification list.
+            Text should be short; users see it on the lock screen and in the in-app notification list.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -442,7 +442,7 @@ export default function BroadcastNotificationsPage() {
           <AlertDialogFooter>
             <AlertDialogCancel disabled={sending}>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              className="bg-emerald-600 hover:bg-emerald-700"
+              className="bg-primary hover:bg-primary/90"
               disabled={sending}
               onClick={(e) => {
                 e.preventDefault();

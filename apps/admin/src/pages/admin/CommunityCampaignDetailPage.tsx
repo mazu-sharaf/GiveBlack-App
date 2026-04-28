@@ -104,8 +104,8 @@ export default function CommunityCampaignDetailPage() {
               <CardTitle>{campaign.title}</CardTitle>
               <p className="text-sm text-muted-foreground mt-1">{campaign.description?.slice(0, 200)}{campaign.description?.length > 200 ? "..." : ""}</p>
               <div className="flex gap-2 mt-2 flex-wrap">
-                <Badge variant="outline" className={campaign.status === "active" ? "bg-emerald-500/20 text-emerald-400" : ""}>{campaign.status}</Badge>
-                <Badge variant="outline" className={campaign.verification_status === "verified" ? "bg-emerald-500/20 text-emerald-400" : campaign.verification_status === "flagged" ? "bg-red-500/20 text-red-400" : "bg-amber-500/20 text-amber-400"}>
+                <Badge variant="outline" className={campaign.status === "active" ? "bg-primary/20 text-primary" : ""}>{campaign.status}</Badge>
+                <Badge variant="outline" className={campaign.verification_status === "verified" ? "bg-primary/20 text-primary" : campaign.verification_status === "flagged" ? "bg-red-500/20 text-red-400" : "bg-amber-500/20 text-amber-400"}>
                   {campaign.verification_status}
                 </Badge>
               </div>
@@ -135,7 +135,7 @@ export default function CommunityCampaignDetailPage() {
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
             <div><span className="text-muted-foreground">Creator:</span> <span className="font-medium">{creator?.name || creator?.email || "--"}</span></div>
             <div><span className="text-muted-foreground">Goal:</span> <span className="font-medium">${Number(campaign.goal || campaign.goal_amount || 0).toLocaleString()}</span></div>
-            <div><span className="text-muted-foreground">Raised:</span> <span className="font-medium text-emerald-500">${Number(campaign.raised || campaign.raised_amount || 0).toLocaleString()}</span></div>
+            <div><span className="text-muted-foreground">Raised:</span> <span className="font-medium text-primary">${Number(campaign.raised || campaign.raised_amount || 0).toLocaleString()}</span></div>
             <div><span className="text-muted-foreground">Donors:</span> <span className="font-medium">{campaign.donor_count ?? 0}</span></div>
           </div>
           <p className="text-xs text-muted-foreground">Created {campaign.created_at ? format(new Date(campaign.created_at), "PPpp") : "--"}</p>
@@ -168,7 +168,7 @@ export default function CommunityCampaignDetailPage() {
                   <li key={d.id} className="flex items-center justify-between text-sm">
                     <span className="text-muted-foreground">{d.donor_name || "Anonymous"}</span>
                     <div className="text-right">
-                      <span className="font-medium text-emerald-500">${Number(d.amount).toFixed(2)}</span>
+                      <span className="font-medium text-primary">${Number(d.amount).toFixed(2)}</span>
                       <span className="text-xs text-muted-foreground ml-2">{d.created_at ? format(new Date(d.created_at), "MMM d") : ""}</span>
                     </div>
                   </li>

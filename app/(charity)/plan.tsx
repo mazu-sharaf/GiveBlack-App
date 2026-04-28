@@ -10,12 +10,22 @@ import {
   Alert,
   Linking,
 } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useSafeInsets } from "@/lib/safe-area";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "@/context/AuthContext";
 import { useThemeColors } from "@/context/ThemeContext";
 import { apiPost, getApiUrl } from "@/lib/query-client";
 import { isNativeStripeAvailable, presentNativePaymentSheet } from "@/lib/stripe-confirm";
+
+const PENDING_SUB_SYNC_KEY = "@gb_pending_subscription_sync";
+
+type PendingSubSync = {
+  orgId: string;
+  tier: "growth" | "institutional";
+  subscriptionId: string;
+  createdAt: string;
+};
 
 const FREE_FEATURES = [
   { icon: "megaphone-outline" as const, text: "1 community campaign" },
@@ -51,7 +61,7 @@ function daysUntil(endDate: string | null): number | null {
 }
 
 function formatExpiry(endDate: string | null): string {
-  if (!endDate) return "—";
+  if (!endDate) return "-";
   return new Date(endDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 
@@ -93,6 +103,36 @@ export default function CharityPlanScreen() {
       const res = await fetch(`${apiBase}/api/charity/my-subscription`, { headers });
       let data = await res.json();
       const sub = data.subscription;
+
+      // If the user just completed checkout but the app failed to sync (background, network),
+      // retry deterministically with the last known Stripe subscription id.
+      if (
+        session?.accessToken &&
+        data?.org_id &&
+        (sub?.tier === "free" || !sub?.tier)
+      ) {
+        try {
+          const raw = await AsyncStorage.getItem(PENDING_SUB_SYNC_KEY);
+          const pending: PendingSubSync | null = raw ? JSON.parse(raw) : null;
+          if (
+            pending &&
+            pending.orgId === data.org_id &&
+            pending.subscriptionId &&
+            (pending.tier === "growth" || pending.tier === "institutional")
+          ) {
+            await apiPost(
+              "/api/subscriptions/sync-native",
+              { org_id: pending.orgId, subscription_id: pending.subscriptionId },
+              session.accessToken
+            );
+            const resRetry = await fetch(`${apiBase}/api/charity/my-subscription`, { headers });
+            if (resRetry.ok) data = await resRetry.json();
+          }
+        } catch {
+          // Ignore marker errors; standard proactive sync/webhooks can still update later.
+        }
+      }
+
       const needsProactiveSync =
         data.org_id &&
         session?.accessToken &&
@@ -117,6 +157,12 @@ export default function CharityPlanScreen() {
       setPeriodEnd(data.subscription?.current_period_end || null);
       setLimits(data.subscription?.limits || null);
       setCommunityCampaignCount(data.community_campaign_count ?? null);
+
+      const resolvedTier = data.subscription?.tier || "free";
+      if (resolvedTier !== "free") {
+        // Clear any pending sync marker once the entitlement is active.
+        AsyncStorage.removeItem(PENDING_SUB_SYNC_KEY).catch(() => {});
+      }
     } catch {
       setTier("free");
     } finally {
@@ -149,6 +195,15 @@ export default function CharityPlanScreen() {
         { org_id: orgId, tier: planTier },
         session.accessToken
       );
+      if (data?.subscriptionId) {
+        const pending: PendingSubSync = {
+          orgId,
+          tier: planTier,
+          subscriptionId: String(data.subscriptionId),
+          createdAt: new Date().toISOString(),
+        };
+        AsyncStorage.setItem(PENDING_SUB_SYNC_KEY, JSON.stringify(pending)).catch(() => {});
+      }
       if (!data?.requiresPayment) {
         await apiPost(
           "/api/subscriptions/sync-native",
@@ -156,6 +211,7 @@ export default function CharityPlanScreen() {
           session.accessToken
         );
         await loadSubscription();
+        AsyncStorage.removeItem(PENDING_SUB_SYNC_KEY).catch(() => {});
         Alert.alert("Plan updated", "Your plan is active and features are now unlocked.");
         return;
       }
@@ -174,6 +230,7 @@ export default function CharityPlanScreen() {
           session.accessToken
         );
         await loadSubscription();
+        AsyncStorage.removeItem(PENDING_SUB_SYNC_KEY).catch(() => {});
         Alert.alert("Subscription active", `Your ${planTier} plan is now active.`);
       } else if (payResult.status === "canceled") {
         Alert.alert("Payment canceled", "Subscription change was canceled.");
@@ -297,7 +354,7 @@ export default function CharityPlanScreen() {
             onPress={() => handleSubscribe("growth")}
             disabled={!!upgrading}
           >
-            <Text style={styles.planButtonText}>{upgrading === "growth" ? "Opening checkout…" : "Subscribe — $99/month"}</Text>
+            <Text style={styles.planButtonText}>{upgrading === "growth" ? "Opening checkout…" : "Subscribe ($99/month)"}</Text>
           </Pressable>
         )}
       </View>
@@ -324,7 +381,7 @@ export default function CharityPlanScreen() {
             onPress={() => handleSubscribe("institutional")}
             disabled={!!upgrading}
           >
-            <Text style={[styles.planButtonOutlineText, { color: c.green }]}>{upgrading === "institutional" ? "Opening…" : "Subscribe — $249/month"}</Text>
+            <Text style={[styles.planButtonOutlineText, { color: c.green }]}>{upgrading === "institutional" ? "Opening…" : "Subscribe ($249/month)"}</Text>
           </Pressable>
         )}
       </View>

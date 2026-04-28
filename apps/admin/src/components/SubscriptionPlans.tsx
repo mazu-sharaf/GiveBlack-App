@@ -79,7 +79,7 @@ export function SubscriptionPlans({ currentTier = "free", onSubscribed }: Props)
                   disabled={isCurrent || loading === key}
                   onClick={() => handleSubscribe(key)}
                 >
-                  {loading === key ? "Redirecting..." : isCurrent ? "Active" : `Subscribe — $${tier.price}/mo`}
+                  {loading === key ? "Redirecting..." : isCurrent ? "Active" : `Subscribe ($${tier.price}/mo)`}
                 </Button>
               )}
             </CardContent>

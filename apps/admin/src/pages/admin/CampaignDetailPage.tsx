@@ -1,6 +1,6 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { dbQuery, dbMutate, resolveImageUrl } from "@/lib/api";
+import { dbQuery, dbMutate, resolveImageUrl, uploadFile } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -36,8 +36,18 @@ interface GalleryImage {
   sort_order: number;
 }
 
+function isLocalGalleryId(id: string): boolean {
+  return id.startsWith("local-");
+}
+
+function validateImageFile(file: File): string | null {
+  if (!file.type.startsWith("image/")) return "Please choose an image file.";
+  if (file.size > 8 * 1024 * 1024) return "Image must be 8MB or smaller.";
+  return null;
+}
+
 const STATUS_COLORS: Record<string, string> = {
-  active: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
+  active: "bg-primary/20 text-primary border-primary/30",
   paused: "bg-amber-500/20 text-amber-400 border-amber-500/30",
   completed: "bg-blue-500/20 text-blue-400 border-blue-500/30",
   closed: "bg-red-500/20 text-red-400 border-red-500/30",
@@ -49,10 +59,17 @@ export default function CampaignDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const isNew = id === "new";
+  const newCampaignIdRef = useRef<string>("");
+  const mainImageInputRef = useRef<HTMLInputElement>(null);
+  const galleryImageInputRef = useRef<HTMLInputElement>(null);
   const [loading, setLoading] = useState(!isNew);
   const [saving, setSaving] = useState(false);
+  const [uploadingMain, setUploadingMain] = useState(false);
+  const [uploadingGallery, setUploadingGallery] = useState(false);
   const [campaign, setCampaign] = useState<CampaignData | null>(null);
   const [gallery, setGallery] = useState<GalleryImage[]>([]);
+  const [galleryUrlDraft, setGalleryUrlDraft] = useState("");
+  const [galleryCaptionDraft, setGalleryCaptionDraft] = useState("");
   const [organizations, setOrganizations] = useState<Array<{ id: string; name: string }>>([]);
 
   const [form, setForm] = useState({
@@ -118,6 +135,12 @@ export default function CampaignDetailPage() {
     }).then((r) => setOrganizations(r.data || []));
   }, [loadCampaign]);
 
+  useEffect(() => {
+    if (isNew && !newCampaignIdRef.current) {
+      newCampaignIdRef.current = `camp-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    }
+  }, [isNew]);
+
   const update = (key: string, value: string) => setForm((f) => ({ ...f, [key]: value }));
 
   const handleSave = async () => {
@@ -146,12 +169,27 @@ export default function CampaignDetailPage() {
       };
 
       if (isNew) {
-        payload.id = `camp-${Date.now()}`;
+        const cid = newCampaignIdRef.current || `camp-${Date.now()}`;
+        payload.id = cid;
         payload.organization_id = form.organization_id;
         payload.status = "active";
         await dbMutate("campaigns", "insert", payload);
+        if (gallery.length > 0) {
+          await Promise.all(
+            gallery.map((img, i) =>
+              dbMutate("campaign_images", "insert", {
+                id: `img-${cid}-${i}-${Date.now()}`,
+                campaign_id: cid,
+                org_id: form.organization_id,
+                image_url: img.image_url,
+                caption: img.caption || null,
+                sort_order: i,
+              })
+            )
+          );
+        }
         toast.success("Campaign created");
-        navigate(`/campaigns/${payload.id}`, { replace: true });
+        navigate(`/campaigns/${cid}`, { replace: true });
       } else {
         await dbMutate("campaigns", "update", payload, [
           { column: "id", op: "eq", value: id! },
@@ -175,7 +213,7 @@ export default function CampaignDetailPage() {
         { status: "active", updated_at: new Date().toISOString() },
         [{ column: "id", op: "eq", value: id! }]
       );
-      toast.success("Campaign published — it is now live for donations");
+      toast.success("Campaign published. It is now live for donations.");
       setCampaign((c) => (c ? { ...c, status: "active" } : c));
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Failed to publish");
@@ -208,31 +246,150 @@ export default function CampaignDetailPage() {
     }
   };
 
-  const addGalleryImage = async () => {
-    const url = prompt("Enter image URL:");
-    if (!url) return;
-    const caption = prompt("Enter caption (optional):") || "";
+  const appendGalleryItem = (imageUrl: string, caption: string | null) => {
+    const trimmed = imageUrl.trim();
+    if (!trimmed) {
+      toast.error("Add an image URL or upload a file");
+      return;
+    }
+    setGallery((g) => [
+      ...g,
+      {
+        id: `local-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+        image_url: trimmed,
+        caption: caption?.trim() || null,
+        sort_order: g.length,
+      },
+    ]);
+    setGalleryUrlDraft("");
+    setGalleryCaptionDraft("");
+  };
+
+  const addGalleryFromDrafts = async () => {
+    const caption = galleryCaptionDraft.trim() || null;
+    if (isNew) {
+      if (!galleryUrlDraft.trim()) {
+        toast.error("Enter an image URL or use Upload");
+        return;
+      }
+      appendGalleryItem(galleryUrlDraft, caption);
+      toast.success("Image added. Save the campaign to publish it.");
+      return;
+    }
+    if (!id) return;
+    const url = galleryUrlDraft.trim();
+    if (!url) {
+      toast.error("Enter an image URL or use Upload");
+      return;
+    }
     try {
       await dbMutate("campaign_images", "insert", {
-        id: `img-${Date.now()}`,
+        id: `img-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
         campaign_id: id,
         org_id: campaign?.organization_id || form.organization_id,
         image_url: url,
-        caption: caption || null,
+        caption,
         sort_order: gallery.length,
       });
       toast.success("Image added");
+      setGalleryUrlDraft("");
+      setGalleryCaptionDraft("");
       loadCampaign();
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Failed to add image");
     }
   };
 
-  const removeGalleryImage = async (imgId: string) => {
+  const processGalleryPickedFile = async (file: File) => {
+    const err = validateImageFile(file);
+    if (err) {
+      toast.error(err);
+      return;
+    }
+    setUploadingGallery(true);
     try {
-      await dbMutate("campaign_images", "delete", {}, [
-        { column: "id", op: "eq", value: imgId },
-      ]);
+      const url = await uploadFile(file);
+      if (!url) throw new Error("Upload failed");
+      const caption = galleryCaptionDraft.trim() || null;
+      if (isNew) {
+        appendGalleryItem(url, caption);
+        toast.success("Image uploaded. Save the campaign to publish it.");
+      } else {
+        await dbMutate("campaign_images", "insert", {
+          id: `img-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          campaign_id: id!,
+          org_id: campaign?.organization_id || form.organization_id,
+          image_url: url,
+          caption,
+          sort_order: gallery.length,
+        });
+        setGalleryCaptionDraft("");
+        toast.success("Image uploaded");
+        loadCampaign();
+      }
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Upload failed");
+    } finally {
+      setUploadingGallery(false);
+    }
+  };
+
+  const handleGalleryFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    await processGalleryPickedFile(file);
+  };
+
+  const handleGalleryDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const file = e.dataTransfer.files?.[0];
+    if (!file) return;
+    await processGalleryPickedFile(file);
+  };
+
+  const processMainPickedFile = async (file: File) => {
+    const err = validateImageFile(file);
+    if (err) {
+      toast.error(err);
+      return;
+    }
+    setUploadingMain(true);
+    try {
+      const url = await uploadFile(file);
+      if (!url) throw new Error("Upload failed");
+      update("main_image_url", url);
+      toast.success("Main image uploaded");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Upload failed");
+    } finally {
+      setUploadingMain(false);
+    }
+  };
+
+  const handleMainImageFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    await processMainPickedFile(file);
+  };
+
+  const handleMainImageDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const file = e.dataTransfer.files?.[0];
+    if (!file) return;
+    await processMainPickedFile(file);
+  };
+
+  const removeGalleryImage = async (imgId: string) => {
+    if (isLocalGalleryId(imgId)) {
+      setGallery((g) => g.filter((i) => i.id !== imgId));
+      return;
+    }
+    try {
+      await dbMutate("campaign_images", "delete", {}, [{ column: "id", op: "eq", value: imgId }]);
       setGallery((g) => g.filter((i) => i.id !== imgId));
       toast.success("Image removed");
     } catch (err: unknown) {
@@ -358,34 +515,75 @@ export default function CampaignDetailPage() {
 
           <Card>
             <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle>Gallery Images</CardTitle>
-                {!isNew && (
-                  <Button variant="outline" size="sm" onClick={addGalleryImage}>
-                    <Plus className="h-4 w-4 mr-1" /> Add Image
-                  </Button>
-                )}
-              </div>
+              <CardTitle>Gallery Images</CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-4">
+              <div
+                className="rounded-lg border-2 border-dashed border-primary/25 bg-muted/20 p-4 space-y-3"
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => void handleGalleryDrop(e)}
+              >
+                <p className="text-sm text-muted-foreground">
+                  {isNew
+                    ? "Add images now. They are stored with the campaign when you click Save. You can paste a URL or upload a file (drag-and-drop supported)."
+                    : "Paste a URL, upload, or drop an image file to add to the gallery."}
+                </p>
+                <input
+                  ref={galleryImageInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => void handleGalleryFile(e)}
+                />
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={uploadingGallery}
+                    onClick={() => galleryImageInputRef.current?.click()}
+                  >
+                    <Upload className="h-4 w-4 mr-1" />
+                    {uploadingGallery ? "Uploading…" : "Upload image"}
+                  </Button>
+                </div>
+                <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+                  <Input
+                    placeholder="Image URL"
+                    value={galleryUrlDraft}
+                    onChange={(e) => setGalleryUrlDraft(e.target.value)}
+                    className="flex-1"
+                  />
+                  <Input
+                    placeholder="Caption (optional)"
+                    value={galleryCaptionDraft}
+                    onChange={(e) => setGalleryCaptionDraft(e.target.value)}
+                    className="sm:max-w-[220px]"
+                  />
+                  <Button type="button" variant="secondary" size="sm" onClick={() => void addGalleryFromDrafts()} disabled={uploadingGallery}>
+                    <Plus className="h-4 w-4 mr-1" /> Add to gallery
+                  </Button>
+                </div>
+              </div>
+
               {gallery.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  <ImageIcon className="h-12 w-12 mx-auto mb-2 opacity-40" />
-                  <p>No gallery images yet</p>
-                  {isNew && <p className="text-xs mt-1">Save the campaign first, then add gallery images</p>}
+                <div className="text-center py-6 text-muted-foreground">
+                  <ImageIcon className="h-10 w-10 mx-auto mb-2 opacity-40" />
+                  <p className="text-sm">No gallery images yet</p>
                 </div>
               ) : (
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                   {gallery.map((img) => (
-                    <div key={img.id} className="relative group rounded-lg overflow-hidden">
+                    <div key={img.id} className="relative group rounded-lg overflow-hidden border border-border">
                       <img src={resolveImageUrl(img.image_url)} alt={img.caption || ""} className="w-full h-32 object-cover" />
                       <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                        <Button variant="destructive" size="icon" className="h-8 w-8" onClick={() => removeGalleryImage(img.id)}>
+                        <Button variant="destructive" size="icon" className="h-8 w-8" onClick={() => void removeGalleryImage(img.id)}>
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>
-                      {img.caption && (
-                        <p className="text-xs text-muted-foreground p-1 truncate">{img.caption}</p>
+                      {img.caption && <p className="text-xs text-muted-foreground p-1 truncate">{img.caption}</p>}
+                      {isLocalGalleryId(img.id) && (
+                        <p className="text-[10px] uppercase tracking-wide text-amber-500/90 px-1 pb-1">Pending save</p>
                       )}
                     </div>
                   ))}
@@ -399,8 +597,15 @@ export default function CampaignDetailPage() {
           <Card>
             <CardHeader><CardTitle>Main Image</CardTitle></CardHeader>
             <CardContent className="space-y-3">
+              <input
+                ref={mainImageInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => void handleMainImageFile(e)}
+              />
               {form.main_image_url ? (
-                <div className="relative rounded-lg overflow-hidden">
+                <div className="relative rounded-lg overflow-hidden border border-border">
                   <img src={resolveImageUrl(form.main_image_url)} alt="Main" className="w-full h-48 object-cover" />
                   <Button
                     variant="destructive"
@@ -412,16 +617,36 @@ export default function CampaignDetailPage() {
                   </Button>
                 </div>
               ) : (
-                <div className="border-2 border-dashed rounded-lg p-8 text-center text-muted-foreground">
-                  <Upload className="h-8 w-8 mx-auto mb-2 opacity-40" />
-                  <p className="text-sm">No main image</p>
-                </div>
+                <button
+                  type="button"
+                  className="w-full border-2 border-dashed border-primary/25 rounded-lg p-8 text-center text-muted-foreground hover:border-primary/45 hover:bg-muted/30 transition-colors relative disabled:opacity-60"
+                  onClick={() => mainImageInputRef.current?.click()}
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={(e) => void handleMainImageDrop(e)}
+                  disabled={uploadingMain}
+                >
+                  {uploadingMain ? (
+                    <p className="text-sm">Uploading…</p>
+                  ) : (
+                    <>
+                      <Upload className="h-8 w-8 mx-auto mb-2 opacity-40" />
+                      <p className="text-sm">No main image. Click to upload or paste a URL below.</p>
+                    </>
+                  )}
+                </button>
               )}
-              <Input
-                value={form.main_image_url}
-                onChange={(e) => update("main_image_url", e.target.value)}
-                placeholder="Image URL"
-              />
+              <div className="flex gap-2">
+                <Input
+                  value={form.main_image_url}
+                  onChange={(e) => update("main_image_url", e.target.value)}
+                  placeholder="Image URL"
+                  className="flex-1"
+                />
+                <Button type="button" variant="outline" size="sm" disabled={uploadingMain} onClick={() => mainImageInputRef.current?.click()}>
+                  <Upload className="h-4 w-4 mr-1" />
+                  {uploadingMain ? "…" : "Upload"}
+                </Button>
+              </div>
             </CardContent>
           </Card>
 

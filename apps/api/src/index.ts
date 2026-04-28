@@ -49,9 +49,33 @@ const start = async () => {
     }
     await app.listen({ port: env.PORT, host: env.API_HOST });
     app.log.info(`API listening on ${env.API_HOST}:${env.PORT}`);
+
+    if (!process.env.VPS_BACKEND_URL && env.STRIPE_SECRET_KEY) {
+      const { runAutoReleaseEligibleConnectHolds } = await import("./lib/org-auto-release.js");
+      const intervalMs = Math.max(
+        60_000,
+        parseInt(process.env.AUTO_CONNECT_RELEASE_INTERVAL_MS || `${15 * 60 * 1000}`, 10) || 15 * 60 * 1000
+      );
+      const tick = () => {
+        void runAutoReleaseEligibleConnectHolds()
+          .then((r) => {
+            if (r.transfers > 0) {
+              app.log.info(
+                { transfers: r.transfers, amount_cents: r.amount_cents, orgs: r.orgsAttempted },
+                "auto Connect release (post-hold) completed"
+              );
+            }
+            if (r.errors.length) app.log.warn({ errors: r.errors }, "auto Connect release reported errors");
+          })
+          .catch((e) => app.log.error(e, "auto Connect release failed"));
+      };
+      setInterval(tick, intervalMs);
+      tick();
+    }
+
     if (!env.EXPO_TOKEN && !(env as { EXPO_ACCESS_TOKEN?: string }).EXPO_ACCESS_TOKEN) {
       app.log.warn(
-        "[push] EXPO_TOKEN is not set — push notification delivery is DISABLED. " +
+        "[push] EXPO_TOKEN is not set: push notification delivery is DISABLED. " +
         "Create an access token at expo.dev → Account → Access Tokens and set it as EXPO_TOKEN (or EXPO_ACCESS_TOKEN)."
       );
     }

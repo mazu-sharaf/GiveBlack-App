@@ -33,7 +33,7 @@ function parseDonationContext(returnTo?: string): { orgId: string; amount: numbe
 const WELCOME_SEEN_KEY = "@gb_welcome_seen";
 
 const INVITE_MESSAGE =
-  "I just joined GiveBlack — a platform that connects donors with Black-led causes and community programs. Come support with me! https://giveblackapp.com";
+  "I just joined GiveBlack, a platform that connects donors with Black-led causes and community programs. Come support with me! https://giveblackapp.com";
 
 const ACTIONS = [
   {

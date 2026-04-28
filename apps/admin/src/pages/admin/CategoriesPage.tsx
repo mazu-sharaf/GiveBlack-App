@@ -10,7 +10,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { toast } from "sonner";
 import { Grid3X3, Plus, Pencil, Trash2, ImagePlus, X } from "lucide-react";
 
-/** Default for icon circle bg, border, and letter — new categories and admin previews. */
+/** Default for icon circle bg, border, and letter: new categories and admin previews. */
 const DEFAULT_CATEGORY_THEME = "#059669";
 
 interface CategoryItem {
@@ -176,7 +176,7 @@ export default function CategoriesPage() {
           </h2>
           <p className="text-sm text-muted-foreground mt-1">{categories.length} categories</p>
         </div>
-        <Button onClick={openCreate} className="bg-emerald-600 hover:bg-emerald-700">
+        <Button onClick={openCreate} className="bg-primary hover:bg-primary/90">
           <Plus className="h-4 w-4 mr-1" /> New Category
         </Button>
       </div>
@@ -335,7 +335,7 @@ export default function CategoriesPage() {
             <Button variant="outline" onClick={() => setDialogOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={handleSave} className="bg-emerald-600 hover:bg-emerald-700" disabled={uploading}>
+            <Button onClick={handleSave} className="bg-primary hover:bg-primary/90" disabled={uploading}>
               Save
             </Button>
           </DialogFooter>

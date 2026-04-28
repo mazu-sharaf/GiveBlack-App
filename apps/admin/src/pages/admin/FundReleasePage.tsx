@@ -17,29 +17,33 @@ export default function FundReleasePage() {
   const [loading, setLoading] = useState(true);
   const [releasing, setReleasing] = useState<string | null>(null);
 
-  const load = async () => {
-    setLoading(true);
+  const load = async (opts?: { quiet?: boolean }) => {
+    if (!opts?.quiet) setLoading(true);
     try {
       const res = await fetchFundReleaseSummary();
       setRows(res.organizations || []);
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Failed to load balances");
+      if (!opts?.quiet) toast.error(err instanceof Error ? err.message : "Failed to load balances");
     } finally {
-      setLoading(false);
+      if (!opts?.quiet) setLoading(false);
     }
   };
 
   useEffect(() => {
     void load();
+    const id = window.setInterval(() => {
+      if (document.visibilityState === "visible") void load({ quiet: true });
+    }, 30_000);
+    return () => window.clearInterval(id);
   }, []);
 
   const handleRelease = async (org: FundReleaseOrgRow) => {
-    if (org.eligible_cents <= 0) return;
+    if (org.total_hold_cents <= 0) return;
     setReleasing(org.org_id);
     try {
       const res = await releaseOrgFunds(org.org_id);
       toast.success(
-        `Released ${centsToUsd(res.amount_cents)} — Transfer ${res.transfer_id} (${res.donation_count} donations)`
+        `Released ${centsToUsd(res.amount_cents)}. Transfer ${res.transfer_id} (${res.donation_count} donations).`
       );
       await load();
     } catch (err: unknown) {
@@ -57,9 +61,10 @@ export default function FundReleasePage() {
             <Landmark className="h-6 w-6" /> Fund release (Stripe Connect)
           </h2>
           <p className="text-sm text-muted-foreground mt-1 max-w-2xl">
-            Donations settle on the platform during the plan hold period (14 days free, 7 days paid plans). When
-            eligible, transfer the net amount to the organization&apos;s connected account. Stripe then pays out to
-            their bank.
+            New donations get an automatic hold (14 days on free, 7 days on paid plans). When Connect payouts are on,
+            amounts that have passed the hold date transfer to the org&apos;s Stripe account automatically on a
+            schedule. Use <strong>Release</strong> anytime to move <em>all</em> held net funds immediately; no need to
+            wait for the hold. This page refreshes every 30s while open.
           </p>
         </div>
         <Button variant="outline" size="sm" onClick={() => void load()} disabled={loading}>
@@ -83,27 +88,26 @@ export default function FundReleasePage() {
                     <TableHead>Organization</TableHead>
                     <TableHead>Plan</TableHead>
                     <TableHead>Connect</TableHead>
-                    <TableHead className="text-right">Pending</TableHead>
-                    <TableHead className="text-right">Eligible</TableHead>
+                    <TableHead className="text-right">In hold window</TableHead>
+                    <TableHead className="text-right">Past hold</TableHead>
                     <TableHead className="text-right">Total held</TableHead>
                     <TableHead className="w-36"> </TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {rows.map((r) => {
-                    const canRelease =
-                      r.eligible_cents > 0 && r.stripe_account_id && r.payouts_enabled;
+                    const canRelease = r.total_hold_cents > 0 && r.stripe_account_id && r.payouts_enabled;
                     return (
                       <TableRow key={r.org_id}>
-                        <TableCell className="font-medium">{r.org_name || "—"}</TableCell>
+                        <TableCell className="font-medium">{r.org_name || "-"}</TableCell>
                         <TableCell>
                           <Badge variant="outline">{r.plan_tier}</Badge>
                         </TableCell>
                         <TableCell className="text-sm text-muted-foreground">
                           {!r.stripe_account_id ? (
-                            <span className="text-amber-500">No account</span>
+                            <span className="text-amber-500">Not connected</span>
                           ) : r.payouts_enabled ? (
-                            <span className="text-emerald-500">Ready</span>
+                            <span className="text-primary">Payouts on</span>
                           ) : (
                             <span className="text-amber-500">Onboarding</span>
                           )}
@@ -114,11 +118,11 @@ export default function FundReleasePage() {
                         <TableCell>
                           <Button
                             size="sm"
-                            className="bg-emerald-600 hover:bg-emerald-700"
+                            className="bg-primary hover:bg-primary/90"
                             disabled={!canRelease || releasing === r.org_id}
                             onClick={() => void handleRelease(r)}
                           >
-                            {releasing === r.org_id ? "…" : "Release"}
+                            {releasing === r.org_id ? "…" : r.pending_cents > 0 && r.eligible_cents === 0 ? "Release early" : "Release"}
                           </Button>
                         </TableCell>
                       </TableRow>

@@ -15,7 +15,7 @@ import { Search, Heart, Download, DollarSign } from "lucide-react";
 import { format } from "date-fns";
 
 const STATUS_COLORS: Record<string, string> = {
-  succeeded: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
+  succeeded: "bg-primary/20 text-primary border-primary/30",
   pending: "bg-amber-500/20 text-amber-400 border-amber-500/30",
   failed: "bg-red-500/20 text-red-400 border-red-500/30",
 };
@@ -60,14 +60,20 @@ export default function DonationsPage() {
     setReconciling(true);
     try {
       const res = await reconcilePendingDonationsWithStripe();
+      const repaired = res.repaired_hold ?? 0;
+      const repairMsg = repaired > 0 ? ` Repaired ${repaired} payout-hold row(s) and resynced org totals.` : "";
       if (res.errors?.length) {
-        toast.warning(`Updated ${res.fixed} donation(s). ${res.errors.length} row(s) had errors — see console.`);
+        toast.warning(
+          `Updated ${res.fixed} donation(s).${repairMsg} ${res.errors.length} row(s) had errors; see console.`,
+        );
         console.warn("[reconcile]", res.errors);
       } else {
         toast.success(
           res.fixed > 0
-            ? `Synced with Stripe: ${res.fixed} donation(s) marked succeeded.`
-            : "No pending donations needed updating (or none matched Stripe as paid).",
+            ? `Synced with Stripe: ${res.fixed} donation(s) marked succeeded.${repairMsg}`
+            : repaired > 0
+              ? `No pending updates.${repairMsg}`.trim()
+              : "No pending donations needed updating (or none matched Stripe as paid).",
         );
       }
       await load();
@@ -178,11 +184,11 @@ export default function DonationsPage() {
                             {String(d.donor_name || "Unknown")}
                             {d.is_anonymous && <span className="ml-1.5 text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full font-medium">Anonymous</span>}
                           </p>
-                          <p className="text-xs text-muted-foreground truncate">{d.is_anonymous ? "—" : String(d.user_email || "")}</p>
+                          <p className="text-xs text-muted-foreground truncate">{d.is_anonymous ? "-" : String(d.user_email || "")}</p>
                         </div>
                       </TableCell>
                       <TableCell className="text-muted-foreground truncate max-w-[150px]">{String(d.org_name || "--")}</TableCell>
-                      <TableCell className="text-right font-semibold text-emerald-500">${Number(d.amount).toLocaleString()}</TableCell>
+                      <TableCell className="text-right font-semibold text-primary">${Number(d.amount).toLocaleString()}</TableCell>
                       <TableCell className="hidden md:table-cell text-right text-muted-foreground">${Number(d.platform_fee || 0).toFixed(2)}</TableCell>
                       <TableCell>
                         <Badge variant="outline" className={STATUS_COLORS[String(d.status)] || ""}>{String(d.status || "pending")}</Badge>
@@ -191,7 +197,7 @@ export default function DonationsPage() {
                         {d.created_at ? format(new Date(d.created_at as string), "MMM d, yyyy") : "--"}
                       </TableCell>
                       <TableCell className="hidden lg:table-cell text-muted-foreground text-xs truncate max-w-[120px]">
-                        {d.education_partner_name ? String(d.education_partner_name) : "—"}
+                        {d.education_partner_name ? String(d.education_partner_name) : "-"}
                       </TableCell>
                       <TableCell>
                         <Button
@@ -264,7 +270,7 @@ export default function DonationsPage() {
                 <div className="border-t border-border pt-2">
                   <div className="flex justify-between">
                     <span className="text-muted-foreground font-medium">Net to Organization</span>
-                    <span className="text-emerald-500 font-semibold">${netToOrg.toFixed(2)}</span>
+                    <span className="text-primary font-semibold">${netToOrg.toFixed(2)}</span>
                   </div>
                 </div>
                 <div className="border-t border-border pt-2 space-y-1">

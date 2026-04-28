@@ -30,7 +30,7 @@ export function SplashLogoAnimation({ onComplete, ready = true }: Props) {
       try {
         await SplashScreen.hideAsync();
       } catch {
-        /* ignore — web or double-call */
+        /* ignore: web or double-call */
       }
 
       timerRef.current = setTimeout(() => {

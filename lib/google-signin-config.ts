@@ -13,7 +13,7 @@ export const GOOGLE_WEB_CLIENT_ID =
 
 const IOS_CLIENT_SUFFIX = ".apps.googleusercontent.com";
 
-/** Reversed client id — used by @react-native-google-signin iOS URL types. */
+/** Reversed client id: used by @react-native-google-signin iOS URL types. */
 export const GOOGLE_IOS_URL_SCHEME =
   process.env.EXPO_PUBLIC_GOOGLE_IOS_URL_SCHEME ??
   `com.googleusercontent.apps.${GOOGLE_IOS_CLIENT_ID.slice(0, -IOS_CLIENT_SUFFIX.length)}`;

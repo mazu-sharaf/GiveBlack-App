@@ -102,7 +102,7 @@ export default function EducationPartnersPage() {
             Codes for deep links and attribution of the reinvest-in-education slice on donations.
           </p>
         </div>
-        <Button onClick={openCreate} className="bg-emerald-600 hover:bg-emerald-700">
+        <Button onClick={openCreate} className="bg-primary hover:bg-primary/90">
           <Plus className="h-4 w-4 mr-1" /> New partner
         </Button>
       </div>
@@ -128,7 +128,7 @@ export default function EducationPartnersPage() {
                   <div className="flex items-center gap-3 shrink-0">
                     <span
                       className={`text-xs px-2 py-0.5 rounded-full border ${
-                        p.active ? "border-emerald-500/40 text-emerald-400" : "border-border text-muted-foreground"
+                        p.active ? "border-primary/40 text-primary" : "border-border text-muted-foreground"
                       }`}
                     >
                       {p.active ? "Active" : "Inactive"}
@@ -180,7 +180,7 @@ export default function EducationPartnersPage() {
             <Button variant="secondary" onClick={() => setDialogOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={handleSave} className="bg-emerald-600 hover:bg-emerald-700">
+            <Button onClick={handleSave} className="bg-primary hover:bg-primary/90">
               Save
             </Button>
           </DialogFooter>

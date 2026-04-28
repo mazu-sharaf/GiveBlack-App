@@ -153,7 +153,7 @@ export default function OrgVolunteersTab() {
         ) : (
           filtered.map((v) => (
             <View key={v.id} style={[styles.card, { backgroundColor: c.cardBg, borderColor: c.border }]}>
-              <Text style={[styles.name, { color: c.text }]}>{v.name || "—"}</Text>
+              <Text style={[styles.name, { color: c.text }]}>{v.name || "-"}</Text>
               <Text style={[styles.meta, { color: c.textMuted }]}>{v.email || ""}</Text>
               {v.phone ? <Text style={[styles.meta, { color: c.textMuted }]}>{v.phone}</Text> : null}
               {v.skills ? (

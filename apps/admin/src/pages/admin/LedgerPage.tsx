@@ -49,7 +49,7 @@ export default function LedgerPage() {
   const totalPages = Math.ceil(total / limit);
 
   const summaryCards = [
-    { title: "Platform Revenue", value: summary.platform, icon: DollarSign, color: "text-emerald-500", bg: "bg-emerald-500/10" },
+    { title: "Platform Revenue", value: summary.platform, icon: DollarSign, color: "text-primary", bg: "bg-primary/10" },
     { title: "Organization Payouts", value: summary.org, icon: Building2, color: "text-blue-500", bg: "bg-blue-500/10" },
     { title: "Endowment Fund", value: summary.endowment, icon: Landmark, color: "text-purple-500", bg: "bg-purple-500/10" },
     { title: "Ecosystem / Reinvest", value: summary.ecosystem, icon: Leaf, color: "text-cyan-500", bg: "bg-cyan-500/10" },
@@ -84,7 +84,7 @@ export default function LedgerPage() {
               </div>
             </CardHeader>
             <CardContent>
-              <div className={`text-xl font-bold ${c.value >= 0 ? "text-emerald-500" : "text-red-400"}`}>
+              <div className={`text-xl font-bold ${c.value >= 0 ? "text-primary" : "text-red-400"}`}>
                 ${Math.abs(c.value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </div>
             </CardContent>
@@ -119,11 +119,11 @@ export default function LedgerPage() {
                         <TableCell>
                           <Badge variant="outline">{String(e.account_type || "--")}</Badge>
                         </TableCell>
-                        <TableCell className={`text-right font-medium ${amt >= 0 ? "text-emerald-500" : "text-red-400"}`}>
+                        <TableCell className={`text-right font-medium ${amt >= 0 ? "text-primary" : "text-red-400"}`}>
                           {amt >= 0 ? "+" : "-"}${Math.abs(amt).toFixed(2)}
                         </TableCell>
                         <TableCell className="hidden sm:table-cell">
-                          <Badge variant="outline" className={e.released ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30" : "bg-amber-500/20 text-amber-400 border-amber-500/30"}>
+                          <Badge variant="outline" className={e.released ? "bg-primary/20 text-primary border-primary/30" : "bg-amber-500/20 text-amber-400 border-amber-500/30"}>
                             {e.released ? "Released" : "Held"}
                           </Badge>
                         </TableCell>

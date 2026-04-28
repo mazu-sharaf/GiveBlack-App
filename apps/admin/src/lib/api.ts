@@ -4,7 +4,7 @@ const TOKEN_KEY = "gb_admin_api_token";
 /**
  * Turn API-stored paths into absolute URLs for <img src>.
  * Uploads live at `{origin}/uploads/...` (nginx → Node). `VITE_API_URL` is often
- * `https://domain/app` for JSON routes — must NOT prefix `/uploads/` with `/app` or images 404.
+ * `https://domain/app` for JSON routes: do not prefix `/uploads/` with `/app` or images 404.
  *
  * In the browser, `/uploads/*` is resolved with `window.location.origin` first so campaign
  * pages still load images if `VITE_API_URL` was wrong at build time (e.g. localhost baked in).
@@ -389,10 +389,23 @@ export async function fetchDonations(params?: {
 
 /** Ask Stripe for payment status and mark succeeded donations that were stuck `pending` (missed webhooks / legacy `cs_` ids). */
 export async function reconcilePendingDonationsWithStripe() {
-  return request<{ ok: boolean; fixed: number; checked: number; errors: string[] }>(
-    "/api/admin/reconcile-pending-donations",
-    { method: "POST" }
-  );
+  return request<{
+    ok: boolean;
+    fixed: number;
+    repaired_hold?: number;
+    checked: number;
+    errors: string[];
+  }>("/api/admin/reconcile-pending-donations", { method: "POST" });
+}
+
+export interface OrganizationFundMetricRow {
+  org_id: string;
+  raised_from_donations: number;
+  on_hold_cents: number;
+}
+
+export async function fetchOrganizationFundMetrics() {
+  return request<{ metrics: OrganizationFundMetricRow[] }>("/api/admin/organization-fund-metrics");
 }
 
 export async function fetchCommunityCampaigns(params?: {
@@ -599,6 +612,22 @@ export async function invokeFunction<T = unknown>(name: string, body: unknown = 
     throw new Error(msg);
   }
   return res.data;
+}
+
+export interface AdminTopDonorRow {
+  id: string;
+  email: string | null;
+  name: string;
+  first_name: string;
+  last_name: string;
+  avatar_url: string | null;
+  total_amount_cents: number;
+  donation_count: number;
+}
+
+/** Leaderboard from donor_stats (registered accounts); includes email for admin drill-down. */
+export async function fetchTopDonorsAdmin(limit = 20) {
+  return request<{ donors: AdminTopDonorRow[] }>(`/api/admin/donors/top?limit=${limit}`);
 }
 
 export async function uploadFile(file: File): Promise<string> {

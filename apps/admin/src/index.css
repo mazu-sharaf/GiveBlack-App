@@ -1,69 +1,41 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+@import url("https://fonts.googleapis.com/css2?family=Noto+Sans:wght@300;400;500;600;700&display=swap");
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+/* GiveBlack admin: dark green shell, high-contrast text */
 @layer base {
-  :root {
-    --background: 210 20% 96%;
-    --foreground: 207 28% 10%;
-    --card: 0 0% 100%;
-    --card-foreground: 207 28% 10%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 207 28% 10%;
-    --primary: 152 55% 40%;
-    --primary-foreground: 0 0% 100%;
-    --secondary: 210 18% 90%;
-    --secondary-foreground: 207 28% 10%;
-    --muted: 210 15% 92%;
-    --muted-foreground: 207 12% 45%;
-    --accent: 44 66% 52%;
-    --accent-foreground: 207 28% 8%;
-    --destructive: 0 72% 51%;
-    --destructive-foreground: 0 0% 100%;
-    --border: 210 12% 87%;
-    --input: 210 12% 87%;
-    --ring: 152 55% 40%;
-    --radius: 0.75rem;
-    --sidebar-background: 207 28% 8%;
-    --sidebar-foreground: 210 20% 80%;
-    --sidebar-primary: 152 55% 40%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 207 18% 14%;
-    --sidebar-accent-foreground: 210 20% 90%;
-    --sidebar-border: 207 12% 18%;
-    --sidebar-ring: 152 55% 40%;
-  }
-
+  :root,
   .dark {
-    --background: 207 28% 8%;
-    --foreground: 210 20% 92%;
-    --card: 207 22% 12%;
-    --card-foreground: 210 20% 92%;
-    --popover: 207 22% 12%;
-    --popover-foreground: 210 20% 92%;
-    --primary: 152 55% 40%;
+    --background: 156 32% 14%;
+    --foreground: 150 25% 94%;
+    --card: 158 38% 9%;
+    --card-foreground: 150 25% 96%;
+    --popover: 156 36% 11%;
+    --popover-foreground: 150 22% 92%;
+    --primary: 152 55% 42%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 207 18% 18%;
-    --secondary-foreground: 210 20% 85%;
-    --muted: 207 15% 16%;
-    --muted-foreground: 210 12% 55%;
-    --accent: 44 66% 52%;
-    --accent-foreground: 207 28% 8%;
+    --secondary: 156 28% 18%;
+    --secondary-foreground: 150 20% 92%;
+    --muted: 156 26% 16%;
+    --muted-foreground: 150 12% 72%;
+    --accent: 88 45% 48%;
+    --accent-foreground: 156 40% 8%;
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
-    --border: 207 12% 20%;
-    --input: 207 12% 20%;
-    --ring: 152 55% 40%;
-    --sidebar-background: 207 28% 6%;
-    --sidebar-foreground: 210 20% 80%;
-    --sidebar-primary: 152 55% 40%;
+    --border: 156 22% 26%;
+    --input: 156 24% 20%;
+    --ring: 152 55% 46%;
+    --radius: 0.75rem;
+    --sidebar-background: 158 40% 10%;
+    --sidebar-foreground: 150 22% 90%;
+    --sidebar-primary: 152 55% 44%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 207 18% 12%;
-    --sidebar-accent-foreground: 210 20% 90%;
-    --sidebar-border: 207 12% 15%;
-    --sidebar-ring: 152 55% 40%;
+    --sidebar-accent: 156 30% 15%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 156 22% 22%;
+    --sidebar-ring: 152 55% 46%;
   }
 }
 
@@ -73,23 +45,76 @@
   }
   html {
     height: 100%;
+    color-scheme: dark;
   }
 
   body {
-    @apply bg-background text-foreground font-sans;
-    font-family: 'Inter', sans-serif;
+    @apply text-foreground font-sans antialiased;
+    font-family: "Noto Sans", system-ui, sans-serif;
+    letter-spacing: 0.02em;
+    font-size: 14px;
     -webkit-tap-highlight-color: transparent;
     min-height: 100%;
+    background-color: hsl(var(--background));
+    background-image:
+      radial-gradient(ellipse 120% 70% at 50% -15%, hsl(152 45% 22% / 0.35), transparent 55%),
+      radial-gradient(ellipse 90% 55% at 100% 0%, hsl(145 40% 18% / 0.25), transparent 50%),
+      linear-gradient(180deg, hsl(var(--background)) 0%, hsl(158 38% 8%) 100%);
+    background-attachment: fixed;
   }
 
   #root {
     min-height: 100%;
   }
 
-  /* Improve text scaling on very small phones */
   @media (max-width: 380px) {
     html {
       font-size: 15px;
     }
+  }
+}
+
+@layer components {
+  .gb-maxton-card {
+    background-color: hsl(158 40% 8%);
+    background-image: linear-gradient(
+      127.09deg,
+      rgba(4, 18, 12, 0.96) 19.41%,
+      rgba(8, 28, 18, 0.55) 76.65%
+    );
+    border-color: hsl(var(--border));
+  }
+
+  .gb-admin-shell-bg {
+    background-color: transparent;
+    background-image:
+      radial-gradient(ellipse 100% 55% at 70% 0%, hsl(152 50% 24% / 0.18), transparent 52%),
+      radial-gradient(ellipse 70% 45% at 0% 100%, hsl(145 45% 18% / 0.14), transparent 48%);
+    background-attachment: fixed;
+  }
+
+  /* Themed scrollbars (main + sidebar): avoids default light track between panes */
+  .gb-admin-scrollable {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(152 40% 32%) hsl(158 35% 8%);
+  }
+  .gb-admin-scrollable::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  .gb-admin-scrollable::-webkit-scrollbar-track {
+    background: hsl(158 35% 8%);
+    border-radius: 6px;
+  }
+  .gb-admin-scrollable::-webkit-scrollbar-thumb {
+    background: linear-gradient(180deg, hsl(152 42% 36%), hsl(152 38% 28%));
+    border-radius: 6px;
+    border: 2px solid hsl(158 35% 8%);
+  }
+  .gb-admin-scrollable::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(180deg, hsl(152 48% 42%), hsl(152 42% 34%));
+  }
+  .gb-admin-scrollable::-webkit-scrollbar-corner {
+    background: hsl(158 35% 8%);
   }
 }

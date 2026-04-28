@@ -74,8 +74,8 @@ export default function DonorDetailPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex items-center gap-3">
-              <div className="h-12 w-12 rounded-full bg-emerald-500/20 flex items-center justify-center">
-                <User className="h-6 w-6 text-emerald-500" />
+              <div className="h-12 w-12 rounded-full bg-primary/20 flex items-center justify-center">
+                <User className="h-6 w-6 text-primary" />
               </div>
               <div>
                 <p className="font-semibold">{donorName}</p>
@@ -85,7 +85,7 @@ export default function DonorDetailPage() {
             <div className="space-y-2 text-sm">
               <div className="flex items-center gap-2">
                 <DollarSign className="h-4 w-4 text-muted-foreground" />
-                <span>Total: <strong className="text-emerald-500">${totalDonated.toLocaleString()}</strong></span>
+                <span>Total: <strong className="text-primary">${totalDonated.toLocaleString()}</strong></span>
               </div>
               <div className="flex items-center gap-2">
                 <Hash className="h-4 w-4 text-muted-foreground" />
@@ -136,7 +136,7 @@ export default function DonorDetailPage() {
                   {donations.map((d) => (
                     <TableRow key={d.id}>
                       <TableCell className="font-medium">{d.org_name || "--"}</TableCell>
-                      <TableCell className="text-emerald-500 font-medium">${Number(d.amount).toLocaleString()}</TableCell>
+                      <TableCell className="text-primary font-medium">${Number(d.amount).toLocaleString()}</TableCell>
                       <TableCell>
                         <Badge variant="outline">{d.status}</Badge>
                       </TableCell>

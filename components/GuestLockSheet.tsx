@@ -9,6 +9,7 @@ interface GuestLockSheetProps {
   message: string;
   icon?: React.ComponentProps<typeof Ionicons>["name"];
   onCreateAccount: () => void;
+  onSignIn?: () => void;
   onDismiss: () => void;
 }
 
@@ -18,6 +19,7 @@ export default function GuestLockSheet({
   message,
   icon = "lock-closed-outline",
   onCreateAccount,
+  onSignIn,
   onDismiss,
 }: GuestLockSheetProps) {
   const c = useThemeColors();
@@ -38,6 +40,12 @@ export default function GuestLockSheet({
           <Pressable style={[styles.primaryBtn, { backgroundColor: c.green }]} onPress={onCreateAccount}>
             <Text style={styles.primaryBtnText}>Create Account</Text>
           </Pressable>
+
+          {onSignIn ? (
+            <Pressable style={[styles.secondaryBtn, { borderColor: c.border }]} onPress={onSignIn}>
+              <Text style={[styles.secondaryBtnText, { color: c.textMuted }]}>Sign in</Text>
+            </Pressable>
+          ) : null}
 
           <Pressable style={[styles.secondaryBtn, { borderColor: c.border }]} onPress={onDismiss}>
             <Text style={[styles.secondaryBtnText, { color: c.textMuted }]}>Maybe later</Text>

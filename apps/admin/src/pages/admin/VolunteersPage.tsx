@@ -27,7 +27,7 @@ interface Volunteer {
 
 const STATUS_COLORS: Record<string, string> = {
   pending: "bg-amber-500/20 text-amber-400 border-amber-500/30",
-  approved: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
+  approved: "bg-primary/20 text-primary border-primary/30",
   rejected: "bg-red-500/20 text-red-400 border-red-500/30",
   active: "bg-blue-500/20 text-blue-400 border-blue-500/30",
 };
