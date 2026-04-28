@@ -11,7 +11,10 @@ interface SendEmailInput {
 
 function brevoApiKey(): string {
   const raw = env.BREVO_API_KEY || (env as { SENDINBLUE_API_KEY?: string }).SENDINBLUE_API_KEY || "";
-  return String(raw).trim();
+  return String(raw)
+    .trim()
+    .replace(/^\uFEFF/, "")
+    .replace(/^["']|["']$/g, "");
 }
 
 function brevoFromEmail(): string {
@@ -37,10 +40,10 @@ export function formatBrevoHttpError(status: number, bodyText: string): string {
 
   if (status === 401) {
     const lower = `${message} ${code}`.toLowerCase();
-    if (lower.includes("not enabled") || code === "unauthorized") {
+    if (lower.includes("not enabled")) {
       return (
-        `Brevo rejected the API key (401${message ? `: ${message}` : ""}). ` +
-        "In Brevo (app.brevo.com): Settings → SMTP & API → API keys — create or enable a v3 key with transactional send permission, set BREVO_API_KEY in server .env, restart the API, and verify the sender/domain for BREVO_SENDER_EMAIL under Senders & IP."
+        `Brevo: API key is disabled in your Brevo account (401: ${message || "API Key is not enabled"}). ` +
+        "In Brevo: CRM & Suite → Settings → SMTP & API → API keys — open your v3 key and ensure it is enabled, or create a new key, paste it as BREVO_API_KEY on the server, then pm2 restart giveblack-api. If .env has two BREVO_API_KEY lines, remove the old one (the last line wins)."
       );
     }
     return `Brevo authentication failed (401${message ? `: ${message}` : ""}). Check BREVO_API_KEY in server .env and restart the API.`;
