@@ -8,7 +8,7 @@ const repoRoot = path.resolve(currentDir, "../../..");
 config({ path: path.join(repoRoot, ".env") });
 
 const BREVO_API_KEY = process.env.BREVO_API_KEY;
-const BREVO_SENDER_EMAIL = process.env.BREVO_SENDER_EMAIL || "noreply@giveblackapp.com";
+const BREVO_SENDER_EMAIL = process.env.BREVO_SENDER_EMAIL || "support@giveblackapp.com";
 const BREVO_SENDER_NAME = process.env.BREVO_SENDER_NAME || "GiveBlack";
 const toEmail = process.env.ADMIN_EMAIL || "mazu@mawamedia.com";
 const APP_URL = process.env.APP_URL || "https://giveblackapp.com";

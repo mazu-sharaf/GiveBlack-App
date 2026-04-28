@@ -259,7 +259,7 @@ STRIPE_WEBHOOK_SECRET=whsec_***
 
 # Brevo (Email)
 BREVO_API_KEY=*** (configured)
-BREVO_SENDER_EMAIL=no-reply@giveblackapp.com
+BREVO_SENDER_EMAIL=support@giveblackapp.com
 
 # Expo (Push Notifications)
 EXPO_PUSH_TOKEN=*** (configured)

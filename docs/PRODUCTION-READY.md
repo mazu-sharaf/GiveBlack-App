@@ -219,7 +219,7 @@ STRIPE_SECRET_KEY=sk_live_***
 STRIPE_PUBLISHABLE_KEY=pk_live_***
 STRIPE_WEBHOOK_SECRET=whsec_***
 BREVO_API_KEY=<your-key>
-BREVO_SENDER_EMAIL=no-reply@giveblackapp.com
+BREVO_SENDER_EMAIL=support@giveblackapp.com
 EXPO_ACCESS_TOKEN=<your-token>
 ```
 
