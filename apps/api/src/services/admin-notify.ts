@@ -1,6 +1,6 @@
 import { db } from "../lib/db.js";
 import { env } from "../config/env.js";
-import { sendBrevoEmail } from "./brevo.js";
+import { isBrevoConfigured, sendBrevoEmail } from "./brevo.js";
 import { emailLayout, ctaButton } from "./email-template.js";
 
 /** Origin for the admin panel (no trailing slash). Strips a trailing `/admin` if present. */
@@ -46,7 +46,7 @@ async function getAdminRecipientEmails(): Promise<string[]> {
 }
 
 async function notifyAdmins(subject: string, html: string, tags: string[]): Promise<void> {
-  if (!env.BREVO_API_KEY || !env.BREVO_SENDER_EMAIL) {
+  if (!isBrevoConfigured()) {
     console.warn("[admin-notify] Brevo not configured; skipping admin email:", subject);
     return;
   }
@@ -111,7 +111,7 @@ export async function notifyVolunteerApproved(input: {
   volunteerName: string;
   orgName: string;
 }): Promise<void> {
-  if (!env.BREVO_API_KEY || !env.BREVO_SENDER_EMAIL) {
+  if (!isBrevoConfigured()) {
     console.warn("[volunteer-notify] Brevo not configured; skipping volunteer approval email");
     return;
   }

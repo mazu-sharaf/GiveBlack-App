@@ -1,4 +1,4 @@
-import "dotenv/config";
+import "./load-env.js";
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
@@ -49,6 +49,16 @@ const start = async () => {
     }
     await app.listen({ port: env.PORT, host: env.API_HOST });
     app.log.info(`API listening on ${env.API_HOST}:${env.PORT}`);
+
+    const brevoKey = (env.BREVO_API_KEY || "").trim();
+    const brevoFrom = (env.BREVO_SENDER_EMAIL || "").trim();
+    if (brevoKey && brevoFrom) {
+      app.log.info(`[email] Brevo transactional email enabled (sender=${brevoFrom})`);
+    } else {
+      app.log.warn(
+        "[email] Brevo not configured: set BREVO_API_KEY and BREVO_SENDER_EMAIL in repo root .env, then restart the API (pm2 restart giveblack-api)."
+      );
+    }
 
     if (!process.env.VPS_BACKEND_URL && env.STRIPE_SECRET_KEY) {
       const { runAutoReleaseEligibleConnectHolds } = await import("./lib/org-auto-release.js");

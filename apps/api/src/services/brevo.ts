@@ -19,6 +19,10 @@ function brevoFromEmail(): string {
   return String(raw).trim();
 }
 
+export function isBrevoConfigured(): boolean {
+  return Boolean(brevoApiKey() && brevoFromEmail());
+}
+
 /** Human-readable explanation for common Brevo API failures (operators copy .env from dashboard). */
 export function formatBrevoHttpError(status: number, bodyText: string): string {
   let message = "";
@@ -43,7 +47,7 @@ export function formatBrevoHttpError(status: number, bodyText: string): string {
   }
 
   if (status === 400 && /sender|domain|not valid|verify/i.test(message)) {
-    return `Brevo send rejected (400): ${message || bodyText.slice(0, 200)}. Verify the sender email/domain in Brevo **Senders & IP** matches BREVO_SENDER_EMAIL.`;
+    return `Brevo send rejected (400): ${message || bodyText.slice(0, 200)}. Verify the sender email/domain in Brevo Senders & IP matches BREVO_SENDER_EMAIL.`;
   }
 
   return `Brevo send failed: ${status} ${bodyText.slice(0, 500)}`;

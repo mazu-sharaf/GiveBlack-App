@@ -9,6 +9,7 @@ import fastifyStatic from "@fastify/static";
 import httpProxy from "@fastify/http-proxy";
 import path from "node:path";
 import { env, getCorsOrigins } from "./config/env.js";
+import { isBrevoConfigured } from "./services/brevo.js";
 import { healthRoutes } from "./routes/health.js";
 import { supportPageRoutes } from "./routes/support-page.js";
 import { authRoutes } from "./routes/auth.js";
@@ -225,7 +226,7 @@ export function buildServer() {
       auth: true,
       realtime: true,
       stripe: Boolean(env.STRIPE_SECRET_KEY),
-      brevo: Boolean(env.BREVO_API_KEY && env.BREVO_SENDER_EMAIL),
+      brevo: isBrevoConfigured(),
       expoPush: expoPushEnabled
     };
   });
