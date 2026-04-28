@@ -116,9 +116,11 @@ if [ ! -f "$REPO_ROOT/.env" ]; then
   JWT_REFRESH=$(node -e "console.log(require('crypto').randomBytes(48).toString('hex'))")
 
   if [ "$DOMAIN" = "giveblackapp.com" ]; then
-    CORS_ORIGINS_VALUE="https://giveblackapp.com,https://www.giveblackapp.com"
+    CORS_ORIGINS_VALUE="https://giveblackapp.com,https://www.giveblackapp.com,https://admin.giveblackapp.com"
+    ADMIN_PANEL_URL_VALUE="https://admin.giveblackapp.com"
   else
     CORS_ORIGINS_VALUE="https://$DOMAIN"
+    ADMIN_PANEL_URL_VALUE="https://$DOMAIN/admin"
   fi
 
   cat > "$REPO_ROOT/.env" <<ENVEOF
@@ -138,6 +140,7 @@ ADMIN_BOOTSTRAP_PASSWORD=Admin@123
 EXPO_PUBLIC_DOMAIN=$DOMAIN
 EXPO_PUBLIC_API_URL=https://$DOMAIN/app
 VITE_API_URL=https://$DOMAIN/app
+ADMIN_PANEL_URL=$ADMIN_PANEL_URL_VALUE
 
 # Stripe (fill in from your Stripe dashboard)
 # STRIPE_SECRET_KEY=sk_live_...
@@ -270,10 +273,19 @@ if [ -d "/etc/letsencrypt/live/$DOMAIN" ]; then
 else
   echo "Obtaining SSL certificate for $DOMAIN..."
   sudo systemctl stop nginx 2>/dev/null || true
-  sudo certbot certonly --standalone -d "$DOMAIN" --agree-tos --non-interactive -m "$ADMIN_EMAIL" || {
-    echo "WARNING: SSL certificate failed. You may need to run certbot manually."
-    echo "  sudo certbot certonly --standalone -d $DOMAIN"
-  }
+  if [ "$DOMAIN" = "giveblackapp.com" ]; then
+    sudo certbot certonly --standalone \
+      -d "$DOMAIN" -d "www.$DOMAIN" -d "admin.$DOMAIN" \
+      --agree-tos --non-interactive -m "$ADMIN_EMAIL" || {
+      echo "WARNING: SSL certificate failed. You may need to run certbot manually."
+      echo "  sudo certbot certonly --standalone -d $DOMAIN -d www.$DOMAIN -d admin.$DOMAIN"
+    }
+  else
+    sudo certbot certonly --standalone -d "$DOMAIN" --agree-tos --non-interactive -m "$ADMIN_EMAIL" || {
+      echo "WARNING: SSL certificate failed. You may need to run certbot manually."
+      echo "  sudo certbot certonly --standalone -d $DOMAIN"
+    }
+  fi
 fi
 
 sudo nginx -t && sudo systemctl start nginx && sudo systemctl enable nginx
@@ -288,7 +300,11 @@ echo ""
 echo "  Domain:  https://$DOMAIN"
 echo "  API:     https://$DOMAIN/app/api/organizations"
 echo "  Health:  https://$DOMAIN/app/health"
-echo "  Admin:   https://$DOMAIN/admin/"
+if [ "$DOMAIN" = "giveblackapp.com" ]; then
+  echo "  Admin:   https://admin.$DOMAIN/"
+else
+  echo "  Admin:   https://$DOMAIN/admin/"
+fi
 echo ""
 echo "  Admin Login:"
 echo "    Email:    admin@giveblackapp.com"

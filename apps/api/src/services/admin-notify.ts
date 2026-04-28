@@ -3,12 +3,35 @@ import { env } from "../config/env.js";
 import { sendBrevoEmail } from "./brevo.js";
 import { emailLayout, ctaButton } from "./email-template.js";
 
-/** Base URL for links into the admin SPA (pathname includes /admin). */
+/** Origin for the admin panel (no trailing slash). Strips a trailing `/admin` if present. */
 export function getAdminAppBase(): string {
-  if (env.APP_URL) return env.APP_URL.replace(/\/$/, "");
+  const fromEnv = env.ADMIN_PANEL_URL?.replace(/\/$/, "");
+  if (fromEnv) return stripTrailingAdminPath(fromEnv);
+  if (env.APP_URL) return stripTrailingAdminPath(env.APP_URL.replace(/\/$/, ""));
   const api = env.EXPO_PUBLIC_API_URL?.replace(/\/$/, "").replace(/\/app\/?$/, "");
   if (api) return api;
   return "https://giveblackapp.com";
+}
+
+function stripTrailingAdminPath(originOrUrl: string): string {
+  try {
+    const u = new URL(originOrUrl);
+    let p = u.pathname.replace(/\/$/, "");
+    if (p === "/admin" || p.endsWith("/admin")) p = p.replace(/\/admin$/, "") || "/";
+    u.pathname = p;
+    u.search = "";
+    u.hash = "";
+    return u.origin;
+  } catch {
+    return originOrUrl.replace(/\/admin\/?$/, "").replace(/\/$/, "");
+  }
+}
+
+/** Absolute URL into the mounted admin SPA (`/admin/...` routes). */
+function adminSpaUrl(pathname: string): string {
+  const base = getAdminAppBase();
+  const path = pathname.startsWith("/") ? pathname : `/${pathname}`;
+  return `${base}/admin${path}`;
 }
 
 async function getAdminRecipientEmails(): Promise<string[]> {
@@ -48,8 +71,7 @@ export async function notifyAdminsNewCharityRequest(input: {
   contactName: string;
   contactEmail: string;
 }): Promise<void> {
-  const base = getAdminAppBase();
-  const reviewUrl = `${base}/admin/charity-requests`;
+  const reviewUrl = adminSpaUrl("/charity-requests");
   const content = `
     <h2 style="color:#ffffff;margin:0 0 8px 0;font-size:22px;">New charity signup request</h2>
     <p style="color:#cccccc;margin:0 0 16px 0;font-size:16px;">Someone submitted an application to join GiveBlack as a charity organization.</p>
@@ -69,8 +91,7 @@ export async function notifyAdminsNewCampaign(input: {
   title: string;
   orgName: string;
 }): Promise<void> {
-  const base = getAdminAppBase();
-  const detailUrl = `${base}/admin/campaigns/${encodeURIComponent(input.campaignId)}`;
+  const detailUrl = adminSpaUrl(`/campaigns/${encodeURIComponent(input.campaignId)}`);
   const content = `
     <h2 style="color:#ffffff;margin:0 0 8px 0;font-size:22px;">New campaign pending review</h2>
     <p style="color:#cccccc;margin:0 0 16px 0;font-size:16px;">A charity created a campaign that needs approval before it goes live.</p>

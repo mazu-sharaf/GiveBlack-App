@@ -195,7 +195,7 @@ POST /api/admin/storage/upload       - Admin file upload
 - Auto-login after successful signup
 
 ### Admin Panel
-**URL**: https://giveblackapp.com/admin/
+**URL**: https://admin.giveblackapp.com/
 
 **Credentials:**
 - Email: `admin@giveblackapp.com`
@@ -208,7 +208,7 @@ POST /api/admin/storage/upload       - Admin file upload
 
 ### Production URLs
 - **Mobile App API**: `https://giveblackapp.com/app`
-- **Admin Panel**: `https://giveblackapp.com/admin/`
+- **Admin Panel**: `https://admin.giveblackapp.com/`
 - **File Uploads**: `https://giveblackapp.com/uploads/`
 - **Health Check**: `https://giveblackapp.com/app/health`
 
@@ -447,7 +447,7 @@ Then:
 - Scan QR code with Expo Go app
 
 ### Access Admin Panel
-1. Open: https://giveblackapp.com/admin/
+1. Open: https://admin.giveblackapp.com/
 2. Login: `admin@giveblackapp.com` / `Admin@123`
 3. Manage campaigns, donations, users
 
@@ -484,7 +484,7 @@ pm2 monit
 
 Start testing:
 1. Mobile: `npm start` in `/var/www/giveblack`
-2. Admin: https://giveblackapp.com/admin/
+2. Admin: https://admin.giveblackapp.com/
 3. API: https://giveblackapp.com/app/health
 
 **All systems are GO! 🚀**

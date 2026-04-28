@@ -140,7 +140,7 @@ curl https://giveblackapp.com/app/api/organizations
 curl https://giveblackapp.com/app/api/categories
 
 # Admin panel (open in browser)
-# https://giveblackapp.com/admin/
+# https://admin.giveblackapp.com/
 ```
 
 ---
@@ -192,7 +192,7 @@ bash deploy/deploy.sh
 
 ## Admin Panel
 
-- URL: `https://giveblackapp.com/admin/`
+- URL: `https://admin.giveblackapp.com/`
 - Email: `admin@giveblackapp.com`
 - Password: `Admin@123` (change after first login)
 

@@ -18,7 +18,7 @@ import { resolveImageUrl } from "@/lib/api";
 const API_URL = (import.meta.env.VITE_API_URL || "").replace(/\/$/, "");
 
 /** Default share image when a campaign has no hero or org artwork (matches `index.html` OG). */
-const DEFAULT_SHARE_OG = "https://giveblackapp.com/admin/giveblack-og.png";
+const DEFAULT_SHARE_OG = "https://admin.giveblackapp.com/admin/giveblack-og.png";
 
 interface Campaign {
   id: string;
