@@ -23,6 +23,7 @@ import SubscriptionsPage from "./pages/admin/SubscriptionsPage";
 import VolunteersPage from "./pages/admin/VolunteersPage";
 import CategoriesPage from "./pages/admin/CategoriesPage";
 import LedgerPage from "./pages/admin/LedgerPage";
+import GiveBlackFinancialsPage from "./pages/admin/GiveBlackFinancialsPage";
 import FundReleasePage from "./pages/admin/FundReleasePage";
 import TransactionsPage from "./pages/admin/TransactionsPage";
 import StaffPage from "./pages/admin/StaffPage";
@@ -74,6 +75,7 @@ const App = () => (
               <Route path="/volunteers" element={<AdminPage><VolunteersPage /></AdminPage>} />
               <Route path="/categories" element={<AdminPage><CategoriesPage /></AdminPage>} />
               <Route path="/ledger" element={<AdminPage><LedgerPage /></AdminPage>} />
+              <Route path="/giveblack-financials" element={<AdminPage><GiveBlackFinancialsPage /></AdminPage>} />
               <Route path="/fund-release" element={<AdminPage><FundReleasePage /></AdminPage>} />
               <Route path="/transactions" element={<AdminPage><TransactionsPage /></AdminPage>} />
               <Route path="/staff" element={<AdminPage><StaffPage /></AdminPage>} />

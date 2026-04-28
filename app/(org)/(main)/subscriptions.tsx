@@ -317,6 +317,38 @@ export default function SubscriptionsTab() {
     );
   }
 
+  function handleResumePlan() {
+    Alert.alert(
+      "Resume Plan",
+      "Resume your subscription so it will renew at the end of the billing period?",
+      [
+        { text: "Not now", style: "cancel" },
+        {
+          text: "Resume",
+          style: "default",
+          onPress: async () => {
+            if (!subData?.org_id || busy) return;
+            setBusy(true);
+            try {
+              await apiPost(
+                "/api/subscriptions/resume-native",
+                { org_id: subData.org_id },
+                token
+              );
+              await loadData();
+              Alert.alert("Resumed", "Your subscription will renew normally.");
+            } catch (e) {
+              const msg = e instanceof Error ? e.message : "Could not resume plan.";
+              Alert.alert("Unable to resume", msg);
+            } finally {
+              setBusy(false);
+            }
+          },
+        },
+      ]
+    );
+  }
+
   if (loading) {
     return (
       <View style={[styles.container, { backgroundColor: c.background }]}>
@@ -385,7 +417,16 @@ export default function SubscriptionsTab() {
                 <Ionicons name="card-outline" size={16} color={c.textMuted} />
                 <Text style={[styles.manageBillingText, { color: c.text }]}>Manage Billing</Text>
               </Pressable>
-              {!cancelAtPeriodEnd && (
+              {cancelAtPeriodEnd ? (
+                <Pressable
+                  style={[styles.manageBillingBtn, { borderColor: c.border, flex: 1 }]}
+                  onPress={handleResumePlan}
+                  disabled={busy}
+                >
+                  <Ionicons name="refresh-outline" size={16} color={c.textMuted} />
+                  <Text style={[styles.manageBillingText, { color: c.text }]}>Resume Plan</Text>
+                </Pressable>
+              ) : (
                 <Pressable
                   style={[styles.manageBillingBtn, { borderColor: c.danger + "66", flex: 1 }]}
                   onPress={handleCancelPlan}

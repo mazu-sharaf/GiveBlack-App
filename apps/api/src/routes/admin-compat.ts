@@ -688,6 +688,267 @@ export const adminCompatRoutes: FastifyPluginAsync = async (app) => {
     }
   );
 
+  app.get(
+    "/api/admin/payment-metrics",
+    { preHandler: [app.authenticate, app.requireRole("admin", "super_admin", "manager", "staff")] },
+    async (request) => {
+      const q = request.query as Record<string, string>;
+      const range = String(q.range || "all_time");
+      const where: string[] = ["d.status = 'succeeded'"];
+      const vals: unknown[] = [];
+
+      const addFrom = (iso: string) => {
+        vals.push(iso);
+        where.push(`d.created_at >= $${vals.length}::timestamptz`);
+      };
+
+      if (range === "last_7d") addFrom(new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString());
+      else if (range === "last_30d") addFrom(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString());
+      else if (range === "month") {
+        // month-to-date in DB timezone
+        where.push(`d.created_at >= date_trunc('month', now())`);
+      }
+
+      const w = where.length ? `where ${where.join(" and ")}` : "";
+
+      // Donations: amounts + education reinvest (stored on donations).
+      const donRes = await db.query(
+        `select
+           coalesce(sum(d.amount), 0)::numeric as gross_donations,
+           coalesce(sum(d.reinvest_amount), 0)::numeric as education_total,
+           coalesce(sum(d.partner_reinvest_amount), 0)::numeric as education_partner_total,
+           coalesce(sum(d.general_reinvest_amount), 0)::numeric as education_general_total,
+           count(*)::int as donation_count
+         from donations d
+         ${w}`,
+        vals
+      );
+      const don = (donRes.rows[0] as any) || {};
+
+      // Platform fee: not stored; compute from policy (3% of donation amount).
+      // Keep this server-side so the admin dashboard has a single source-of-truth.
+      const platformFee = Number(don.gross_donations || 0) * 0.03;
+      const education = Number(don.education_total || 0);
+      const gross = Number(don.gross_donations || 0);
+      const toOrgsBeforeProcessor = Math.max(0, gross - platformFee - education);
+
+      // Ledger totals (if populated) give endowment/ecosystem/platform/org accounting.
+      // These can be used to validate donation policy totals over time.
+      const ledgerWhere =
+        range === "last_7d"
+          ? `where created_at >= now() - interval '7 days'`
+          : range === "last_30d"
+            ? `where created_at >= now() - interval '30 days'`
+            : range === "month"
+              ? `where created_at >= date_trunc('month', now())`
+              : "";
+      const ledgerRes = await db.query(
+        `select account_type, coalesce(sum(amount), 0)::numeric as total
+         from ledger_entries
+         ${ledgerWhere}
+         group by account_type`
+      );
+      const ledger: Record<string, number> = {};
+      for (const row of ledgerRes.rows as any[]) {
+        const k = String(row.account_type || "").trim();
+        ledger[k] = Number(row.total || 0);
+      }
+
+      // Subscription revenue from Stripe webhooks (invoice.paid → subscription_payments).
+      const subWhere =
+        range === "last_7d"
+          ? `where paid_at >= now() - interval '7 days'`
+          : range === "last_30d"
+            ? `where paid_at >= now() - interval '30 days'`
+            : range === "month"
+              ? `where paid_at >= date_trunc('month', now())`
+              : "";
+      const subRes = await db.query(
+        `select coalesce(sum(amount), 0)::numeric as subscription_total,
+                count(*)::int as subscription_payment_count
+         from subscription_payments
+         ${subWhere}`
+      );
+      const sub = (subRes.rows[0] as any) || {};
+
+      return {
+        range,
+        donations: {
+          gross_total: gross,
+          donation_count: Number(don.donation_count || 0),
+          platform_fee_total: Math.round(platformFee * 100) / 100,
+          education_total: education,
+          education_partner_total: Number(don.education_partner_total || 0),
+          education_general_total: Number(don.education_general_total || 0),
+          to_orgs_before_processor: Math.round(toOrgsBeforeProcessor * 100) / 100,
+        },
+        subscriptions: {
+          total: Number(sub.subscription_total || 0),
+          payment_count: Number(sub.subscription_payment_count || 0),
+        },
+        ledger: {
+          platform: ledger.platform ?? 0,
+          org: ledger.org ?? 0,
+          ecosystem: ledger.ecosystem ?? 0,
+          endowment: ledger.endowment ?? 0,
+        },
+      };
+    }
+  );
+
+  /** UTC window for GiveBlack financial summary (admin reporting). */
+  function resolveGiveblackFinancialWindow(q: Record<string, string>):
+    | { ok: true; preset: string; fromIso: string; toIso: string }
+    | { ok: false; error: string } {
+    const preset = String(q.preset || "month").toLowerCase();
+    const fromRaw = String(q.from || "").trim();
+    const toRaw = String(q.to || "").trim();
+
+    if (preset === "custom") {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(fromRaw) || !/^\d{4}-\d{2}-\d{2}$/.test(toRaw)) {
+        return { ok: false, error: "custom preset requires from and to as YYYY-MM-DD (UTC)" };
+      }
+      const fromMs = Date.parse(`${fromRaw}T00:00:00.000Z`);
+      const toMs = Date.parse(`${toRaw}T23:59:59.999Z`);
+      if (!Number.isFinite(fromMs) || !Number.isFinite(toMs) || fromMs > toMs) {
+        return { ok: false, error: "Invalid from/to date range" };
+      }
+      if (toMs - fromMs > 366 * 86400000) {
+        return { ok: false, error: "Custom range cannot exceed 366 days" };
+      }
+      return { ok: true, preset: "custom", fromIso: new Date(fromMs).toISOString(), toIso: new Date(toMs).toISOString() };
+    }
+
+    if (!["day", "week", "month", "year"].includes(preset)) {
+      return { ok: false, error: "preset must be day, week, month, year, or custom" };
+    }
+
+    const to = new Date();
+    let from = new Date();
+    if (preset === "day") {
+      from = new Date(Date.UTC(to.getUTCFullYear(), to.getUTCMonth(), to.getUTCDate(), 0, 0, 0, 0));
+    } else if (preset === "week") {
+      from = new Date(to.getTime() - 7 * 24 * 60 * 60 * 1000);
+    } else if (preset === "month") {
+      from = new Date(Date.UTC(to.getUTCFullYear(), to.getUTCMonth(), 1, 0, 0, 0, 0));
+    } else {
+      from = new Date(Date.UTC(to.getUTCFullYear(), 0, 1, 0, 0, 0, 0));
+    }
+    return { ok: true, preset, fromIso: from.toISOString(), toIso: to.toISOString() };
+  }
+
+  app.get(
+    "/api/admin/giveblack-financial-summary",
+    { preHandler: [app.authenticate, app.requireRole("admin", "super_admin")] },
+    async (request, reply) => {
+      const q = request.query as Record<string, string>;
+      const win = resolveGiveblackFinancialWindow(q);
+      if (!win.ok) return reply.code(400).send({ error: win.error });
+
+      const params = [win.fromIso, win.toIso];
+
+      const donRes = await db.query(
+        `select
+           count(*)::int as donation_count,
+           coalesce(sum(d.amount), 0)::numeric as donations_gross,
+           coalesce(sum(round((d.amount::numeric * 0.03) * 100) / 100), 0)::numeric as giveblack_platform_fee,
+           coalesce(sum(round((d.amount::numeric * 0.029 + 0.30) * 100) / 100), 0)::numeric as stripe_fee_estimate,
+           coalesce(sum(d.reinvest_amount), 0)::numeric as education_reinvest,
+           coalesce(sum(coalesce(d.net_amount_cents, 0)::numeric / 100), 0)::numeric as net_to_org_payout_usd
+         from donations d
+         where d.status = 'succeeded'
+           and d.created_at >= $1::timestamptz
+           and d.created_at <= $2::timestamptz`,
+        params
+      );
+      const don = (donRes.rows[0] as Record<string, unknown>) || {};
+
+      let subGross = 0;
+      let subCount = 0;
+      let subStripeEst = 0;
+      try {
+        const subRes = await db.query(
+          `select
+             coalesce(sum(sp.amount), 0)::numeric as gross,
+             count(*)::int as cnt,
+             coalesce(sum(round((sp.amount::numeric * 0.029 + 0.30) * 100) / 100), 0)::numeric as stripe_fee_estimate
+           from subscription_payments sp
+           where coalesce(sp.paid_at, sp.created_at) >= $1::timestamptz
+             and coalesce(sp.paid_at, sp.created_at) <= $2::timestamptz`,
+          params
+        );
+        const sr = subRes.rows[0] as Record<string, unknown> | undefined;
+        subGross = Number(sr?.gross ?? 0);
+        subCount = Number(sr?.cnt ?? 0);
+        subStripeEst = Number(sr?.stripe_fee_estimate ?? 0);
+      } catch (e: unknown) {
+        const code = typeof e === "object" && e !== null && "code" in e ? String((e as { code?: string }).code) : "";
+        if (code !== "42P01") throw e;
+      }
+
+      const ledgerRes = await db.query(
+        `select account_type, coalesce(sum(amount), 0)::numeric as total
+         from ledger_entries
+         where created_at >= $1::timestamptz and created_at <= $2::timestamptz
+         group by account_type`,
+        params
+      );
+      const ledger: Record<string, number> = {};
+      for (const row of ledgerRes.rows as Array<{ account_type?: string; total?: unknown }>) {
+        const k = String(row.account_type || "").trim();
+        ledger[k] = Number(row.total || 0);
+      }
+
+      const donationsGross = Number(don.donations_gross || 0);
+      const donationStripeEst = Number(don.stripe_fee_estimate || 0);
+      const giveblackPlatform = Number(don.giveblack_platform_fee || 0);
+      const education = Number(don.education_reinvest || 0);
+      const netToOrg = Number(don.net_to_org_payout_usd || 0);
+
+      const totalCollected = Math.round((donationsGross + subGross) * 100) / 100;
+      const stripeFeeEstimateTotal = Math.round((donationStripeEst + subStripeEst) * 100) / 100;
+      const giveblackSubscriptionRevenue = Math.round((subGross - subStripeEst) * 100) / 100;
+
+      return {
+        preset: win.preset,
+        from: win.fromIso,
+        to: win.toIso,
+        notes: {
+          stripe_fee:
+            "Estimated US card pricing (2.9% + $0.30 per successful donation and per subscription invoice). Actual Stripe fees vary by card and pricing.",
+          giveblack_platform_fee: "GiveBlack application fee modeled as 3% of succeeded donation gross (subscriptions excluded).",
+          net_to_org_payout_usd: "Sum of net_amount_cents/100 for succeeded donations in range (org payout basis when set).",
+        },
+        donations: {
+          count: Number(don.donation_count || 0),
+          gross_total: donationsGross,
+          giveblack_platform_fee: giveblackPlatform,
+          stripe_fee_estimate: donationStripeEst,
+          education_reinvest: education,
+          net_to_org_payout_usd: netToOrg,
+        },
+        subscriptions: {
+          payment_count: subCount,
+          gross_total: subGross,
+          stripe_fee_estimate: subStripeEst,
+          giveblack_revenue_after_stripe_estimate: giveblackSubscriptionRevenue,
+        },
+        combined: {
+          total_collected: totalCollected,
+          giveblack_platform_fee_donations: giveblackPlatform,
+          stripe_fee_estimate_total: stripeFeeEstimateTotal,
+          education_reinvest_total: education,
+        },
+        ledger: {
+          platform: ledger.platform ?? 0,
+          org: ledger.org ?? 0,
+          ecosystem: ledger.ecosystem ?? 0,
+          endowment: ledger.endowment ?? 0,
+        },
+      };
+    }
+  );
+
   // Manual subscription entitlement controls for the admin panel.
   // Admin decides when subscriptions become active/inactive. Stripe lifecycle events should not auto-expire entitlements.
   app.post(

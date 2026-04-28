@@ -9,6 +9,7 @@ import {
   RefreshControl,
   Alert,
   BackHandler,
+  Platform,
 } from "react-native";
 import { useSafeInsets } from "@/lib/safe-area";
 import { useThemeColors } from "@/context/ThemeContext";
@@ -16,6 +17,8 @@ import { useAuth } from "@/context/AuthContext";
 import { donorDisplayName } from "@/lib/donor-display";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useFocusEffect, useNavigation } from "expo-router";
+import { apiPost } from "@/lib/query-client";
+import * as WebBrowser from "expo-web-browser";
 
 interface SubData {
   org_id: string | null;
@@ -23,6 +26,7 @@ interface SubData {
     tier: string;
     status: string;
     current_period_end: string | null;
+    cancel_at_period_end?: boolean;
     limits: { max_community_campaigns: number; max_goal_per_campaign: number };
   };
   community_campaign_count: number;
@@ -207,7 +211,7 @@ export default function OrgDashboardHome() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [session, fetchWithAuth, user?.email]);
+  }, [session, fetchWithAuth]);
 
   useFocusEffect(
     useCallback(() => {
@@ -222,9 +226,66 @@ export default function OrgDashboardHome() {
 
   const tier = subData?.subscription.tier ?? "free";
   const tierLabel = tier.charAt(0).toUpperCase() + tier.slice(1);
+  const cancelAtPeriodEnd = Boolean(subData?.subscription.cancel_at_period_end);
+  const nextBilling = subData?.subscription.current_period_end
+    ? new Date(subData.subscription.current_period_end).toLocaleDateString("en-US", {
+        month: "long",
+        day: "numeric",
+        year: "numeric",
+      })
+    : null;
   const activeCampaigns = campaigns.filter((c) => c.status === "active").length;
   const maxCampaigns = subData?.subscription.limits.max_community_campaigns ?? 1;
   const maxGoal = subData?.subscription.limits.max_goal_per_campaign ?? 5000;
+
+  async function openBillingPortal() {
+    const token = session?.accessToken ?? "";
+    if (!token || !subData?.org_id) return;
+    try {
+      const res = await apiPost<{ url?: string }>(
+        "/api/subscriptions/create-portal-session",
+        { org_id: subData.org_id },
+        token
+      );
+      if (res.url) {
+        if (Platform.OS === "web") {
+          // @ts-expect-error web-only
+          window.location.href = res.url;
+        } else {
+          await WebBrowser.openBrowserAsync(res.url);
+        }
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Could not open billing.";
+      Alert.alert("Unable to open billing", msg);
+    }
+  }
+
+  async function cancelPlan() {
+    const token = session?.accessToken ?? "";
+    if (!token || !subData?.org_id) return;
+    try {
+      await apiPost("/api/subscriptions/cancel-native", { org_id: subData.org_id }, token);
+      await loadData();
+      Alert.alert("Canceled", "Your plan will remain active until the end of the billing period.");
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Could not cancel plan.";
+      Alert.alert("Unable to cancel", msg);
+    }
+  }
+
+  async function resumePlan() {
+    const token = session?.accessToken ?? "";
+    if (!token || !subData?.org_id) return;
+    try {
+      await apiPost("/api/subscriptions/resume-native", { org_id: subData.org_id }, token);
+      await loadData();
+      Alert.alert("Resumed", "Your subscription will renew normally.");
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Could not resume plan.";
+      Alert.alert("Unable to resume", msg);
+    }
+  }
 
   if (loading) {
     return (
@@ -274,14 +335,49 @@ export default function OrgDashboardHome() {
               <Text style={styles.planStatLabel}>Max Goal</Text>
             </View>
           </View>
-          {tier === "free" && (
+          {/* Manage subscription */}
+          <View style={styles.subActionsRow}>
             <Pressable
               style={styles.upgradeBtn}
               onPress={() => router.push("/(org)/subscriptions")}
             >
-              <Text style={[styles.upgradeBtnText, { color: c.green }]}>Upgrade Plan</Text>
+              <Text style={[styles.upgradeBtnText, { color: c.green }]}>
+                {tier === "free" ? "Upgrade Plan" : "Change Plan"}
+              </Text>
               <Ionicons name="arrow-forward" size={14} color={c.green} />
             </Pressable>
+          </View>
+
+          {tier !== "free" && (
+            <View style={styles.subActionsRow}>
+              <Pressable style={[styles.subMiniBtn, { backgroundColor: "rgba(255,255,255,0.18)" }]} onPress={openBillingPortal}>
+                <Ionicons name="card-outline" size={14} color="#fff" />
+                <Text style={styles.subMiniBtnText}>Manage Billing</Text>
+              </Pressable>
+              {cancelAtPeriodEnd ? (
+                <Pressable style={[styles.subMiniBtn, { backgroundColor: "rgba(255,255,255,0.18)" }]} onPress={resumePlan}>
+                  <Ionicons name="refresh-outline" size={14} color="#fff" />
+                  <Text style={styles.subMiniBtnText}>Resume</Text>
+                </Pressable>
+              ) : (
+                <Pressable
+                  style={[styles.subMiniBtn, { backgroundColor: "rgba(255,255,255,0.18)" }]}
+                  onPress={() => {
+                    Alert.alert(
+                      "Cancel Plan",
+                      `Cancel your plan? You'll keep access until ${nextBilling || "the end of the billing period"}.`,
+                      [
+                        { text: "Keep plan", style: "cancel" },
+                        { text: "Cancel", style: "destructive", onPress: () => void cancelPlan() },
+                      ]
+                    );
+                  }}
+                >
+                  <Ionicons name="close-circle-outline" size={14} color="#fff" />
+                  <Text style={styles.subMiniBtnText}>Cancel</Text>
+                </Pressable>
+              )}
+            </View>
           )}
         </View>
 
@@ -448,6 +544,26 @@ const styles = StyleSheet.create({
     marginTop: 16,
   },
   upgradeBtnText: { fontFamily: "SpaceGrotesk_600SemiBold", fontSize: 14 },
+  subActionsRow: {
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 10,
+  },
+  subMiniBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    borderRadius: 14,
+    paddingVertical: 11,
+    paddingHorizontal: 10,
+  },
+  subMiniBtnText: {
+    fontFamily: "SpaceGrotesk_600SemiBold",
+    fontSize: 13,
+    color: "#fff",
+  },
   quickActions: { flexDirection: "row", gap: 12, marginBottom: 20 },
   quickAction: {
     flex: 1,

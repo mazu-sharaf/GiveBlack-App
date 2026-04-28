@@ -10,14 +10,14 @@
 export type AdminRole = "admin" | "super_admin" | "manager" | "staff";
 
 /** Top-level nav paths allowed per role (exact match for sidebar). */
-const ADMIN_NAV = new Set(["/", "/users", "/organizations", "/campaigns", "/donations", "/community-campaigns", "/charity-requests", "/volunteers", "/subscriptions", "/transactions", "/fund-release", "/ledger", "/categories", "/education-partners", "/staff", "/admin-emails", "/broadcast", "/settings"]);
+const ADMIN_NAV = new Set(["/", "/users", "/organizations", "/campaigns", "/donations", "/community-campaigns", "/charity-requests", "/volunteers", "/subscriptions", "/giveblack-financials", "/transactions", "/fund-release", "/ledger", "/categories", "/education-partners", "/staff", "/admin-emails", "/broadcast", "/settings"]);
 const MANAGER_NAV = new Set(["/", "/organizations", "/campaigns", "/donations", "/community-campaigns", "/volunteers", "/transactions"]);
 const STAFF_NAV = new Set(["/", "/organizations", "/campaigns", "/donations", "/volunteers"]);
 
 const ADMIN_ROUTES = new Set([
   "/", "/users", "/organizations", "/organizations/:id", "/campaigns", "/campaigns/:id",
   "/donations", "/donors/:email", "/community-campaigns", "/community-campaigns/:id",
-  "/charity-requests", "/volunteers", "/subscriptions", "/transactions", "/fund-release", "/ledger",
+  "/charity-requests", "/volunteers", "/subscriptions", "/giveblack-financials", "/transactions", "/fund-release", "/ledger",
   "/categories", "/education-partners", "/staff", "/admin-emails", "/broadcast", "/settings",
 ]);
 const MANAGER_ROUTES = new Set([

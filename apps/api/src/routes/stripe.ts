@@ -228,27 +228,14 @@ async function upsertOrgSubscriptionFromStripe(
           when excluded.status in ('active', 'trialing') and org_subscriptions.canceled_at is null then excluded.tier
           else org_subscriptions.tier
         end,
-        status = case
-          when excluded.status in ('active', 'trialing') and org_subscriptions.canceled_at is null then excluded.status
-          else org_subscriptions.status
-        end,
+        -- Always reflect Stripe status so charity + admin UIs stay in sync.
+        -- Entitlement gating (if any) should be handled at the feature-check layer.
+        status = excluded.status,
         stripe_customer_id = excluded.stripe_customer_id,
-        current_period_start = case
-          when excluded.status in ('active', 'trialing') and org_subscriptions.canceled_at is null then excluded.current_period_start
-          else org_subscriptions.current_period_start
-        end,
-        current_period_end = case
-          when excluded.status in ('active', 'trialing') and org_subscriptions.canceled_at is null then excluded.current_period_end
-          else org_subscriptions.current_period_end
-        end,
-        cancel_at_period_end = case
-          when excluded.status in ('active', 'trialing') and org_subscriptions.canceled_at is null then excluded.cancel_at_period_end
-          else org_subscriptions.cancel_at_period_end
-        end,
-        canceled_at = case
-          when excluded.status in ('active', 'trialing') and org_subscriptions.canceled_at is null then excluded.canceled_at
-          else org_subscriptions.canceled_at
-        end,
+        current_period_start = excluded.current_period_start,
+        current_period_end = excluded.current_period_end,
+        cancel_at_period_end = excluded.cancel_at_period_end,
+        canceled_at = excluded.canceled_at,
         updated_at = now()`,
     [orgId, effectiveTier, status, customerId || null, subscriptionId, periodStart, periodEnd, cancelAtPeriodEnd, canceledAt]
   );
@@ -1455,6 +1442,53 @@ export const stripeRoutes: FastifyPluginAsync = async (app) => {
     };
   });
 
+  app.post("/api/subscriptions/resume-native", { preHandler: [app.authenticate] }, async (request, reply) => {
+    const body = syncSubscriptionSchema.parse(request.body);
+    const user = request.user as { sub: string };
+    const stripe = requireStripe(reply);
+    if (!stripe) return;
+
+    const orgRes = await db.query(
+      "select id, name, contact_email from organizations where id = $1",
+      [body.org_id]
+    );
+    const org = orgRes.rows[0] as Record<string, unknown> | undefined;
+    if (!org) return reply.code(404).send({ error: "Organization not found" });
+
+    const userRes = await db.query("select email, role from users where id = $1", [user.sub]);
+    const callerUser = userRes.rows[0] as { email: string; role: string } | undefined;
+    if (!callerUser) return reply.code(401).send({ error: "User not found" });
+    const isAdmin = callerUser.role === "admin";
+    const isOrgOwner = await userOwnsOrganization(user.sub, callerUser.email, org);
+    if (!isAdmin && !isOrgOwner) {
+      return reply.code(403).send({ error: "You are not authorized to manage billing for this organization" });
+    }
+
+    let subscriptionId = body.subscription_id || "";
+    if (!subscriptionId) {
+      const subRes = await db.query(
+        "select stripe_subscription_id from org_subscriptions where org_id = $1 and stripe_subscription_id is not null order by created_at desc limit 1",
+        [body.org_id]
+      );
+      subscriptionId = String((subRes.rows[0] as Record<string, unknown> | undefined)?.stripe_subscription_id || "");
+    }
+    if (!subscriptionId) return reply.code(400).send({ error: "No subscription found for this organization" });
+
+    const updated = await stripe.subscriptions.update(subscriptionId, { cancel_at_period_end: false });
+    const saved = await upsertOrgSubscriptionFromStripe(updated as unknown as Record<string, unknown>, body.org_id);
+    return {
+      success: true,
+      org_id: saved.orgId,
+      subscription: {
+        id: saved.subscriptionId,
+        tier: saved.tier,
+        status: saved.status,
+        current_period_end: saved.currentPeriodEnd,
+        cancel_at_period_end: saved.cancelAtPeriodEnd,
+      },
+    };
+  });
+
   app.post("/api/subscriptions/create-portal-session", { preHandler: [app.authenticate] }, async (request, reply) => {
     const body = portalSchema.parse(request.body);
     const user = request.user as { sub: string };
@@ -2572,6 +2606,42 @@ export const stripeRoutes: FastifyPluginAsync = async (app) => {
         case "invoice.paid": {
           const invoice = event.data.object as unknown as Record<string, unknown>;
           const subscriptionId = invoice.subscription as string | null;
+          // Persist subscription revenue for admin dashboards.
+          // (We keep entitlements admin-controlled; this is purely for reporting.)
+          try {
+            const invId = String(invoice.id || "").trim();
+            const paid = Number((invoice as any).amount_paid ?? (invoice as any).total ?? 0);
+            const currency = String((invoice as any).currency || "usd").toLowerCase();
+            const paidAtUnix = Number((invoice as any).status_transitions?.paid_at ?? 0);
+            const paidAt = paidAtUnix ? new Date(paidAtUnix * 1000).toISOString() : null;
+            const custId = String((invoice as any).customer || "").trim() || null;
+
+            if (invId && subscriptionId) {
+              // Resolve org_id from subscription metadata.
+              let orgId: string | null = null;
+              if (env.STRIPE_SECRET_KEY) {
+                try {
+                  const stripe = getStripe();
+                  const sub = await stripe.subscriptions.retrieve(subscriptionId);
+                  const meta = ((sub as any)?.metadata || {}) as Record<string, string>;
+                  const mOrg = String(meta.org_id || "").trim();
+                  if (mOrg) orgId = mOrg;
+                } catch {
+                  // best-effort
+                }
+              }
+
+              await client.query(
+                `insert into subscription_payments
+                   (stripe_invoice_id, org_id, stripe_subscription_id, stripe_customer_id, currency, amount, paid_at)
+                 values ($1, $2, $3, $4, $5, $6, $7)
+                 on conflict (stripe_invoice_id) do nothing`,
+                [invId, orgId, subscriptionId, custId, currency || "usd", (paid || 0) / 100, paidAt]
+              );
+            }
+          } catch {
+            // ignore reporting failures
+          }
           if (subscriptionId && env.STRIPE_SECRET_KEY) {
             try {
               const stripe = getStripe();

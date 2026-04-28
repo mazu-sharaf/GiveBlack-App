@@ -5,9 +5,11 @@ import { canAccessNav } from "@/lib/role-access";
 import {
   dbQuery,
   fetchDonations,
+  fetchPaymentMetrics,
   fetchTopDonorsAdmin,
   resolveImageUrl,
   type AdminTopDonorRow,
+  type AdminPaymentMetrics,
   type EnrichedDonation,
 } from "@/lib/api";
 import { placeholderDonorPhoto } from "@/lib/donor-placeholder-avatar";
@@ -360,11 +362,12 @@ export default function Dashboard() {
   const [retentionData, setRetentionData] = useState<{ month: string; newDonors: number; returning: number }[]>([]);
   const [topDonors, setTopDonors] = useState<TopDonor[]>([]);
   const [recentDonations, setRecentDonations] = useState<EnrichedDonation[]>([]);
+  const [payMetrics, setPayMetrics] = useState<AdminPaymentMetrics | null>(null);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
     try {
-      const [donationsRes, topDonorsRes, volunteersCount, categoriesRes, allOrgsRes, requestsRes, commCampRes, orgsCountFull, usersCountRes] =
+      const [donationsRes, topDonorsRes, volunteersCount, categoriesRes, allOrgsRes, requestsRes, commCampRes, orgsCountFull, usersCountRes, payRes] =
         await Promise.all([
           fetchDonations({ limit: 200 }),
           fetchTopDonorsAdmin(20).catch(() => ({ donors: [] as AdminTopDonorRow[] })),
@@ -381,6 +384,7 @@ export default function Dashboard() {
           dbQuery("community_campaigns", { select: "id" }).catch(() => ({ data: [] })),
           dbQuery("organizations", { select: "id" }).catch(() => ({ data: [] })),
           dbQuery("users", { select: "id, role" }).catch(() => ({ data: [] })),
+          fetchPaymentMetrics("all_time").catch(() => null),
         ]);
 
       const donations: EnrichedDonation[] = donationsRes.donations || [];
@@ -485,6 +489,7 @@ export default function Dashboard() {
       setTopDonors(
         apiTopDonors.length > 0 ? apiTopDonors : buildTopDonorsFromDonationsSample(donations)
       );
+      if (payRes) setPayMetrics(payRes);
     } catch (err) {
       console.error("Dashboard load error:", err);
     } finally {
@@ -719,6 +724,78 @@ export default function Dashboard() {
           gradId={`${uid}-s3`}
         />
       </div>
+
+      {/* Payments separation */}
+      {payMetrics ? (
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+          <Card className="rounded-2xl border-white/10 shadow-md">
+            <CardContent className="p-4 pt-5">
+              <p className="text-xs text-muted-foreground">Subscription payments (all time)</p>
+              <p className="mt-1 text-2xl font-bold tracking-tight text-foreground">
+                ${Number(payMetrics.subscriptions.total || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">{payMetrics.subscriptions.payment_count} payment(s)</p>
+            </CardContent>
+          </Card>
+
+          <Card className="rounded-2xl border-white/10 shadow-md">
+            <CardContent className="p-4 pt-5">
+              <p className="text-xs text-muted-foreground">Platform fee (3%) from donations (all time)</p>
+              <p className="mt-1 text-2xl font-bold tracking-tight text-foreground">
+                ${Number(payMetrics.donations.platform_fee_total || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">Based on succeeded donation volume</p>
+            </CardContent>
+          </Card>
+
+          <Card className="rounded-2xl border-white/10 shadow-md">
+            <CardContent className="p-4 pt-5">
+              <p className="text-xs text-muted-foreground">Education reinvest (all time)</p>
+              <p className="mt-1 text-2xl font-bold tracking-tight text-foreground">
+                ${Number(payMetrics.donations.education_total || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Partner: ${Number(payMetrics.donations.education_partner_total || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ·
+                General: ${Number(payMetrics.donations.education_general_total || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card className="rounded-2xl border-white/10 shadow-md">
+            <CardContent className="p-4 pt-5">
+              <p className="text-xs text-muted-foreground">Donations gross (all time)</p>
+              <p className="mt-1 text-2xl font-bold tracking-tight text-foreground">
+                ${Number(payMetrics.donations.gross_total || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">{payMetrics.donations.donation_count} donation(s)</p>
+            </CardContent>
+          </Card>
+
+          <Card className="rounded-2xl border-white/10 shadow-md">
+            <CardContent className="p-4 pt-5">
+              <p className="text-xs text-muted-foreground">To orgs (before processor) (all time)</p>
+              <p className="mt-1 text-2xl font-bold tracking-tight text-foreground">
+                ${Number(payMetrics.donations.to_orgs_before_processor || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">Gross − platform fee − education</p>
+            </CardContent>
+          </Card>
+
+          <Card className="rounded-2xl border-white/10 shadow-md">
+            <CardContent className="p-4 pt-5">
+              <p className="text-xs text-muted-foreground">Ledger totals (all time)</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Platform: <span className="font-semibold text-foreground">${Number(payMetrics.ledger.platform || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                {" · "}Org: <span className="font-semibold text-foreground">${Number(payMetrics.ledger.org || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+              </p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Ecosystem: <span className="font-semibold text-foreground">${Number(payMetrics.ledger.ecosystem || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                {" · "}Endowment: <span className="font-semibold text-foreground">${Number(payMetrics.ledger.endowment || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      ) : null}
 
       {/* Row: goal progress (3 cards) */}
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">

@@ -347,6 +347,19 @@ create table if not exists org_subscriptions (
   updated_at timestamptz not null default now()
 );
 
+-- Stripe subscription revenue history (for admin payment dashboards).
+-- Written from Stripe webhooks (invoice.paid) and de-duped by invoice id.
+create table if not exists subscription_payments (
+  stripe_invoice_id text primary key,
+  org_id text null references organizations(id) on delete set null,
+  stripe_subscription_id text null,
+  stripe_customer_id text null,
+  currency text not null default 'usd',
+  amount numeric(12,2) not null default 0,
+  paid_at timestamptz null,
+  created_at timestamptz not null default now()
+);
+
 create table if not exists ledger_entries (
   id uuid primary key default gen_random_uuid(),
   org_id text null references organizations(id) on delete set null,

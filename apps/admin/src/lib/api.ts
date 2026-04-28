@@ -1,5 +1,31 @@
-const API_URL = import.meta.env.VITE_API_URL || "";
 const TOKEN_KEY = "gb_admin_api_token";
+
+/**
+ * Browser base for paths like `/api/admin/...`.
+ * Production often uses `https://domain/app` so requests are `/app/api/...` (nginx strips `/app` before Node).
+ * Local Node serves `/api` at the origin root — `http://localhost:5000/app/api/...` returns 404. In dev,
+ * strip a trailing `/app` from `VITE_API_URL`. In production builds with no env, same-host `/backoffice` uses `/app`.
+ */
+function getApiBaseUrl(): string {
+  let base = String(import.meta.env.VITE_API_URL || "").trim().replace(/\/$/, "");
+  // Local Node serves `/api` at origin; `/app` is nginx-only. Strip only for localhost dev bases.
+  if (
+    import.meta.env.DEV &&
+    base.endsWith("/app") &&
+    /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?\/app$/i.test(base)
+  ) {
+    base = base.slice(0, -4);
+  }
+  if (
+    !base &&
+    import.meta.env.PROD &&
+    typeof window !== "undefined" &&
+    window.location.pathname.startsWith("/backoffice")
+  ) {
+    return `${window.location.origin}/app`.replace(/\/$/, "");
+  }
+  return base;
+}
 
 /**
  * Turn API-stored paths into absolute URLs for <img src>.
@@ -37,7 +63,7 @@ export function resolveImageUrl(url?: string | null): string {
     path = `/uploads/${path.slice("/app/uploads/".length)}`;
   }
 
-  const base = API_URL.replace(/\/$/, "");
+  const base = getApiBaseUrl();
 
   if (path.startsWith("/uploads/")) {
     if (typeof window !== "undefined" && window.location?.origin) {
@@ -66,7 +92,7 @@ export function hasApiConfig(): boolean {
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = getApiToken();
-  const url = `${API_URL.replace(/\/$/, "")}${path}`;
+  const url = `${getApiBaseUrl()}${path}`;
   const hasJsonBody = options.body !== undefined && options.body !== null;
   const res = await fetch(url, {
     ...options,
@@ -97,7 +123,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 }
 
 export async function loginViaApi(email: string, password: string) {
-  const url = `${API_URL.replace(/\/$/, "")}/api/admin/login`;
+  const url = `${getApiBaseUrl()}/api/admin/login`;
   let res: Response;
   try {
     res = await fetch(url, {
@@ -362,6 +388,86 @@ export async function releaseOrgFunds(orgId: string) {
     `/api/admin/fund-release/${encodeURIComponent(orgId)}`,
     { method: "POST" }
   );
+}
+
+export interface AdminPaymentMetrics {
+  range: string;
+  donations: {
+    gross_total: number;
+    donation_count: number;
+    platform_fee_total: number;
+    education_total: number;
+    education_partner_total: number;
+    education_general_total: number;
+    to_orgs_before_processor: number;
+  };
+  subscriptions: {
+    total: number;
+    payment_count: number;
+  };
+  ledger: {
+    platform: number;
+    org: number;
+    ecosystem: number;
+    endowment: number;
+  };
+}
+
+export async function fetchPaymentMetrics(range: "all_time" | "last_7d" | "last_30d" | "month" = "all_time") {
+  const q = new URLSearchParams();
+  q.set("range", range);
+  return request<AdminPaymentMetrics>(`/api/admin/payment-metrics?${q.toString()}`);
+}
+
+export type GiveblackFinancialPreset = "day" | "week" | "month" | "year" | "custom";
+
+export interface GiveblackFinancialSummary {
+  preset: string;
+  from: string;
+  to: string;
+  notes: {
+    stripe_fee: string;
+    giveblack_platform_fee: string;
+    net_to_org_payout_usd: string;
+  };
+  donations: {
+    count: number;
+    gross_total: number;
+    giveblack_platform_fee: number;
+    stripe_fee_estimate: number;
+    education_reinvest: number;
+    net_to_org_payout_usd: number;
+  };
+  subscriptions: {
+    payment_count: number;
+    gross_total: number;
+    stripe_fee_estimate: number;
+    giveblack_revenue_after_stripe_estimate: number;
+  };
+  combined: {
+    total_collected: number;
+    giveblack_platform_fee_donations: number;
+    stripe_fee_estimate_total: number;
+    education_reinvest_total: number;
+  };
+  ledger: {
+    platform: number;
+    org: number;
+    ecosystem: number;
+    endowment: number;
+  };
+}
+
+export async function fetchGiveblackFinancialSummary(params: {
+  preset?: GiveblackFinancialPreset;
+  from?: string;
+  to?: string;
+}) {
+  const q = new URLSearchParams();
+  if (params.preset) q.set("preset", params.preset);
+  if (params.from) q.set("from", params.from);
+  if (params.to) q.set("to", params.to);
+  return request<GiveblackFinancialSummary>(`/api/admin/giveblack-financial-summary?${q.toString()}`);
 }
 
 export async function adminCancelSubscription(id: string, immediate = false) {
@@ -693,7 +799,7 @@ export async function uploadFile(file: File): Promise<string> {
   const token = getApiToken();
   const formData = new FormData();
   formData.append("file", file);
-  const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/admin/storage/upload`, {
+  const res = await fetch(`${getApiBaseUrl()}/api/admin/storage/upload`, {
     method: "POST",
     headers: token ? { Authorization: `Bearer ${token}` } : {},
     body: formData,

@@ -26,6 +26,7 @@ const routeLabels: Record<string, string> = {
   "/volunteers": "Volunteers",
   "/categories": "Categories",
   "/ledger": "Ledger",
+  "/giveblack-financials": "GiveBlack financials",
   "/transactions": "Transactions",
   "/fund-release": "Fund release",
   "/staff": "Staff",
