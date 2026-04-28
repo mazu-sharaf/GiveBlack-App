@@ -1,7 +1,7 @@
 # Admin Panel - Complete Testing Guide
 
 ## 🔐 Admin Login
-**URL**: https://admin.giveblackapp.com/
+**URL**: https://giveblackapp.com/admin/
 
 ### Test Credentials
 - **Email**: `admin@giveblackapp.com`
@@ -254,7 +254,7 @@ VITE_API_URL=https://giveblackapp.com/app
 
 ## 🎯 Quick Start
 
-1. **Login**: https://admin.giveblackapp.com/
+1. **Login**: https://giveblackapp.com/admin/
 2. **Credentials**: `admin@giveblackapp.com` / `Admin@123`
 3. **Test flow**:
    - View dashboard
@@ -281,7 +281,7 @@ sudo systemctl reload nginx
 
 ### Verify
 ```bash
-curl -I https://admin.giveblackapp.com/
+curl -I https://giveblackapp.com/admin/
 # Should return 200 OK
 ```
 

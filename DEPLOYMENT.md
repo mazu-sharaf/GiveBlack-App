@@ -107,10 +107,10 @@ nano .env   # Fill in DATABASE_URL, JWT secrets, etc.
 DATABASE_URL=postgresql://giveblack_user:YOUR_PASSWORD@localhost:5432/giveblack_db
 JWT_ACCESS_SECRET=<random 64-char string>
 JWT_REFRESH_SECRET=<random 64-char string>
-CORS_ORIGINS=https://giveblackapp.com,https://www.giveblackapp.com,https://admin.giveblackapp.com
+CORS_ORIGINS=https://giveblackapp.com,https://www.giveblackapp.com
 EXPO_PUBLIC_API_URL=https://giveblackapp.com/app
 VITE_API_URL=https://giveblackapp.com/app
-ADMIN_PANEL_URL=https://admin.giveblackapp.com
+ADMIN_PANEL_URL=https://giveblackapp.com
 ```
 
 Generate random secrets:
@@ -141,7 +141,7 @@ curl https://giveblackapp.com/app/api/organizations
 curl https://giveblackapp.com/app/api/categories
 
 # Admin panel (open in browser)
-# https://admin.giveblackapp.com/
+# https://giveblackapp.com/admin/
 ```
 
 ---
@@ -193,7 +193,7 @@ bash deploy/deploy.sh
 
 ## Admin Panel
 
-- URL: `https://admin.giveblackapp.com/`
+- URL: `https://giveblackapp.com/admin/`
 - Email: `admin@giveblackapp.com`
 - Password: `Admin@123` (change after first login)
 
@@ -304,12 +304,12 @@ pm2 restart giveblack-api
 
 ### First-time SSL (DNS already points to VPS)
 
-1. Install HTTP bootstrap vhost, then obtain certificates (**include `admin` if that DNS already points here**):
+1. Install HTTP bootstrap vhost, then obtain certificates:
    ```bash
    sudo cp deploy/nginx-giveblackapp-http-bootstrap.conf /etc/nginx/sites-available/giveblackapp.com
    sudo ln -sf /etc/nginx/sites-available/giveblackapp.com /etc/nginx/sites-enabled/
    sudo nginx -t && sudo systemctl reload nginx
-   sudo certbot --nginx -d giveblackapp.com -d www.giveblackapp.com -d admin.giveblackapp.com --redirect
+   sudo certbot --nginx -d giveblackapp.com -d www.giveblackapp.com --redirect
    ```
 2. Replace with the HTTPS vhost and reload:
    ```bash
@@ -318,40 +318,13 @@ pm2 restart giveblack-api
    ```
 3. Optional: keep a separate staging vhost (e.g. `giveblack.mawa.pro`) only if you still use it; otherwise remove its symlink.
 
-### SSL: `admin.giveblackapp.com` shows ERR_CERT_COMMON_NAME_INVALID (or HSTS blocks bypass)
-
-Nginx serves `https://admin.giveblackapp.com/` using the same files as the apex cert:
-
-`/etc/letsencrypt/live/giveblackapp.com/fullchain.pem`
-
-That certificate **must list `admin.giveblackapp.com` in Subject Alternative Name**. If it was issued before the `admin` DNS record existed, expand it (on the VPS, from repo root):
-
-```bash
-CERTBOT_EMAIL=your@email.com bash deploy/ssl-expand-giveblackapp-admin.sh
-```
-
-Or interactively:
-
-```bash
-sudo certbot --nginx -d giveblackapp.com -d www.giveblackapp.com -d admin.giveblackapp.com
-```
-
-Then `sudo nginx -t && sudo systemctl reload nginx`. Verify SANs:
-
-```bash
-openssl s_client -connect admin.giveblackapp.com:443 -servername admin.giveblackapp.com </dev/null 2>/dev/null \
-  | openssl x509 -noout -ext subjectAltName
-```
-
-The apex vhost sends **HSTS with `includeSubDomains`**, so browsers require a valid cert for every subdomain including `admin`; fixing the certificate is the only durable fix.
-
 ### Env on the VPS (align with public URLs)
 
-- `CORS_ORIGINS=https://giveblackapp.com,https://www.giveblackapp.com,https://admin.giveblackapp.com`
+- `CORS_ORIGINS=https://giveblackapp.com,https://www.giveblackapp.com`
 - `EXPO_PUBLIC_DOMAIN=giveblackapp.com`
 - `EXPO_PUBLIC_API_URL=https://giveblackapp.com/app`
 - `APP_URL=https://giveblackapp.com`
-- `ADMIN_PANEL_URL=https://admin.giveblackapp.com`
+- `ADMIN_PANEL_URL=https://giveblackapp.com` (admin UI: `https://giveblackapp.com/admin/`)
 - Admin build: `VITE_API_URL=https://giveblackapp.com/app`
 
 Then: `pm2 restart giveblack-api --update-env`, rebuild admin (`npm run build:admin`), rebuild mobile with updated `EXPO_PUBLIC_*`.

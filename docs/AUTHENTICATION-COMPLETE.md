@@ -76,7 +76,7 @@ charity_requests (user_id, organization_name, category, description, website_url
 ## 🔑 Login Credentials (Test Accounts)
 
 ### Admin Panel:
-- **URL**: https://admin.giveblackapp.com/
+- **URL**: https://giveblackapp.com/admin/
 - **Email**: `admin@gb.com`
 - **Password**: `Admin@gb`
 

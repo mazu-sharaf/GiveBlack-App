@@ -90,7 +90,7 @@ Your GiveBlack app is now **100% production-ready** with all features implemente
 ## 🔐 Test Credentials
 
 ### Admin Panel
-**URL:** https://admin.giveblackapp.com/  
+**URL:** https://giveblackapp.com/admin/  
 **Email:** admin@gb.com  
 **Password:** Admin@gb  
 
@@ -426,7 +426,7 @@ Your GiveBlack app is **100% complete** and **production-ready**:
 
 ## 📞 Support & Maintenance
 
-**Admin Panel:** https://admin.giveblackapp.com/  
+**Admin Panel:** https://giveblackapp.com/admin/  
 **API Health:** https://giveblackapp.com/app/health  
 **Documentation:** `/docs/` folder  
 

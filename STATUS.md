@@ -103,7 +103,7 @@
 ## 🚀 How to Use
 
 ### Admin Panel
-1. **Login**: https://admin.giveblackapp.com/
+1. **Login**: https://giveblackapp.com/admin/
 2. **Email**: `admin@giveblackapp.com`
 3. **Password**: `Admin@123`
 
@@ -267,7 +267,7 @@ curl https://giveblackapp.com/app/api/organizations
 - ✅ Ready for users
 
 ### Quick Start
-1. **Admin Panel**: Visit https://admin.giveblackapp.com/ and login
+1. **Admin Panel**: Visit https://giveblackapp.com/admin/ and login
 2. **Mobile App**: Run `npm start` and scan QR with Expo Go
 3. **Monitor**: Use `pm2 logs giveblack-api-v2` to watch API
 

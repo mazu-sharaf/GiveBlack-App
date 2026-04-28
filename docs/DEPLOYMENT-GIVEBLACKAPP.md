@@ -213,7 +213,7 @@ Ensure it listens on **5000** (or set `PORT` in env and match Nginx `proxy_pass`
 | URL | Served by |
 |-----|-----------|
 | `https://giveblackapp.com/` | Landing (Giveblack-website `out/`) |
-| `https://admin.giveblackapp.com` | Admin login + dashboard |
+| `https://giveblackapp.com/admin` | Admin login + dashboard |
 | `https://giveblackapp.com/app/*` | Express (API, donate, campaign pages, etc.) |
 | `https://giveblackapp.com/app/api/webhooks/stripe` | Stripe webhook (POST only) |
 

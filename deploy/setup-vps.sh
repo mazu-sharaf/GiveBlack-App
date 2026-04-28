@@ -116,11 +116,11 @@ if [ ! -f "$REPO_ROOT/.env" ]; then
   JWT_REFRESH=$(node -e "console.log(require('crypto').randomBytes(48).toString('hex'))")
 
   if [ "$DOMAIN" = "giveblackapp.com" ]; then
-    CORS_ORIGINS_VALUE="https://giveblackapp.com,https://www.giveblackapp.com,https://admin.giveblackapp.com"
-    ADMIN_PANEL_URL_VALUE="https://admin.giveblackapp.com"
+    CORS_ORIGINS_VALUE="https://giveblackapp.com,https://www.giveblackapp.com"
+    ADMIN_PANEL_URL_VALUE="https://giveblackapp.com"
   else
     CORS_ORIGINS_VALUE="https://$DOMAIN"
-    ADMIN_PANEL_URL_VALUE="https://$DOMAIN/admin"
+    ADMIN_PANEL_URL_VALUE="https://$DOMAIN"
   fi
 
   cat > "$REPO_ROOT/.env" <<ENVEOF
@@ -275,10 +275,10 @@ else
   sudo systemctl stop nginx 2>/dev/null || true
   if [ "$DOMAIN" = "giveblackapp.com" ]; then
     sudo certbot certonly --standalone \
-      -d "$DOMAIN" -d "www.$DOMAIN" -d "admin.$DOMAIN" \
+      -d "$DOMAIN" -d "www.$DOMAIN" \
       --agree-tos --non-interactive -m "$ADMIN_EMAIL" || {
       echo "WARNING: SSL certificate failed. You may need to run certbot manually."
-      echo "  sudo certbot certonly --standalone -d $DOMAIN -d www.$DOMAIN -d admin.$DOMAIN"
+      echo "  sudo certbot certonly --standalone -d $DOMAIN -d www.$DOMAIN"
     }
   else
     sudo certbot certonly --standalone -d "$DOMAIN" --agree-tos --non-interactive -m "$ADMIN_EMAIL" || {
@@ -300,11 +300,7 @@ echo ""
 echo "  Domain:  https://$DOMAIN"
 echo "  API:     https://$DOMAIN/app/api/organizations"
 echo "  Health:  https://$DOMAIN/app/health"
-if [ "$DOMAIN" = "giveblackapp.com" ]; then
-  echo "  Admin:   https://admin.$DOMAIN/"
-else
-  echo "  Admin:   https://$DOMAIN/admin/"
-fi
+echo "  Admin:   https://$DOMAIN/admin/"
 echo ""
 echo "  Admin Login:"
 echo "    Email:    admin@giveblackapp.com"

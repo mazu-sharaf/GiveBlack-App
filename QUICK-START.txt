@@ -24,7 +24,7 @@
 
 💼 ADMIN PANEL
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  URL:       https://admin.giveblackapp.com/
+  URL:       https://giveblackapp.com/admin/
   Status:    ✅ ONLINE
   
   Credentials:

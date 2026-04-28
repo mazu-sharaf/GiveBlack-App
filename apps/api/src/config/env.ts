@@ -25,7 +25,7 @@ const schema = z.object({
   BREVO_SENDER_NAME: z.string().default("GiveBlack"),
   ADMIN_EMAIL: z.string().email().optional(),
   APP_URL: z.string().url().optional(),
-  /** Canonical admin panel origin (e.g. https://admin.giveblackapp.com). Used for admin deep links in emails. */
+  /** Site origin for admin deep links in emails (paths are under /admin/...). Optional; falls back to APP_URL. */
   ADMIN_PANEL_URL: z.string().url().optional(),
   SUPPORT_EMAIL: z.string().email().optional(),
   EMAIL_LOGO_URL: z.string().url().optional(),
