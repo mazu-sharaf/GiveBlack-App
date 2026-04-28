@@ -92,7 +92,7 @@ export default function AdminEmailsPage() {
       else toast.warning(`Sent to ${sent} of ${total}; ${failed} failed. Check email configuration.`);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Failed to send test to all";
-      toast.error(msg.includes("No admin emails") ? msg : "Could not send test to all. Check email settings and try again.");
+      toast.error(msg);
     } finally {
       setSendingTestToAll(false);
     }
@@ -111,7 +111,7 @@ export default function AdminEmailsPage() {
       setTestEmail("");
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Failed to send test email";
-      toast.error(msg.includes("503") ? "Email not configured. Check your email settings." : msg);
+      toast.error(msg);
     } finally {
       setSendingTestTo(null);
     }

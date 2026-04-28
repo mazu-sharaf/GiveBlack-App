@@ -1384,6 +1384,7 @@ export const adminCompatRoutes: FastifyPluginAsync = async (app) => {
       `;
       let sent = 0;
       let failed = 0;
+      let firstError: string | undefined;
       for (const email of toSend) {
         try {
           await sendBrevoEmail({
@@ -1396,9 +1397,14 @@ export const adminCompatRoutes: FastifyPluginAsync = async (app) => {
         } catch (err) {
           app.log.error({ err, email }, "Send test to all: failed for one");
           failed++;
+          if (!firstError) firstError = err instanceof Error ? err.message : String(err);
         }
       }
-      if (sent === 0) return reply.code(503).send({ error: "Failed to send to any recipient. Check Brevo configuration." });
+      if (sent === 0) {
+        return reply.code(503).send({
+          error: firstError || "Failed to send to any recipient. Check BREVO_API_KEY and BREVO_SENDER_EMAIL on the server.",
+        });
+      }
       return { success: true, sent, failed, total: toSend.length };
     }
   );

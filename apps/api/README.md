@@ -7,6 +7,10 @@
 - Brevo transactional email notifications
 - Expo push notification delivery
 
+## Email (Brevo)
+
+Set **`BREVO_API_KEY`** (v3 key from Brevo **SMTP & API** → **API keys**) and **`BREVO_SENDER_EMAIL`** (must be a **verified sender** in Brevo). Restart the API after changes. If Brevo returns `401` / *API Key is not enabled*, create a new key in the dashboard or enable the key; keys copied into `.env` must have no leading/trailing spaces.
+
 ## Quick start
 1. Copy root `.env.example` into `.env` and set API variables.
 2. Install dependencies from repo root: `npm install`
