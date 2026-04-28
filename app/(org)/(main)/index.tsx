@@ -41,6 +41,7 @@ interface DonationItem {
   id: string;
   donor_name: string;
   amount: number;
+  net_amount?: number | null;
   created_at: string;
   campaign_title?: string;
 }
@@ -181,8 +182,8 @@ export default function OrgDashboardHome() {
           const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
           month = succeeded
             .filter((d) => new Date(d.created_at || (d as { date?: string }).date || 0) >= monthStart)
-            .reduce((s: number, d) => s + (parseFloat(String(d.amount)) || 0), 0);
-          raised = succeeded.reduce((s, d) => s + (parseFloat(String(d.amount)) || 0), 0);
+            .reduce((s: number, d) => s + (parseFloat(String(d.net_amount ?? d.amount)) || 0), 0);
+          raised = succeeded.reduce((s, d) => s + (parseFloat(String(d.net_amount ?? d.amount)) || 0), 0);
           donors = new Set(succeeded.map((d) => donorDisplayName(d))).size;
         }
         if (raised <= 0 && orgStats && parseMoney(orgStats.total_raised) > 0) {
@@ -383,9 +384,13 @@ export default function OrgDashboardHome() {
                     {don.campaign_title || new Date(don.created_at).toLocaleDateString()}
                   </Text>
                 </View>
-                <Text style={[styles.donationAmount, { color: c.green }]}>
-                  +${parseFloat(String(don.amount)).toFixed(2)}
-                </Text>
+                {String((don as { status?: string }).status || "").toLowerCase() === "succeeded" ? (
+                  <Text style={[styles.donationAmount, { color: c.green }]}>
+                    +${parseFloat(String(don.net_amount ?? don.amount)).toFixed(2)}
+                  </Text>
+                ) : (
+                  <Text style={[styles.donationAmount, { color: c.textMuted }]}>—</Text>
+                )}
               </View>
             ))}
           </>

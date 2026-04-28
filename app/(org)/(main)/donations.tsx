@@ -20,6 +20,7 @@ interface DonationItem {
   id: string;
   donor_name: string;
   amount: number;
+  net_amount?: number | null;
   created_at: string;
   date: string;
   status?: string;
@@ -32,6 +33,27 @@ interface DonationItem {
 }
 
 type Period = "7" | "30" | "90" | "all";
+type StatusFilter = "all" | "succeeded" | "pending" | "failed";
+
+function parseYyyyMmDdToUtcStart(s: string): number | null {
+  const raw = String(s || "").trim();
+  if (!raw) return null;
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(raw);
+  if (!m) return null;
+  const y = Number(m[1]);
+  const mo = Number(m[2]);
+  const d = Number(m[3]);
+  if (!Number.isFinite(y) || !Number.isFinite(mo) || !Number.isFinite(d)) return null;
+  if (mo < 1 || mo > 12 || d < 1 || d > 31) return null;
+  return Date.UTC(y, mo - 1, d, 0, 0, 0, 0);
+}
+
+function parseYyyyMmDdToUtcEndInclusive(s: string): number | null {
+  const start = parseYyyyMmDdToUtcStart(s);
+  if (start == null) return null;
+  // end of day inclusive
+  return start + 24 * 60 * 60 * 1000 - 1;
+}
 
 interface DonationStats {
   all_time_total: number;
@@ -115,6 +137,10 @@ export default function DonationsTab() {
   const [refreshing, setRefreshing] = useState(false);
   const [period, setPeriod] = useState<Period>("30");
   const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [campaignFilter, setCampaignFilter] = useState<string>("all");
+  const [dateFrom, setDateFrom] = useState<string>("");
+  const [dateTo, setDateTo] = useState<string>("");
 
   const loadDonations = useCallback(async () => {
     if (!session) return;
@@ -166,12 +192,37 @@ export default function DonationsTab() {
   const periodDays = period === "all" ? 99999 : parseInt(period);
   const cutoff = new Date(now.getTime() - periodDays * 24 * 60 * 60 * 1000);
 
+  const campaignOptions = (() => {
+    const set = new Set<string>();
+    for (const d of donations) {
+      const t = String(d.campaign_title || d.campaign_name || "").trim();
+      if (t) set.add(t);
+    }
+    return ["all", ...Array.from(set).sort((a, b) => a.localeCompare(b))];
+  })();
+
+  const fromUtc = parseYyyyMmDdToUtcStart(dateFrom);
+  const toUtc = parseYyyyMmDdToUtcEndInclusive(dateTo);
+
   const filteredDonations = donations.filter((d) => {
     const raw = d.created_at || d.date;
     const t = raw ? Date.parse(String(raw)) : NaN;
     if (!Number.isNaN(t)) {
       const dDate = new Date(t);
       if (dDate < cutoff) return false;
+    }
+    if (fromUtc != null || toUtc != null) {
+      if (Number.isNaN(t)) return false;
+      const utc = t;
+      if (fromUtc != null && utc < fromUtc) return false;
+      if (toUtc != null && utc > toUtc) return false;
+    }
+    if (statusFilter !== "all") {
+      if (String(d.status || "").toLowerCase() !== statusFilter) return false;
+    }
+    if (campaignFilter !== "all") {
+      const camp = String(d.campaign_title || d.campaign_name || "").trim();
+      if (camp !== campaignFilter) return false;
     }
     if (search) {
       const q = search.toLowerCase();
@@ -217,7 +268,10 @@ export default function DonationsTab() {
           stats.all_time_donation_count > 0 ? stats.all_time_total / stats.all_time_donation_count : 0;
     }
   } else {
-    totalInPeriod = succeededInPeriod.reduce((s, d) => s + (parseFloat(String(d.amount)) || 0), 0);
+    totalInPeriod = succeededInPeriod.reduce((s, d) => {
+      const v = d.net_amount ?? d.amount;
+      return s + (parseFloat(String(v)) || 0);
+    }, 0);
     donorCount = new Set(succeededInPeriod.map((d) => donorDisplayName(d))).size;
     avgDonation = succeededInPeriod.length > 0 ? totalInPeriod / succeededInPeriod.length : 0;
   }
@@ -311,6 +365,108 @@ export default function DonationsTab() {
           )}
         </View>
 
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.filterRow}
+          contentContainerStyle={{ gap: 8, paddingBottom: 2 }}
+        >
+          {([
+            { key: "all" as const, label: "All" },
+            { key: "succeeded" as const, label: "Succeeded" },
+            { key: "pending" as const, label: "Pending" },
+            { key: "failed" as const, label: "Failed" },
+          ]).map((s) => {
+            const active = statusFilter === s.key;
+            return (
+              <Pressable
+                key={s.key}
+                style={[
+                  styles.filterChip,
+                  {
+                    backgroundColor: active ? c.green : c.cardBg,
+                    borderColor: active ? c.green : c.border,
+                  },
+                ]}
+                onPress={() => setStatusFilter(s.key)}
+              >
+                <Text style={[styles.filterChipText, { color: active ? "#fff" : c.textMuted }]}>
+                  {s.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+
+          {campaignOptions.length > 1 && (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+              {campaignOptions.map((opt) => {
+                const label = opt === "all" ? "All campaigns" : opt;
+                const active = campaignFilter === opt;
+                return (
+                  <Pressable
+                    key={opt}
+                    style={[
+                      styles.filterChip,
+                      {
+                        backgroundColor: active ? c.indigoAccent : c.cardBg,
+                        borderColor: active ? c.indigoAccent : c.border,
+                      },
+                    ]}
+                    onPress={() => setCampaignFilter(opt)}
+                  >
+                    <Text
+                      style={[
+                        styles.filterChipText,
+                        { color: active ? "#fff" : c.textMuted, maxWidth: 180 },
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          )}
+        </ScrollView>
+
+        <View style={[styles.dateRow, { backgroundColor: c.cardBg, borderColor: c.border }]}>
+          <Ionicons name="calendar" size={16} color={c.textMuted} />
+          <TextInput
+            style={[styles.dateInput, { color: c.text }]}
+            placeholder="From YYYY-MM-DD"
+            placeholderTextColor={c.textLight}
+            value={dateFrom}
+            onChangeText={setDateFrom}
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+          <Text style={{ color: c.textMuted, marginHorizontal: 6 }}>to</Text>
+          <TextInput
+            style={[styles.dateInput, { color: c.text }]}
+            placeholder="To YYYY-MM-DD"
+            placeholderTextColor={c.textLight}
+            value={dateTo}
+            onChangeText={setDateTo}
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+          {(statusFilter !== "all" || campaignFilter !== "all" || dateFrom.trim() || dateTo.trim() || search.trim()) && (
+            <Pressable
+              onPress={() => {
+                setStatusFilter("all");
+                setCampaignFilter("all");
+                setDateFrom("");
+                setDateTo("");
+                setSearch("");
+              }}
+              style={[styles.clearBtn, { borderColor: c.border }]}
+            >
+              <Text style={[styles.clearBtnText, { color: c.textMuted }]}>Clear</Text>
+            </Pressable>
+          )}
+        </View>
+
         <View style={styles.listHeader}>
           <Text style={[styles.listTitle, { color: c.text }]}>
             {filteredDonations.length} donation{filteredDonations.length !== 1 ? "s" : ""}
@@ -341,9 +497,13 @@ export default function DonationsTab() {
                   {new Date(don.created_at || don.date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
                 </Text>
               </View>
-              <Text style={[styles.donAmount, { color: c.green }]}>
-                ${parseFloat(String(don.amount)).toFixed(2)}
-              </Text>
+              {String(don.status || "").toLowerCase() === "succeeded" ? (
+                <Text style={[styles.donAmount, { color: c.green }]}>
+                  ${parseFloat(String(don.net_amount ?? don.amount)).toFixed(2)}
+                </Text>
+              ) : (
+                <Text style={[styles.donAmount, { color: c.textMuted }]}>—</Text>
+              )}
             </View>
           ))
         )}
@@ -398,6 +558,37 @@ const styles = StyleSheet.create({
     fontSize: 14,
     padding: 0,
   },
+  filterRow: { marginBottom: 10, maxHeight: 44 },
+  filterChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 999,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  filterChipText: { fontFamily: "SpaceGrotesk_500Medium", fontSize: 12 },
+  dateRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    gap: 10,
+    borderWidth: StyleSheet.hairlineWidth,
+    marginBottom: 14,
+  },
+  dateInput: {
+    flex: 1,
+    fontFamily: "SpaceGrotesk_400Regular",
+    fontSize: 12,
+    padding: 0,
+  },
+  clearBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  clearBtnText: { fontFamily: "SpaceGrotesk_500Medium", fontSize: 12 },
   listHeader: {
     marginBottom: 10,
   },

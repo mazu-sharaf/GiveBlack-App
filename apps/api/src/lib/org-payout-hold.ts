@@ -45,14 +45,14 @@ export async function markDonationSucceededWithPayout(
        payout_transfer_status = case
          when coalesce(
            d.org_id,
-           (select c.organization_id from campaigns c2 where c2.id = d.campaign_id limit 1)
+           (select c2.organization_id from campaigns c2 where c2.id = d.campaign_id limit 1)
          ) is not null then 'in_hold'
          else d.payout_transfer_status
        end,
        payout_release_at = case
          when coalesce(
            d.org_id,
-           (select c.organization_id from campaigns c3 where c3.id = d.campaign_id limit 1)
+           (select c3.organization_id from campaigns c3 where c3.id = d.campaign_id limit 1)
          ) is not null
          then now() + make_interval(days => coalesce((
            select case when lower(coalesce(os.tier, 'free')) = 'free' then 14 else 7 end

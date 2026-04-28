@@ -511,7 +511,20 @@ export const orgCampaignRoutes: FastifyPluginAsync = async (app) => {
               d.id::text
             ) end`;
 
-      const listSql = `select d.id, d.amount, d.currency, d.status,
+      const listSql = `select d.id,
+              d.amount,
+              case
+                when lower(trim(coalesce(d.status::text, ''))) = 'succeeded' then
+                  (coalesce(
+                    d.net_amount_cents,
+                    greatest(
+                      0,
+                      floor(d.amount * 100)::bigint - round(d.amount::numeric * 100 * 0.029 + 30)::bigint
+                    )
+                  )::numeric / 100)
+                else null
+              end as net_amount,
+              d.currency, d.status,
               case when coalesce(d.is_anonymous, false) then null
                    else coalesce(
                      nullif(trim(d.donor_name), ''),
@@ -535,19 +548,59 @@ export const orgCampaignRoutes: FastifyPluginAsync = async (app) => {
 
       const statsSql = `
         select
-          coalesce(sum(d.amount), 0)::numeric as all_time_total,
+          coalesce(sum(
+            (coalesce(
+              d.net_amount_cents,
+              greatest(
+                0,
+                floor(d.amount * 100)::bigint - round(d.amount::numeric * 100 * 0.029 + 30)::bigint
+              )
+            )::numeric / 100)
+          ), 0)::numeric as all_time_total,
           count(*)::int as all_time_donation_count,
           count(distinct ${donorKey})::int as all_time_donors,
-          coalesce(sum(d.amount) filter (where d.created_at >= date_trunc('month', now())), 0)::numeric as month_total,
+          coalesce(sum(
+            (coalesce(
+              d.net_amount_cents,
+              greatest(
+                0,
+                floor(d.amount * 100)::bigint - round(d.amount::numeric * 100 * 0.029 + 30)::bigint
+              )
+            )::numeric / 100)
+          ) filter (where d.created_at >= date_trunc('month', now())), 0)::numeric as month_total,
           count(*) filter (where d.created_at >= date_trunc('month', now()))::int as month_donation_count,
           count(distinct case when d.created_at >= date_trunc('month', now()) then ${donorKey} end)::int as month_donors,
-          coalesce(sum(d.amount) filter (where d.created_at >= now() - interval '7 days'), 0)::numeric as last_7d_total,
+          coalesce(sum(
+            (coalesce(
+              d.net_amount_cents,
+              greatest(
+                0,
+                floor(d.amount * 100)::bigint - round(d.amount::numeric * 100 * 0.029 + 30)::bigint
+              )
+            )::numeric / 100)
+          ) filter (where d.created_at >= now() - interval '7 days'), 0)::numeric as last_7d_total,
           count(*) filter (where d.created_at >= now() - interval '7 days')::int as last_7d_donation_count,
           count(distinct case when d.created_at >= now() - interval '7 days' then ${donorKey} end)::int as last_7d_donors,
-          coalesce(sum(d.amount) filter (where d.created_at >= now() - interval '30 days'), 0)::numeric as last_30d_total,
+          coalesce(sum(
+            (coalesce(
+              d.net_amount_cents,
+              greatest(
+                0,
+                floor(d.amount * 100)::bigint - round(d.amount::numeric * 100 * 0.029 + 30)::bigint
+              )
+            )::numeric / 100)
+          ) filter (where d.created_at >= now() - interval '30 days'), 0)::numeric as last_30d_total,
           count(*) filter (where d.created_at >= now() - interval '30 days')::int as last_30d_donation_count,
           count(distinct case when d.created_at >= now() - interval '30 days' then ${donorKey} end)::int as last_30d_donors,
-          coalesce(sum(d.amount) filter (where d.created_at >= now() - interval '90 days'), 0)::numeric as last_90d_total,
+          coalesce(sum(
+            (coalesce(
+              d.net_amount_cents,
+              greatest(
+                0,
+                floor(d.amount * 100)::bigint - round(d.amount::numeric * 100 * 0.029 + 30)::bigint
+              )
+            )::numeric / 100)
+          ) filter (where d.created_at >= now() - interval '90 days'), 0)::numeric as last_90d_total,
           count(*) filter (where d.created_at >= now() - interval '90 days')::int as last_90d_donation_count,
           count(distinct case when d.created_at >= now() - interval '90 days' then ${donorKey} end)::int as last_90d_donors
         from donations d
