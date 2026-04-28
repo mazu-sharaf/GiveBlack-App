@@ -36,6 +36,60 @@ async function optionalDonorUserId(
 }
 
 export const campaignPageRoutes: FastifyPluginAsync = async (app) => {
+  app.get("/link/c/:campaignId", async (request, reply) => {
+    const { campaignId } = request.params as { campaignId: string };
+    const proto = (request.headers["x-forwarded-proto"] as string) || request.protocol || "https";
+    const host = (request.headers["x-forwarded-host"] as string) || request.hostname;
+    const baseUrl = `${proto}://${host}`;
+
+    try {
+      const campRes = await db.query(
+        `SELECT c.title, c.description, o.name AS org_name
+         FROM campaigns c
+         JOIN organizations o ON o.id = c.organization_id
+         WHERE c.id = $1
+         LIMIT 1`,
+        [campaignId]
+      );
+      const row = (campRes.rows[0] as { title?: string; description?: string | null; org_name?: string } | undefined) || {};
+      const title = row.title || "Campaign";
+      const desc =
+        stripHtmlForMeta(row.description || `Support ${row.org_name || "this organization"} on Give Black.`).slice(0, 300);
+
+      const appleUrl = env.APP_STORE_URL || "https://apps.apple.com/app/giveblack";
+      const playUrl = env.PLAY_STORE_URL || "https://play.google.com/store/apps/details?id=com.giveblack";
+      const deepLink = `giveblack://link/c/${encodeURIComponent(campaignId)}`;
+      const webFallback = `${baseUrl}/c/${encodeURIComponent(campaignId)}/web`;
+
+      return reply.type("text/html").send(
+        deepLinkLandingPage({
+          title,
+          description: desc,
+          deepLink,
+          webFallback,
+          appleUrl,
+          playUrl,
+        })
+      );
+    } catch (e) {
+      app.log.error(e);
+      const appleUrl = env.APP_STORE_URL || "https://apps.apple.com/app/giveblack";
+      const playUrl = env.PLAY_STORE_URL || "https://play.google.com/store/apps/details?id=com.giveblack";
+      const deepLink = `giveblack://link/c/${encodeURIComponent(campaignId)}`;
+      const webFallback = `${baseUrl}/c/${encodeURIComponent(campaignId)}/web`;
+      return reply.type("text/html").send(
+        deepLinkLandingPage({
+          title: "Give Black",
+          description: "Open the GiveBlack app to view this campaign.",
+          deepLink,
+          webFallback,
+          appleUrl,
+          playUrl,
+        })
+      );
+    }
+  });
+
   app.get("/c/:campaignId/thank-you", async (request, reply) => {
     const { campaignId } = request.params as { campaignId: string };
     const q = request.query as { session_id?: string };
@@ -150,8 +204,7 @@ export const campaignPageRoutes: FastifyPluginAsync = async (app) => {
       const pageTitle = `Support ${row.title} on Give Black`;
       const ogImage = resolveCampaignOgImage(row.main_image_url, publicBase, defaultOg);
       const canonicalUrl = `${baseUrl}/c/${encodeURIComponent(campaignId)}`;
-      // Public campaign share URL should not be under /admin.
-      const webCampaignUrl = `${baseUrl}/c/${encodeURIComponent(campaignId)}`;
+      const webCampaignUrl = `${baseUrl}/c/${encodeURIComponent(campaignId)}/web`;
       const brandIconUrl = `${baseUrl.replace(/\/$/, "")}/admin/giveblack-icon.png`;
 
       const appleUrl = env.APP_STORE_URL || "https://apps.apple.com/app/giveblack";
@@ -171,6 +224,48 @@ export const campaignPageRoutes: FastifyPluginAsync = async (app) => {
         playUrl,
       });
       return reply.type("text/html").send(html);
+    } catch (e) {
+      app.log.error(e);
+      return reply.type("text/html").send(notFoundPage());
+    }
+  });
+
+  app.get("/c/:campaignId/web", async (request, reply) => {
+    const { campaignId } = request.params as { campaignId: string };
+    const proto = (request.headers["x-forwarded-proto"] as string) || request.protocol || "https";
+    const host = (request.headers["x-forwarded-host"] as string) || request.hostname;
+    const baseUrl = `${proto}://${host}`;
+
+    try {
+      const campRes = await db.query(
+        `SELECT c.id, c.title, c.description, c.main_image_url, c.organization_id, o.name AS org_name
+         FROM campaigns c
+         JOIN organizations o ON o.id = c.organization_id
+         WHERE c.id = $1
+         LIMIT 1`,
+        [campaignId]
+      );
+      if (!campRes.rows.length) {
+        return reply.type("text/html").send(notFoundPage());
+      }
+      const row = campRes.rows[0] as {
+        id: string;
+        title: string;
+        description: string | null;
+        main_image_url: string | null;
+        organization_id: string;
+        org_name: string;
+      };
+      return reply.type("text/html").send(
+        webDonatePage({
+          baseUrl,
+          campaignId,
+          orgId: row.organization_id,
+          title: row.title,
+          description: row.description || `Support ${row.org_name} on Give Black.`,
+          orgName: row.org_name,
+        })
+      );
     } catch (e) {
       app.log.error(e);
       return reply.type("text/html").send(notFoundPage());
@@ -358,6 +453,8 @@ function campaignShareLandingPage(opts: {
   const iconHref = escHtml(opts.brandIconUrl);
   const appleJs = JSON.stringify(opts.appleUrl);
   const playJs = JSON.stringify(opts.playUrl);
+  const appleHref = escHtml(opts.appleUrl);
+  const playHref = escHtml(opts.playUrl);
   return `<!DOCTYPE html>
 <html lang="en"><head>
 <meta charset="utf-8"/>
@@ -401,6 +498,219 @@ a.btn:hover{background:#047857;}
 <h1>${cTitle}</h1>
 <p>${d}</p>
 <p><a class="btn" href="${web}">View campaign &amp; donate</a></p>
+<p style="margin-top:-8px;font-size:13px;color:#6b7280;">
+  Prefer the app? <a href="${appleHref}" rel="noopener" style="color:#059669;text-decoration:none;">iOS</a> ·
+  <a href="${playHref}" rel="noopener" style="color:#059669;text-decoration:none;">Android</a>
+</p>
+</body></html>`;
+}
+
+function deepLinkLandingPage(opts: {
+  title: string;
+  description: string;
+  deepLink: string;
+  webFallback: string;
+  appleUrl: string;
+  playUrl: string;
+}): string {
+  const title = escHtml(opts.title);
+  const desc = escHtml(opts.description);
+  const deep = escHtml(opts.deepLink);
+  const web = escHtml(opts.webFallback);
+  const apple = escHtml(opts.appleUrl);
+  const play = escHtml(opts.playUrl);
+  const appleJs = JSON.stringify(opts.appleUrl);
+  const playJs = JSON.stringify(opts.playUrl);
+  const deepJs = JSON.stringify(opts.deepLink);
+
+  return `<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>${title}</title>
+<meta name="description" content="${desc}"/>
+<style>${baseStyles()}
+.center{display:flex;align-items:center;justify-content:center;min-height:100vh;text-align:center;}
+.center h1{font-size:22px;margin-bottom:10px;}
+.center p{color:#6b7280;margin-bottom:18px;line-height:1.45;max-width:420px;}
+.row{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:10px;}
+.btn-link{display:inline-block;padding:12px 18px;border-radius:12px;font-weight:700;text-decoration:none;font-size:15px;}
+.btn-app{background:#059669;color:#fff;}
+.btn-app:hover{background:#047857;}
+.btn-store{background:#111;color:#fff;}
+.btn-store:hover{opacity:0.92;}
+.btn-web{background:#fff;border:1px solid #e5e7eb;color:#111;}
+.btn-web:hover{background:#f3f4f6;}
+.hint{font-size:12px;color:#9ca3af;margin-top:10px;}
+</style>
+<script>
+(function(){
+  // Try opening the app first.
+  var started = Date.now();
+  function goStore(){
+    var ua=navigator.userAgent;
+    var isIOS=/iPhone|iPad|iPod/i.test(ua)||(navigator.platform==="MacIntel"&&navigator.maxTouchPoints>1);
+    var isAndroid=/Android/i.test(ua);
+    if(isIOS){window.location.replace(${appleJs});}
+    else if(isAndroid){window.location.replace(${playJs});}
+  }
+  // Attempt deep link; if app is installed, OS will open it and page will background.
+  window.location.href = ${deepJs};
+  // If we’re still here after ~1.2s, assume app not installed → store.
+  setTimeout(function(){
+    // If the page was backgrounded, skip store redirect.
+    if(document.hidden) return;
+    // Some browsers keep focus; also avoid immediate redirect loops.
+    if(Date.now() - started < 800) return;
+    goStore();
+  }, 1200);
+})();
+</script>
+</head><body>
+<div class="center">
+  <div>
+    <div class="brand">Give Black</div>
+    <h1>${title}</h1>
+    <p>${desc}</p>
+    <div class="row">
+      <a class="btn-link btn-app" href="${deep}">Open in app</a>
+      <a class="btn-link btn-web" href="${web}">Continue on web</a>
+    </div>
+    <div class="hint">If the app doesn’t open, we’ll send you to the store.</div>
+    <div class="row" style="margin-top:12px;">
+      <a class="btn-link btn-store" href="${apple}">iOS</a>
+      <a class="btn-link btn-store" href="${play}">Android</a>
+    </div>
+  </div>
+</div>
+</body></html>`;
+}
+
+function webDonatePage(opts: {
+  baseUrl: string;
+  campaignId: string;
+  orgId: string;
+  title: string;
+  description: string;
+  orgName: string;
+}): string {
+  const title = escHtml(opts.title);
+  const desc = escHtml(stripHtmlForMeta(opts.description).slice(0, 400));
+  const orgName = escHtml(opts.orgName);
+  const campaignId = escHtml(opts.campaignId);
+  const orgId = escHtml(opts.orgId);
+  const apiCheckout = `${opts.baseUrl.replace(/\/$/, "")}/api/payments/public-donate-checkout`;
+
+  return `<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Donate to ${title} | GiveBlack</title>
+<style>${baseStyles()}
+.page{max-width:720px;margin:0 auto;padding:24px 16px 48px;}
+.hero{background:#fff;border-radius:16px;box-shadow:0 2px 12px rgba(0,0,0,0.08);padding:18px 18px 16px;margin-bottom:16px;}
+.hero h1{font-size:22px;margin:0 0 6px 0;}
+.hero p{margin:0;color:#6b7280;line-height:1.45;}
+.grid{display:grid;grid-template-columns:1fr;gap:12px;}
+@media (min-width:720px){.grid{grid-template-columns:1fr 1fr;}}
+.field{display:flex;flex-direction:column;gap:6px;}
+.label{font-size:12px;color:#6b7280;}
+.input{width:100%;border:1px solid #e5e7eb;border-radius:12px;padding:12px 12px;font-size:15px;font-family:inherit;}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
+.note{font-size:12px;color:#6b7280;line-height:1.45;}
+.actions{margin-top:14px;}
+.err{color:#dc2626;font-size:13px;margin-top:10px;min-height:18px;}
+</style>
+</head><body>
+<div class="top-bar"><div class="logo">GiveBlack</div></div>
+<div class="page">
+  <div class="hero">
+    <h1>${title}</h1>
+    <p>${desc}</p>
+    <p class="note" style="margin-top:10px;">Beneficiary: <strong>${orgName}</strong></p>
+  </div>
+
+  <form id="donateForm" class="card" style="padding:16px;">
+    <div class="grid">
+      <div class="field">
+        <div class="label">Donation amount (USD)</div>
+        <input class="input" name="amount" type="number" min="1" step="1" value="25" required />
+      </div>
+      <div class="field">
+        <div class="label">Email (required unless anonymous)</div>
+        <input class="input" name="donorEmail" type="email" placeholder="you@example.com" />
+      </div>
+      <div class="field">
+        <div class="label">Name (optional)</div>
+        <input class="input" name="donorName" type="text" placeholder="Your name" />
+      </div>
+      <div class="field">
+        <div class="label">Message (optional)</div>
+        <input class="input" name="message" type="text" placeholder="Leave a note" />
+      </div>
+    </div>
+    <div class="row" style="margin-top:12px;">
+      <label class="note"><input type="checkbox" name="isAnonymous" /> Donate anonymously</label>
+    </div>
+    <div class="actions">
+      <button class="btn-primary" id="submitBtn" type="submit">Continue to secure checkout</button>
+      <div class="err" id="err"></div>
+      <p class="note" style="margin-top:10px;">Payments are processed securely by Stripe.</p>
+    </div>
+    <input type="hidden" name="campaignId" value="${campaignId}" />
+    <input type="hidden" name="orgId" value="${orgId}" />
+  </form>
+</div>
+<script>
+(function(){
+  var form=document.getElementById('donateForm');
+  var btn=document.getElementById('submitBtn');
+  var err=document.getElementById('err');
+  function setError(msg){ err.textContent = msg || ''; }
+  form.addEventListener('submit', async function(e){
+    e.preventDefault();
+    setError('');
+    btn.disabled = true;
+    btn.textContent = 'Starting checkout…';
+    try{
+      var fd=new FormData(form);
+      var payload={
+        campaignId: fd.get('campaignId'),
+        orgId: fd.get('orgId'),
+        amount: Number(fd.get('amount') || 0),
+        currency: 'usd',
+        donorEmail: (fd.get('donorEmail') || '').toString().trim() || undefined,
+        donorName: (fd.get('donorName') || '').toString().trim() || undefined,
+        message: (fd.get('message') || '').toString().trim() || undefined,
+        isAnonymous: !!fd.get('isAnonymous'),
+      };
+      var res = await fetch(${JSON.stringify(apiCheckout)}, {
+        method:'POST',
+        headers:{'content-type':'application/json'},
+        body: JSON.stringify(payload),
+      });
+      var data = await res.json().catch(function(){ return {}; });
+      if(!res.ok){
+        setError((data && data.error) ? data.error : 'Checkout failed');
+        btn.disabled = false;
+        btn.textContent = 'Continue to secure checkout';
+        return;
+      }
+      if(data && data.url){
+        window.location.href = data.url;
+        return;
+      }
+      setError('Checkout failed: missing redirect URL');
+      btn.disabled = false;
+      btn.textContent = 'Continue to secure checkout';
+    }catch(ex){
+      setError('Network error. Please try again.');
+      btn.disabled = false;
+      btn.textContent = 'Continue to secure checkout';
+    }
+  });
+})();
+</script>
 </body></html>`;
 }
 

@@ -50,6 +50,46 @@ export function buildServer() {
     trustProxy: env.NODE_ENV === "production",
   });
 
+  // Universal Links / App Links verification files
+  app.get("/.well-known/apple-app-site-association", async (_request, reply) => {
+    // iOS Team ID + bundle id
+    const appID = "W5NB3UT9SS.com.giveblack.app";
+    reply.type("application/json");
+    return {
+      applinks: {
+        apps: [],
+        details: [
+          {
+            appID,
+            paths: ["/link/*"],
+          },
+        ],
+      },
+    };
+  });
+
+  app.get("/.well-known/assetlinks.json", async (_request, reply) => {
+    const pkg = "com.giveblack";
+    const raw = (env.ANDROID_APP_LINK_SHA256_FINGERPRINTS || "").trim();
+    const fps = raw
+      ? raw
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean)
+      : [];
+    reply.type("application/json");
+    return [
+      {
+        relation: ["delegate_permission/common.handle_all_urls"],
+        target: {
+          namespace: "android_app",
+          package_name: pkg,
+          sha256_cert_fingerprints: fps,
+        },
+      },
+    ];
+  });
+
   app.register(cors, {
     origin: getCorsOrigins(),
     credentials: true

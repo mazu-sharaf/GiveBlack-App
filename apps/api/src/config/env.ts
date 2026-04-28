@@ -52,6 +52,12 @@ const schema = z.object({
 
   /** Google OAuth client id for Admin web login (Google Identity Services). */
   ADMIN_GOOGLE_CLIENT_ID: z.string().optional(),
+
+  /**
+   * Android App Links verification fingerprints (SHA-256), comma-separated.
+   * Example: "AA:BB:...:FF,11:22:...:99"
+   */
+  ANDROID_APP_LINK_SHA256_FINGERPRINTS: z.string().optional(),
 });
 
 const parsed = schema.safeParse(process.env);

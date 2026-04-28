@@ -20,6 +20,10 @@
       "appleTeamId": "W5NB3UT9SS",
       "buildNumber": "10",
       "bundleIdentifier": "com.giveblack.app",
+      "associatedDomains": [
+        "applinks:giveblackapp.com",
+        "applinks:www.giveblackapp.com"
+      ],
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "CFBundleURLTypes": [
@@ -38,7 +42,18 @@
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
-      }
+      },
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            { "scheme": "https", "host": "giveblackapp.com", "pathPrefix": "/link/" },
+            { "scheme": "https", "host": "www.giveblackapp.com", "pathPrefix": "/link/" }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
+      ]
     },
     "web": {
       "favicon": "./assets/images/favicon.png"
