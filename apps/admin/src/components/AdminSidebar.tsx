@@ -45,7 +45,7 @@ const navGroups = [
       { title: "Education partners", url: "/education-partners", icon: GraduationCap },
       { title: "Staff", url: "/staff", icon: Shield },
       { title: "Admin Emails", url: "/admin-emails", icon: Mail },
-      { title: "Notify donors", url: "/broadcast", icon: Bell },
+      { title: "Notify users", url: "/broadcast", icon: Bell },
       { title: "Settings", url: "/settings", icon: Settings },
     ],
   },

@@ -84,7 +84,10 @@ export async function configureGoogleSignIn(): Promise<void> {
   }
 }
 
-export async function getGoogleIdToken(): Promise<string> {
+export type GoogleOAuthCredentials = { idToken: string; profilePhotoUrl?: string | null };
+
+/** ID token plus profile photo URL from the native SDK (ID token may omit `picture`). */
+export async function getGoogleOAuthCredentials(): Promise<GoogleOAuthCredentials> {
   if (isExpoGoOrWeb()) {
     throw new Error(
       "Google Sign-In requires a development or production build with native code (EAS / expo run), not Expo Go or web."
@@ -113,9 +116,18 @@ export async function getGoogleIdToken(): Promise<string> {
         "No ID token from Google. Ensure GOOGLE_WEB_CLIENT_ID matches your Web OAuth client and the API accepts that audience in GOOGLE_OAUTH_CLIENT_IDS."
       );
     }
-    return idToken;
+    const photo =
+      userInfo.data.user && typeof userInfo.data.user.photo === "string"
+        ? userInfo.data.user.photo.trim() || null
+        : null;
+    return { idToken, profilePhotoUrl: photo || undefined };
   } catch (error: unknown) {
     console.error("Google Sign-In Error:", error);
     throw error;
   }
+}
+
+export async function getGoogleIdToken(): Promise<string> {
+  const { idToken } = await getGoogleOAuthCredentials();
+  return idToken;
 }

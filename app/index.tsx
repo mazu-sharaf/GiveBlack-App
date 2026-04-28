@@ -1,9 +1,19 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useLayoutEffect, useState, useRef } from "react";
 import { View, StyleSheet } from "react-native";
 import { Redirect } from "expo-router";
 import { useAuth } from "@/context/AuthContext";
 import { useThemeColors } from "@/context/ThemeContext";
 import { hasCompletedOnboarding } from "@/lib/onboarding-storage";
+import { resetNavigationStackThenReplace } from "@/lib/auth-navigation";
+
+/** Charity cold start: `<Redirect href="/(org)" />` can leave `/` in the root stack so swipe-back returns here; reset like post-login. */
+function CharityAuthedBootstrap() {
+  const c = useThemeColors();
+  useLayoutEffect(() => {
+    resetNavigationStackThenReplace("/(org)");
+  }, []);
+  return <View style={[styles.centered, { backgroundColor: c.background }]} />;
+}
 
 export default function Index() {
   const { isAuthenticated, isLoading, user, guestLogin } = useAuth();
@@ -43,7 +53,7 @@ export default function Index() {
   }
 
   if (user?.type === "charity") {
-    return <Redirect href="/(org)" />;
+    return <CharityAuthedBootstrap />;
   }
 
   return <Redirect href="/(tabs)" />;

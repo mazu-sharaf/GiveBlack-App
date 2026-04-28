@@ -17,7 +17,9 @@ import Colors from "@/constants/colors";
 import { useThemeColors } from "@/context/ThemeContext";
 import { useApp } from "@/context/AppContext";
 import { useAuth } from "@/context/AuthContext";
+import { resetNavigationStackThenReplace } from "@/lib/auth-navigation";
 import { getPreferredDisplayName } from "@/lib/user-display";
+import { resolveAvatarUrl } from "@/lib/avatar-url";
 
 interface MenuItemProps {
   icon: string;
@@ -154,7 +156,7 @@ function GuestAccountScreen() {
                   setShowLogoutModal(false);
                   await logout();
                   await guestLogin();
-                  router.replace("/(tabs)");
+                  resetNavigationStackThenReplace("/(tabs)");
                 }}
               >
                 <Text style={styles.okBtnText}>OK</Text>
@@ -183,6 +185,7 @@ function AuthenticatedAccountScreen() {
   const { walletBalance, userProfile, updateProfile } = useApp();
   const { user, avatarUrl, donationSummary, logout, guestLogin } = useAuth();
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const displayAvatarUrl = resolveAvatarUrl(avatarUrl);
 
   const insets = useSafeInsets();
   const bottomPad = insets.bottom;
@@ -210,8 +213,8 @@ function AuthenticatedAccountScreen() {
 
         <Animated.View entering={FadeInDown.delay(60).duration(400)} style={[styles.profileCard, { backgroundColor: c.cardBg }]}>
           <View style={styles.profileLeft}>
-            {avatarUrl ? (
-              <Image source={{ uri: avatarUrl }} style={styles.avatarImage} cachePolicy="memory-disk" transition={200} />
+            {displayAvatarUrl ? (
+              <Image source={{ uri: displayAvatarUrl }} style={styles.avatarImage} cachePolicy="memory-disk" transition={200} />
             ) : (
               <View style={[styles.avatarCircle, { backgroundColor: c.green }]}>
                 <Text style={styles.avatarInitial}>
@@ -362,7 +365,7 @@ function AuthenticatedAccountScreen() {
                   setShowLogoutModal(false);
                   await logout();
                   await guestLogin();
-                  router.replace("/(tabs)");
+                  resetNavigationStackThenReplace("/(tabs)");
                 }}
               >
                 <Text style={styles.okBtnText}>OK</Text>

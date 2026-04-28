@@ -22,6 +22,7 @@ import { Ionicons } from "@expo/vector-icons";
 import Colors from "@/constants/colors";
 import { APP_VERSION } from "@/constants/version";
 import { apiPost, apiGet, apiPatch, getApiUrl } from "@/lib/query-client";
+import { resolveAvatarUrl } from "@/lib/avatar-url";
 import { useTheme, useThemeColors } from "@/context/ThemeContext";
 import { useAuth } from "@/context/AuthContext";
 import { useApp } from "@/context/AppContext";
@@ -72,6 +73,7 @@ type NotifPrefs = {
   org_donations: boolean;
   org_volunteers: boolean;
   org_campaign_status: boolean;
+  org_subscription: boolean;
   donor_new_campaigns_from_orgs_i_supported: boolean;
   new_campaigns: boolean;
 };
@@ -276,6 +278,19 @@ function NotificationsPage() {
                     <Switch
                       value={prefs.org_campaign_status}
                       onValueChange={(v) => void patchPref("org_campaign_status", v)}
+                      trackColor={{ true: Colors.green }}
+                    />
+                  }
+                />
+                <View style={[styles.sep, { backgroundColor: c.border }]} />
+                <SettingRow
+                  icon="trending-up-outline"
+                  label="Plan & subscription"
+                  description="When your organization upgrades to a higher plan"
+                  right={
+                    <Switch
+                      value={prefs.org_subscription}
+                      onValueChange={(v) => void patchPref("org_subscription", v)}
                       trackColor={{ true: Colors.green }}
                     />
                   }
@@ -1149,12 +1164,6 @@ function EditProfilePage() {
         .slice(0, 2)
     : "U";
 
-  function resolveAvatarUrl(url: string | null | undefined): string | null {
-    if (!url) return null;
-    if (url.startsWith("http://") || url.startsWith("https://")) return url;
-    const base = getApiUrl().replace(/\/$/, "");
-    return `${base}${url.startsWith("/") ? "" : "/"}${url}`;
-  }
   const displayAvatarUrl = resolveAvatarUrl(localAvatarUrl) || resolveAvatarUrl(avatarUrl) || null;
 
   return (

@@ -6,7 +6,11 @@ import { db } from "../lib/db.js";
 import { env } from "../config/env.js";
 import { issueSessionForUser } from "./auth.js";
 
-const googleBody = z.object({ idToken: z.string().min(10) });
+const googleBody = z.object({
+  idToken: z.string().min(10),
+  /** Profile image URL from native Google Sign-In when the ID token omits `picture`. */
+  pictureUrl: z.string().max(2048).optional(),
+});
 const appleBody = z.object({
   identityToken: z.string().min(10),
   fullName: z.string().min(1).max(120).optional(),
@@ -30,6 +34,17 @@ function getDefaultOAuthName(provider: "google" | "apple", email?: string): stri
 
 function buildGeneratedAvatarUrl(name: string): string {
   return `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=39C27A&color=ffffff&size=256&bold=true`;
+}
+
+function sanitizeOptionalHttpUrl(raw: string | undefined): string | null {
+  if (!raw?.trim()) return null;
+  try {
+    const u = new URL(raw.trim());
+    if (u.protocol !== "http:" && u.protocol !== "https:") return null;
+    return u.href;
+  } catch {
+    return null;
+  }
 }
 
 async function loadProfileForUser(userId: string): Promise<Record<string, unknown>> {
@@ -195,7 +210,9 @@ export const oauthRoutes: FastifyPluginAsync = async (app) => {
       if (!payload?.sub) return reply.code(401).send({ error: "Invalid Google token" });
       const email = payload.email;
       const name = payload.name || getDefaultOAuthName("google", email);
-      const avatarUrl = typeof payload.picture === "string" ? payload.picture : null;
+      const clientPicture = sanitizeOptionalHttpUrl(body.pictureUrl);
+      const tokenPicture = typeof payload.picture === "string" ? payload.picture : null;
+      const avatarUrl = clientPicture || tokenPicture;
       return findOrCreateOAuthDonor(app, request, reply, "google", payload.sub, email, name, avatarUrl);
     } catch (e: unknown) {
       app.log.error({ err: e }, "google oauth verify failed");

@@ -115,5 +115,9 @@
     "typescript": "~5.9.2"
   },
   "private": true,
-  "packageManager": "pnpm@10.26.1"
+  "packageManager": "pnpm@10.26.1",
+  "optionalDependencies": {
+    "@rollup/rollup-win32-x64-msvc": "^4.60.2",
+    "@swc/core-win32-x64-msvc": "^1.15.32"
+  }
 }

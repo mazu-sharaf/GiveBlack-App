@@ -11,14 +11,10 @@ import { getApiUrl } from "@/lib/query-client";
 import * as Print from "expo-print";
 import * as LegacyFileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-
 import { buildReceiptHtml } from "@/lib/receipt-html";
 import RatingModal from "@/components/RatingModal";
 
 type Status = "loading" | "success" | "failed";
-
-const HAS_DONATED_KEY = "@gb_has_donated";
 
 function generateReference() {
   const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
@@ -32,7 +28,7 @@ function generateReference() {
 export default function CheckoutResultScreen() {
   const { session_id } = useLocalSearchParams<{ session_id?: string }>();
   const c = useThemeColors();
-  const { user, refreshPendingDonationCount } = useAuth();
+  const { user, session, refreshPendingDonationCount, refreshDonationSummary } = useAuth();
   const [status, setStatus] = useState<Status>("loading");
   const [amount, setAmount] = useState<number | null>(null);
   const [currency, setCurrency] = useState<string>("usd");
@@ -101,27 +97,32 @@ export default function CheckoutResultScreen() {
   }, [session_id, refreshPendingDonationCount]);
 
   useEffect(() => {
-    if (status !== "success") return;
+    if (status !== "success") {
+      setShowRating(false);
+      return;
+    }
+    if (!session?.accessToken || user?.type !== "donor" || !user?.id) {
+      setShowRating(false);
+      return;
+    }
     let cancelled = false;
     void (async () => {
-      try {
-        const raw = await AsyncStorage.getItem(HAS_DONATED_KEY);
+      for (let i = 0; i < 8; i++) {
         if (cancelled) return;
-        if (raw === "1") {
-          setShowRating(false);
+        const summary = await refreshDonationSummary();
+        if (cancelled) return;
+        if (summary && summary.donation_count >= 1) {
+          if (!cancelled) setShowRating(summary.donation_count === 1);
           return;
         }
-        await AsyncStorage.setItem(HAS_DONATED_KEY, "1");
-        if (!cancelled) setShowRating(true);
-      } catch {
-        // If storage fails, we still prefer showing the prompt over skipping it.
-        if (!cancelled) setShowRating(true);
+        await new Promise((r) => setTimeout(r, 600));
       }
+      if (!cancelled) setShowRating(false);
     })();
     return () => {
       cancelled = true;
     };
-  }, [status]);
+  }, [status, session?.accessToken, user?.type, user?.id, refreshDonationSummary]);
 
   useEffect(() => {
     if (status === "success") {
@@ -302,7 +303,14 @@ export default function CheckoutResultScreen() {
     return (
       <View style={[styles.container, { backgroundColor: c.background }]}>
         <Confetti />
-        {showRating ? <RatingModal delayMs={3000} /> : null}
+        {showRating && user?.id ? (
+          <RatingModal
+            variant="first_donation"
+            milestoneId={user.id}
+            delayMs={3000}
+            onFullyClosed={() => setShowRating(false)}
+          />
+        ) : null}
         <ScrollView contentContainerStyle={styles.receiptContainer}>
           <Animated.View
             style={[

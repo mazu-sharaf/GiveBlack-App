@@ -28,6 +28,7 @@ const notificationSettingsSchema = z.object({
   org_donations: z.boolean().optional(),
   org_volunteers: z.boolean().optional(),
   org_campaign_status: z.boolean().optional(),
+  org_subscription: z.boolean().optional(),
   donor_new_campaigns_from_orgs_i_supported: z.boolean().optional(),
   new_campaigns: z.boolean().optional(),
 });
@@ -40,6 +41,8 @@ const MAX_DONOR_NOTIFICATION_RECIPIENTS = 5000;
  */
 const NOTIFY_RECIPIENT_ROLE_WHERE =
   "disabled_at is null and role is not null and role not in ('admin', 'super_admin', 'manager', 'staff')";
+
+const CHARITY_BROADCAST_ROLE_WHERE = "disabled_at is null and role = 'charity_owner'";
 
 const adminPushOnlySchema = z.object({
   pushTitle: z.string().min(1).max(120),
@@ -318,6 +321,76 @@ export const notificationRoutes: FastifyPluginAsync = async (app) => {
     return { ids, total };
   });
 
+  app.get("/api/admin/notifications/charity-recipients", { preHandler: adminNotifyOnly }, async (request) => {
+    const q = request.query as { q?: string; page?: string; limit?: string };
+    const page = Math.max(1, parseInt(q.page || "1", 10));
+    const limit = Math.min(200, Math.max(1, parseInt(q.limit || "50", 10)));
+    const offset = (page - 1) * limit;
+    const search = (q.q || "").trim();
+
+    if (search) {
+      const needle = `%${search}%`;
+      const countRes = await db.query(
+        `select count(*)::int as c from users where ${CHARITY_BROADCAST_ROLE_WHERE} and (email ilike $1 or full_name ilike $1)`,
+        [needle]
+      );
+      const total = Number(countRes.rows[0]?.c ?? 0);
+      const listRes = await db.query(
+        `select id, email, full_name, role from users where ${CHARITY_BROADCAST_ROLE_WHERE} and (email ilike $1 or full_name ilike $1)
+         order by full_name asc nulls last, email asc
+         limit $2 offset $3`,
+        [needle, limit, offset]
+      );
+      return { charities: listRes.rows, total };
+    }
+
+    const countRes = await db.query(`select count(*)::int as c from users where ${CHARITY_BROADCAST_ROLE_WHERE}`);
+    const total = Number(countRes.rows[0]?.c ?? 0);
+    const listRes = await db.query(
+      `select id, email, full_name, role from users where ${CHARITY_BROADCAST_ROLE_WHERE}
+       order by full_name asc nulls last, email asc
+       limit $1 offset $2`,
+      [limit, offset]
+    );
+    return { charities: listRes.rows, total };
+  });
+
+  app.get("/api/admin/notifications/charity-recipient-ids", { preHandler: adminNotifyOnly }, async (request, reply) => {
+    const q = request.query as { q?: string };
+    const search = (q.q || "").trim();
+
+    const countRes = search
+      ? await db.query(
+          `select count(*)::int as c from users where ${CHARITY_BROADCAST_ROLE_WHERE} and (email ilike $1 or full_name ilike $1)`,
+          [`%${search}%`]
+        )
+      : await db.query(`select count(*)::int as c from users where ${CHARITY_BROADCAST_ROLE_WHERE}`);
+    const total = Number(countRes.rows[0]?.c ?? 0);
+
+    if (total > MAX_DONOR_NOTIFICATION_RECIPIENTS) {
+      return reply.code(400).send({
+        error: `Too many charity accounts match (${total}). Refine your search to ${MAX_DONOR_NOTIFICATION_RECIPIENTS} or fewer.`,
+      });
+    }
+
+    const listRes = search
+      ? await db.query(
+          `select id from users where ${CHARITY_BROADCAST_ROLE_WHERE} and (email ilike $1 or full_name ilike $1)
+           order by full_name asc nulls last, email asc
+           limit $2`,
+          [`%${search}%`, MAX_DONOR_NOTIFICATION_RECIPIENTS]
+        )
+      : await db.query(
+          `select id from users where ${CHARITY_BROADCAST_ROLE_WHERE}
+           order by full_name asc nulls last, email asc
+           limit $1`,
+          [MAX_DONOR_NOTIFICATION_RECIPIENTS]
+        );
+
+    const ids = (listRes.rows as { id: string }[]).map((r) => r.id);
+    return { ids, total };
+  });
+
   app.post("/api/admin/notifications/send-to-users", { preHandler: adminNotifyOnly }, async (request, reply) => {
     const parsed = z
       .object({
@@ -366,6 +439,55 @@ export const notificationRoutes: FastifyPluginAsync = async (app) => {
       success: true,
       users: rows.length,
       pushTokens: pushTokenCount
+    };
+  });
+
+  app.post("/api/admin/notifications/send-to-charity-users", { preHandler: adminNotifyOnly }, async (request, reply) => {
+    const parsed = z
+      .object({
+        userIds: z.array(z.string().uuid()).min(1).max(MAX_DONOR_NOTIFICATION_RECIPIENTS),
+      })
+      .merge(adminPushOnlySchema)
+      .parse(request.body);
+
+    const uniqueIds = [...new Set(parsed.userIds)];
+    if (uniqueIds.length > MAX_DONOR_NOTIFICATION_RECIPIENTS) {
+      return reply.code(400).send({ error: `At most ${MAX_DONOR_NOTIFICATION_RECIPIENTS} recipients per send.` });
+    }
+
+    const userRes = await db.query(
+      `select id, email from users
+       where id = any($1::uuid[])
+         and disabled_at is null
+         and role = 'charity_owner'`,
+      [uniqueIds]
+    );
+    const found = new Map(userRes.rows.map((r) => [r.id as string, r.email as string]));
+    if (found.size !== uniqueIds.length) {
+      const missing = uniqueIds.filter((id) => !found.has(id));
+      return reply.code(400).send({
+        error: "Some user ids are not eligible charity_owner accounts (or disabled).",
+        invalidUserIds: missing.slice(0, 50),
+        invalidCount: missing.length,
+      });
+    }
+
+    const rows = uniqueIds.map((id) => ({ id, email: found.get(id)! }));
+    const { pushTokenCount } = await deliverAdminBulkNotifications(
+      rows,
+      { pushTitle: parsed.pushTitle, pushBody: parsed.pushBody },
+      ["giveblack", "charity-notification"]
+    );
+
+    broadcastChannel("admin_alerts", "charity_notification_batch.sent", {
+      userCount: rows.length,
+      pushCount: pushTokenCount,
+    });
+
+    return {
+      success: true,
+      users: rows.length,
+      pushTokens: pushTokenCount,
     };
   });
 

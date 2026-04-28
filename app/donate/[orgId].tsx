@@ -14,6 +14,7 @@ import * as LegacyFileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
 import AppHeader from "@/components/AppHeader";
 import Confetti from "@/components/Confetti";
+import RatingModal from "@/components/RatingModal";
 
 import { buildReceiptHtml } from "@/lib/receipt-html";
 import { saveDonationIntent, clearDonationIntent } from "@/lib/donation-intent";
@@ -52,6 +53,7 @@ export default function DonateScreen() {
   const c = useThemeColors();
   const { organizations, refresh } = useApp();
   const { user, isAuthenticated, isGuest, session, refreshDonationSummary } = useAuth();
+  const [showFirstDonationRating, setShowFirstDonationRating] = useState(false);
   const org = organizations.find((o) => o.id === orgId);
 
   // Start at $0 with no preset selected.
@@ -152,6 +154,34 @@ export default function DonateScreen() {
       ]).start();
     }
   }, [step]);
+
+  useEffect(() => {
+    if (step !== "success") {
+      setShowFirstDonationRating(false);
+      return;
+    }
+    if (guestMode || !session?.accessToken || user?.type !== "donor" || !user?.id) {
+      setShowFirstDonationRating(false);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      for (let i = 0; i < 8; i++) {
+        if (cancelled) return;
+        const summary = await refreshDonationSummary();
+        if (cancelled) return;
+        if (summary && summary.donation_count >= 1) {
+          if (!cancelled) setShowFirstDonationRating(summary.donation_count === 1);
+          return;
+        }
+        await new Promise((r) => setTimeout(r, 600));
+      }
+      if (!cancelled) setShowFirstDonationRating(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [step, guestMode, session?.accessToken, user?.type, user?.id, refreshDonationSummary]);
 
   useEffect(() => {
     if (step !== "processing") return;
@@ -719,6 +749,14 @@ export default function DonateScreen() {
     return (
       <View style={[styles.container, { backgroundColor: c.background }]}>
         <Confetti />
+        {showFirstDonationRating && user?.id ? (
+          <RatingModal
+            variant="first_donation"
+            milestoneId={user.id}
+            delayMs={2500}
+            onFullyClosed={() => setShowFirstDonationRating(false)}
+          />
+        ) : null}
         <ScrollView contentContainerStyle={styles.receiptContainer}>
           <Animated.View
             style={[

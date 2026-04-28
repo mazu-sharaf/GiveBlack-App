@@ -52,8 +52,8 @@ interface AuthContextValue {
   /** Update avatar URL locally (also persists in AsyncStorage). */
   setAvatarUrl: (url: string | null) => Promise<void>;
   donationSummary?: DonationSummary | null;
-  /** Refetch /api/me/donations/summary (call after donations and on home refresh). */
-  refreshDonationSummary: () => Promise<void>;
+  /** Refetch /api/me/donations/summary (call after donations and on home refresh). Returns parsed summary when available. */
+  refreshDonationSummary: () => Promise<DonationSummary | null>;
   /** Number of pending (incomplete) donations for the signed-in donor. */
   pendingDonationCount: number;
   /** Refetch /api/me/donations/pending-count. */
@@ -504,16 +504,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setIsGuest(false);
     try {
       const oauthGoogle = await import("@/lib/oauth-google");
-      const getGoogleIdToken = oauthGoogle.getGoogleIdToken;
-      if (typeof getGoogleIdToken !== "function") {
-        throw new Error("Google OAuth failed to load (getGoogleIdToken missing). Rebuild the native app.");
+      const getGoogleOAuthCredentials = oauthGoogle.getGoogleOAuthCredentials;
+      if (typeof getGoogleOAuthCredentials !== "function") {
+        throw new Error("Google OAuth failed to load (getGoogleOAuthCredentials missing). Rebuild the native app.");
       }
-      const idToken = await getGoogleIdToken();
+      const { idToken, profilePhotoUrl } = await getGoogleOAuthCredentials();
       const baseUrl = getApiUrl().replace(/\/$/, "");
       const response = await fetch(`${baseUrl}/api/auth/oauth/google`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ idToken }),
+        body: JSON.stringify({
+          idToken,
+          ...(profilePhotoUrl ? { pictureUrl: profilePhotoUrl } : {}),
+        }),
       });
       const payload = (await response.json().catch(() => ({}))) as Record<string, unknown>;
       if (!response.ok) {
@@ -910,24 +913,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [session]
   );
 
-  const refreshDonationSummary = useCallback(async () => {
+  const refreshDonationSummary = useCallback(async (): Promise<DonationSummary | null> => {
     if (!session?.accessToken) {
       setDonationSummary(null);
-      return;
+      return null;
     }
     if (user?.type !== "donor") {
       setDonationSummary(null);
-      return;
+      return null;
     }
     try {
       const res = await fetchWithAuth("/api/me/donations/summary");
       if (res.ok) {
         const summaryJson = (await res.json()) as DonationSummary;
         setDonationSummary(summaryJson);
+        return summaryJson;
       }
     } catch {
       // non-fatal
     }
+    return null;
   }, [session?.accessToken, user?.type, user?.id, fetchWithAuth]);
 
   const refreshPendingDonationCount = useCallback(async () => {

@@ -22,6 +22,7 @@ import { useThemeColors } from "@/context/ThemeContext";
 import { useAuth } from "@/context/AuthContext";
 import { getApiUrl } from "@/lib/query-client";
 import { Ionicons } from "@expo/vector-icons";
+import RatingModal from "@/components/RatingModal";
 
 interface Campaign {
   id: string;
@@ -81,6 +82,7 @@ export default function CampaignsTab() {
   const [imageMode, setImageMode] = useState<"upload" | "url">("upload");
   const [galleryImages, setGalleryImages] = useState<{ id: string; image_url: string; caption: string | null; sort_order: number }[]>([]);
   const [galleryUploading, setGalleryUploading] = useState(false);
+  const [firstCampaignRatingOrgId, setFirstCampaignRatingOrgId] = useState<string | null>(null);
 
   const base = getApiUrl().replace(/\/$/, "");
 
@@ -380,6 +382,15 @@ export default function CampaignsTab() {
         throw new Error(apiMsg);
       }
 
+      const savedJson = (await res.json().catch(() => ({}))) as {
+        is_first_campaign?: boolean;
+        org_id?: string;
+      };
+      const orgIdForRating = savedJson.org_id || subData?.org_id;
+      if (!editingId && savedJson.is_first_campaign && orgIdForRating) {
+        setFirstCampaignRatingOrgId(orgIdForRating);
+      }
+
       setShowForm(false);
       setForm(INITIAL_FORM);
       setEditingId(null);
@@ -452,6 +463,14 @@ export default function CampaignsTab() {
 
   return (
     <View style={[styles.container, { backgroundColor: c.background }]}>
+      {firstCampaignRatingOrgId ? (
+        <RatingModal
+          variant="first_campaign"
+          milestoneId={firstCampaignRatingOrgId}
+          delayMs={2000}
+          onFullyClosed={() => setFirstCampaignRatingOrgId(null)}
+        />
+      ) : null}
       <View style={styles.header}>
         <Text style={[styles.headerTitle, { color: c.text }]}>Campaigns</Text>
         <Pressable style={[styles.createBtn, { backgroundColor: c.green }]} onPress={openCreate}>

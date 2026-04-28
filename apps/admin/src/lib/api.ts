@@ -238,6 +238,42 @@ export async function sendNotificationsToUserIds(payload: {
   );
 }
 
+/** Paginated charity_owner accounts for admin push targeting. */
+export async function fetchCharityRecipients(params: { q?: string; page?: number; limit?: number }) {
+  const q = new URLSearchParams();
+  if (params.q?.trim()) q.set("q", params.q.trim());
+  if (params.page) q.set("page", String(params.page));
+  if (params.limit) q.set("limit", String(params.limit));
+  const qs = q.toString();
+  return request<{ charities: DonorRecipientRow[]; total: number }>(
+    `/api/admin/notifications/charity-recipients${qs ? `?${qs}` : ""}`
+  );
+}
+
+export async function fetchCharityRecipientIds(q?: string) {
+  const params = new URLSearchParams();
+  if (q?.trim()) params.set("q", q.trim());
+  const qs = params.toString();
+  return request<{ ids: string[]; total: number }>(
+    `/api/admin/notifications/charity-recipient-ids${qs ? `?${qs}` : ""}`
+  );
+}
+
+/** Push + in-app to selected charity_owner user ids only (admin/super_admin). */
+export async function sendNotificationsToCharityUsers(payload: {
+  userIds: string[];
+  pushTitle: string;
+  pushBody: string;
+}) {
+  return request<{ success: boolean; users: number; pushTokens: number }>(
+    "/api/admin/notifications/send-to-charity-users",
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }
+  );
+}
+
 export async function adminAddSubscription(id: string, tier: "growth" | "institutional") {
   return request<{ success: boolean }>(`/api/admin/subscriptions/${encodeURIComponent(id)}/add`, {
     method: "POST",

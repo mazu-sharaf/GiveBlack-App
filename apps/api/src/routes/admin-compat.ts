@@ -7,6 +7,7 @@ import { broadcastChannel } from "../realtime/hub.js";
 import { env } from "../config/env.js";
 import { getStripe } from "../services/stripe.js";
 import { stripeId } from "../lib/stripe-ids.js";
+import { maybeNotifyOrgSubscriptionPlanUpgrade } from "../services/user-push.js";
 
 const TABLES = new Set([
   "organizations",
@@ -109,6 +110,18 @@ async function upsertOrgSubscriptionFromStripe(
     ? new Date(Number(subscription.canceled_at) * 1000).toISOString()
     : null;
 
+  let previousTier: string | null | undefined;
+  let previousStatus: string | null | undefined;
+  if (subscriptionId) {
+    const prevRes = await db.query(
+      `select tier, status from org_subscriptions where stripe_subscription_id = $1 limit 1`,
+      [subscriptionId]
+    );
+    const prow = prevRes.rows[0] as { tier?: string; status?: string } | undefined;
+    previousTier = prow?.tier;
+    previousStatus = prow?.status;
+  }
+
   await db.query(
     `insert into org_subscriptions (org_id, tier, status, stripe_customer_id, stripe_subscription_id, current_period_start, current_period_end, cancel_at_period_end, canceled_at, updated_at)
      values ($1, $2, $3, $4, $5, $6, $7, $8, $9, now())
@@ -123,6 +136,26 @@ async function upsertOrgSubscriptionFromStripe(
        updated_at = now()`,
     [orgId, effectiveTier, status, customerId || null, subscriptionId, periodStart, periodEnd, cancelAtPeriodEnd, canceledAt]
   );
+
+  if (subscriptionId) {
+    const afterRes = await db.query(
+      `select tier, status, current_period_end from org_subscriptions where stripe_subscription_id = $1 limit 1`,
+      [subscriptionId]
+    );
+    const after = afterRes.rows[0] as { tier?: string; status?: string; current_period_end?: string | null } | undefined;
+    const periodEndIso = after?.current_period_end != null ? String(after.current_period_end) : null;
+    void maybeNotifyOrgSubscriptionPlanUpgrade({
+      orgId,
+      stripeSubscriptionId: subscriptionId,
+      previousTier,
+      newTier: after?.tier ?? effectiveTier,
+      previousStatus,
+      newStatus: after?.status ?? status,
+      currentPeriodEndIso: periodEndIso,
+    }).catch((err) => {
+      console.warn("[admin-compat] subscription upgrade notify failed", err);
+    });
+  }
 
   return {
     orgId,
@@ -419,6 +452,14 @@ export const adminCompatRoutes: FastifyPluginAsync = async (app) => {
               orgId: prevCampaign.organization_id,
               title: prevCampaign.title,
             }).catch((err) => console.error("[admin] notifyCampaignWentLive", err));
+          } else if (prevCampaign.status === "pending_review" && newStatus && newStatus !== "active") {
+            const { notifyCampaignReviewOutcome } = await import("../services/user-push.js");
+            void notifyCampaignReviewOutcome({
+              campaignId: prevCampaign.id,
+              orgId: prevCampaign.organization_id,
+              title: prevCampaign.title,
+              newStatus,
+            }).catch((err) => console.error("[admin] notifyCampaignReviewOutcome", err));
           }
         }
 
@@ -1175,6 +1216,14 @@ export const adminCompatRoutes: FastifyPluginAsync = async (app) => {
           } catch (emailErr) {
             app.log.error({ err: emailErr, email: contactEmail }, "Failed to send approval email");
           }
+        }
+
+        const applicantUserId = req.user_id as string | null | undefined;
+        if (applicantUserId) {
+          const { notifyCharityApplicationApproved } = await import("../services/user-push.js");
+          void notifyCharityApplicationApproved(String(applicantUserId), charityName, orgId).catch((err) =>
+            app.log.error({ err }, "notifyCharityApplicationApproved")
+          );
         }
 
         return { success: true, org_id: orgId };

@@ -305,7 +305,13 @@ export const orgCampaignRoutes: FastifyPluginAsync = async (app) => {
           orgName,
         }).catch(() => {});
 
-        return { success: true, id, status: "pending_review" as const };
+        return {
+          success: true,
+          id,
+          org_id: orgId,
+          status: "pending_review" as const,
+          is_first_campaign: existing === 0,
+        };
       } catch (err: unknown) {
         request.log.error({ err }, "org campaign create");
         const msg =

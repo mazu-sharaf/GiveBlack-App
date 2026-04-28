@@ -1,11 +1,19 @@
 import { useEffect, useRef } from "react";
 import { Platform } from "react-native";
 import { router } from "expo-router";
+import { useAuth } from "@/context/AuthContext";
+
+function isOrgAudience(data: Record<string, unknown>, userType: "donor" | "charity" | undefined): boolean {
+  if (data.audience === "org") return true;
+  if (data.audience === "donor") return false;
+  return userType === "charity";
+}
 
 /**
  * Handles notification tap: deep link using payload from Expo push (see user-push.ts).
  */
-export function NotificationNavigationHandler() {
+function NotificationNavigationHandlerInner() {
+  const { user } = useAuth();
   const handledRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -22,16 +30,39 @@ export function NotificationNavigationHandler() {
           if (handledRef.current === key) return;
           handledRef.current = key;
 
+          const orgShell = isOrgAudience(data, user?.type);
+
           if (data.type === "campaign" && typeof data.campaignId === "string" && data.campaignId) {
-            router.push(`/campaign/${encodeURIComponent(data.campaignId)}`);
+            if (orgShell) {
+              router.push("/(org)/(main)/campaigns");
+            } else {
+              router.push(`/campaign/${encodeURIComponent(data.campaignId)}`);
+            }
             return;
           }
           if (data.type === "donation") {
-            router.push("/(tabs)/account");
+            if (orgShell) {
+              router.push("/(org)/(main)/donations");
+            } else {
+              router.push("/(tabs)/account");
+            }
             return;
           }
           if (data.type === "volunteer" && typeof data.orgId === "string" && data.orgId) {
-            router.push(`/volunteer/${encodeURIComponent(data.orgId)}`);
+            if (orgShell) {
+              router.push("/(org)/volunteers");
+            } else {
+              router.push(`/volunteer/${encodeURIComponent(data.orgId)}`);
+            }
+            return;
+          }
+          if (data.type === "charity_approved" && orgShell) {
+            router.push("/(org)/(main)");
+            return;
+          }
+          if (data.type === "subscription" && orgShell) {
+            router.push("/(org)/(main)/subscriptions");
+            return;
           }
         }
       );
@@ -40,7 +71,11 @@ export function NotificationNavigationHandler() {
     }
 
     return () => subscription?.remove();
-  }, []);
+  }, [user?.type]);
 
   return null;
+}
+
+export function NotificationNavigationHandler() {
+  return <NotificationNavigationHandlerInner />;
 }

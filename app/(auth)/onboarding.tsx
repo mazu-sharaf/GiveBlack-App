@@ -13,13 +13,13 @@ import {
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeInsets } from "@/lib/safe-area";
-import { router } from "expo-router";
 import Animated, { FadeIn, FadeInUp } from "react-native-reanimated";
 import Colors from "@/constants/colors";
 
 import { logoWhite, onboardingSlides } from "@/constants/images";
 
 import { markOnboardingComplete } from "@/lib/onboarding-storage";
+import { resetNavigationStackThenReplace } from "@/lib/auth-navigation";
 import { useAuth } from "@/context/AuthContext";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
@@ -74,7 +74,7 @@ export default function OnboardingScreen() {
   const goToWelcome = async () => {
     await markOnboardingComplete();
     await guestLogin();
-    router.replace("/(tabs)");
+    resetNavigationStackThenReplace("/(tabs)");
   };
 
   const goNext = () => {

@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useRef } from "react";
 import {
   View,
   Text,
@@ -7,14 +7,15 @@ import {
   Pressable,
   ActivityIndicator,
   RefreshControl,
-  Platform,
+  Alert,
+  BackHandler,
 } from "react-native";
 import { useSafeInsets } from "@/lib/safe-area";
 import { useThemeColors } from "@/context/ThemeContext";
 import { useAuth } from "@/context/AuthContext";
 import { donorDisplayName } from "@/lib/donor-display";
 import { Ionicons } from "@expo/vector-icons";
-import { router, useFocusEffect } from "expo-router";
+import { router, useFocusEffect, useNavigation } from "expo-router";
 
 interface SubData {
   org_id: string | null;
@@ -75,6 +76,7 @@ function parseCount(v: unknown): number {
 }
 
 export default function OrgDashboardHome() {
+  const navigation = useNavigation();
   const insets = useSafeInsets();
   const c = useThemeColors();
   const { session, user, fetchWithAuth } = useAuth();
@@ -86,6 +88,58 @@ export default function OrgDashboardHome() {
   const [totalRaised, setTotalRaised] = useState(0);
   const [totalDonors, setTotalDonors] = useState(0);
   const [monthRaised, setMonthRaised] = useState(0);
+
+  const exitConfirmShownRef = useRef(false);
+  const showExitConfirmation = useCallback(() => {
+    if (exitConfirmShownRef.current) return;
+    exitConfirmShownRef.current = true;
+    Alert.alert(
+      "Exit GiveBlack?",
+      "Do you want to exit the app?",
+      [
+        {
+          text: "No",
+          style: "cancel",
+          onPress: () => {
+            exitConfirmShownRef.current = false;
+          },
+        },
+        {
+          text: "Yes",
+          style: "destructive",
+          onPress: () => {
+            exitConfirmShownRef.current = false;
+            const maybeExit = (BackHandler as { exitApp?: () => void }).exitApp;
+            if (typeof maybeExit === "function") maybeExit();
+          },
+        },
+      ],
+      { cancelable: true, onDismiss: () => { exitConfirmShownRef.current = false; } }
+    );
+  }, []);
+
+  // Same idea as donor Home: avoid iOS back / Android back popping to auth (e.g. charity-login) under (org).
+  useFocusEffect(
+    useCallback(() => {
+      const sub = BackHandler.addEventListener("hardwareBackPress", () => {
+        showExitConfirmation();
+        return true;
+      });
+      let unsubscribeBeforeRemove: (() => void) | undefined;
+      try {
+        unsubscribeBeforeRemove = navigation.addListener("beforeRemove", (e: { preventDefault?: () => void }) => {
+          e?.preventDefault?.();
+          showExitConfirmation();
+        });
+      } catch {
+        unsubscribeBeforeRemove = undefined;
+      }
+      return () => {
+        sub.remove();
+        if (typeof unsubscribeBeforeRemove === "function") unsubscribeBeforeRemove();
+      };
+    }, [navigation, showExitConfirmation])
+  );
 
   const loadData = useCallback(async () => {
     if (!session) return;

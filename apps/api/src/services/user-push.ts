@@ -1,11 +1,15 @@
 import { db } from "../lib/db.js";
 import { sendExpoPush, type PushMessage } from "./push.js";
 
+/** Cap for "all new campaigns on GiveBlack" fan-out (per publish). */
+const MAX_NEW_CAMPAIGN_BROADCAST = 5000;
+
 export type NotificationPreferenceKey =
   | "donor_receipts"
   | "org_donations"
   | "org_volunteers"
   | "org_campaign_status"
+  | "org_subscription"
   | "donor_new_campaigns_from_orgs_i_supported"
   | "new_campaigns";
 
@@ -14,6 +18,7 @@ const DEFAULT_PREFS: Record<NotificationPreferenceKey, boolean> = {
   org_donations: true,
   org_volunteers: true,
   org_campaign_status: true,
+  org_subscription: true,
   donor_new_campaigns_from_orgs_i_supported: true,
   new_campaigns: true,
 };
@@ -127,6 +132,36 @@ export async function insertUserNotification(
   );
 }
 
+/** Admin approved charity request — always deliver (no notification_preferences gate). */
+export async function notifyCharityApplicationApproved(
+  userId: string,
+  charityName: string,
+  orgId: string
+): Promise<void> {
+  const title = "Application approved";
+  const body = `${charityName} is approved on GiveBlack. Open the app to manage your organization and campaigns.`;
+  try {
+    await insertUserNotification(userId, title, body, "success");
+  } catch (e) {
+    console.warn("[user-push] charity approved in-app notification failed", e);
+  }
+  const tokenMap = await fetchPushTokensForUsers([userId]);
+  const tokens = tokenMap.get(userId) ?? [];
+  if (!tokens.length) return;
+  const msg: PushMessage = {
+    to: tokens,
+    title,
+    body,
+    data: { type: "charity_approved", audience: "org", orgId },
+    channelId: "default",
+  };
+  try {
+    await sendExpoPush(msg);
+  } catch (e) {
+    console.error("[user-push] charity approved push failed", e);
+  }
+}
+
 export async function notifyUsers(options: {
   userIds: string[];
   title: string;
@@ -144,11 +179,26 @@ export async function notifyUsers(options: {
   const allowed = filterByPreference(unique, prefMap, preferenceKey);
   if (!allowed.length) return;
 
-  for (const uid of allowed) {
-    try {
-      await insertUserNotification(uid, title, body, notificationType);
-    } catch (e) {
-      console.warn("[user-push] insert notification failed", e);
+  try {
+    if (allowed.length <= 100) {
+      for (const uid of allowed) {
+        await insertUserNotification(uid, title, body, notificationType);
+      }
+    } else {
+      await db.query(
+        `insert into user_notifications (user_id, title, message, type)
+         select unnest($1::uuid[]), $2, $3, $4`,
+        [allowed, title, body, notificationType]
+      );
+    }
+  } catch (e) {
+    console.warn("[user-push] bulk insert notifications failed, falling back per-user", e);
+    for (const uid of allowed) {
+      try {
+        await insertUserNotification(uid, title, body, notificationType);
+      } catch (err) {
+        console.warn("[user-push] insert notification failed", err);
+      }
     }
   }
 
@@ -215,6 +265,7 @@ export async function notifyDonationFromPaymentIntent(stripePaymentIntentId: str
     body: `${amtStr} — ${campLabel}`,
     data: {
       type: "donation",
+      audience: "org",
       orgId: row.resolved_org_id,
       campaignId: row.campaign_id ?? "",
       paymentIntentId: stripePaymentIntentId,
@@ -231,6 +282,7 @@ export async function notifyDonationFromPaymentIntent(stripePaymentIntentId: str
       body: `Your ${amtStr} gift to ${orgLabel} was received.`,
       data: {
         type: "donation",
+        audience: "donor",
         orgId: row.resolved_org_id,
         campaignId: row.campaign_id ?? "",
         paymentIntentId: stripePaymentIntentId,
@@ -251,10 +303,95 @@ export async function notifyVolunteerSignup(orgId: string, volunteerName: string
     userIds: charityIds,
     title: "New volunteer signup",
     body: `${firstName} applied to volunteer with ${orgName}.`,
-    data: { type: "volunteer", orgId, volunteerId },
+    data: { type: "volunteer", audience: "org", orgId, volunteerId },
     preferenceKey: "org_volunteers",
     channelId: "volunteers",
     notificationType: "new",
+  });
+}
+
+function subscriptionTierRank(tier: string | null | undefined): number {
+  const t = String(tier || "").toLowerCase();
+  if (t === "institutional") return 2;
+  if (t === "growth") return 1;
+  return 0;
+}
+
+function subscriptionTierDisplay(tier: string): string {
+  const t = String(tier || "").toLowerCase();
+  if (t === "institutional") return "Institutional";
+  if (t === "growth") return "Growth";
+  return "Free";
+}
+
+/** When an org's Stripe subscription moves to a higher paid tier (e.g. Free → Growth). Idempotent per billing period end so webhook retries dedupe but a later re-upgrade can notify again. */
+export async function maybeNotifyOrgSubscriptionPlanUpgrade(input: {
+  orgId: string;
+  stripeSubscriptionId: string;
+  previousTier: string | null | undefined;
+  newTier: string;
+  previousStatus: string | null | undefined;
+  newStatus: string;
+  /** Current period end from DB after upsert (dedupe component). */
+  currentPeriodEndIso: string | null | undefined;
+}): Promise<void> {
+  const { orgId, stripeSubscriptionId, previousTier, newTier, newStatus, currentPeriodEndIso } = input;
+  if (!orgId || !stripeSubscriptionId) return;
+
+  const oldRank = subscriptionTierRank(previousTier ?? "free");
+  const newRank = subscriptionTierRank(newTier);
+  const statusOk = ["active", "trialing"].includes(String(newStatus).toLowerCase());
+  if (!statusOk || newRank <= oldRank) return;
+
+  const periodKey = currentPeriodEndIso ? String(currentPeriodEndIso) : "none";
+  const dedupeKey = `org_sub_upgrade:${orgId}:${stripeSubscriptionId}:${String(newTier).toLowerCase()}:${periodKey}`;
+  const claimed = await tryClaimDedupe(dedupeKey);
+  if (!claimed) return;
+
+  const charityIds = await resolveCharityUserIdsForOrg(orgId);
+  const label = subscriptionTierDisplay(newTier);
+  await notifyUsers({
+    userIds: charityIds,
+    title: "Plan upgraded",
+    body: `Your organization is now on the ${label} plan. Open Subscriptions to manage your plan.`,
+    data: {
+      type: "subscription",
+      audience: "org",
+      orgId,
+      tier: newTier,
+    },
+    preferenceKey: "org_subscription",
+    channelId: "subscriptions",
+    notificationType: "success",
+  });
+}
+
+/** Admin did not publish the campaign (e.g. sent back for edits). Notifies org users who opted into campaign status updates. */
+export async function notifyCampaignReviewOutcome(input: {
+  campaignId: string;
+  orgId: string;
+  title: string;
+  newStatus: string;
+}): Promise<void> {
+  const ok = await tryClaimDedupe(`campaign_review:${input.campaignId}:${input.newStatus}`);
+  if (!ok) return;
+
+  const charityIds = await resolveCharityUserIdsForOrg(input.orgId);
+  const statusLabel = input.newStatus.replace(/_/g, " ");
+  await notifyUsers({
+    userIds: charityIds,
+    title: "Campaign update",
+    body: `"${input.title}" was not published yet (status: ${statusLabel}). Open Campaigns for details.`,
+    data: {
+      type: "campaign",
+      audience: "org",
+      campaignId: input.campaignId,
+      orgId: input.orgId,
+      reviewStatus: input.newStatus,
+    },
+    preferenceKey: "org_campaign_status",
+    channelId: "campaigns",
+    notificationType: "warning",
   });
 }
 
@@ -274,7 +411,7 @@ export async function notifyCampaignWentLive(input: {
     userIds: charityIds,
     title: "Campaign is live",
     body: `"${input.title}" is now published on GiveBlack.`,
-    data: { type: "campaign", campaignId: input.campaignId, orgId: input.orgId },
+    data: { type: "campaign", audience: "org", campaignId: input.campaignId, orgId: input.orgId },
     preferenceKey: "org_campaign_status",
     channelId: "campaigns",
     notificationType: "success",
@@ -283,11 +420,13 @@ export async function notifyCampaignWentLive(input: {
   const donorRes = await db.query(
     `select distinct d.user_id::text as id
      from donations d
-     inner join campaigns c on c.id = d.campaign_id
-     where c.organization_id = $1
+     left join campaigns c on c.id = d.campaign_id
+     inner join users u on u.id = d.user_id
+     where u.role = 'donor'
        and d.status = 'succeeded'
        and d.user_id is not null
-       and d.created_at >= now() - interval '12 months'`,
+       and d.created_at >= now() - interval '12 months'
+       and (d.org_id = $1 or c.organization_id = $1)`,
     [input.orgId]
   );
   const charitySet = new Set(charityIds);
@@ -299,7 +438,7 @@ export async function notifyCampaignWentLive(input: {
       userIds: orgDonorIds,
       title: `New campaign — ${orgName}`,
       body: `${input.title} just launched. Tap to view.`,
-      data: { type: "campaign", campaignId: input.campaignId, orgId: input.orgId },
+      data: { type: "campaign", audience: "donor", campaignId: input.campaignId, orgId: input.orgId },
       preferenceKey: "donor_new_campaigns_from_orgs_i_supported",
       channelId: "campaigns",
       notificationType: "new",
@@ -307,27 +446,30 @@ export async function notifyCampaignWentLive(input: {
   }
 
   const orgDonorSet = new Set(orgDonorIds);
+  const excludedIds = [...charitySet, ...orgDonorSet].filter(Boolean);
   const allDonorsRes = await db.query(
-    `select distinct u.id::text as id
+    `select u.id::text as id
      from users u
      where u.disabled_at is null
-       and u.role not in ('admin', 'super_admin', 'manager', 'staff')
-       and not exists (
-         select 1 from device_push_tokens dpt
-         where dpt.user_id = u.id and dpt.disabled_at is null
-         having count(*) = 0
-       )`,
-    []
+       and u.role = 'donor'
+       and (cardinality($1::uuid[]) = 0 or not (u.id = any($1::uuid[])))
+     order by u.created_at desc
+     limit $2`,
+    [excludedIds.length ? excludedIds : [], MAX_NEW_CAMPAIGN_BROADCAST]
   );
-  const allPlatformDonorIds = (allDonorsRes.rows as { id: string }[])
-    .map((r) => r.id)
-    .filter((id) => id && !charitySet.has(id) && !orgDonorSet.has(id));
+  const allPlatformDonorIds = (allDonorsRes.rows as { id: string }[]).map((r) => r.id).filter(Boolean);
+  if (allPlatformDonorIds.length >= MAX_NEW_CAMPAIGN_BROADCAST) {
+    console.warn("[user-push] new_campaigns broadcast hit recipient cap", {
+      campaignId: input.campaignId,
+      cap: MAX_NEW_CAMPAIGN_BROADCAST,
+    });
+  }
   if (allPlatformDonorIds.length) {
     await notifyUsers({
       userIds: allPlatformDonorIds,
       title: `New campaign on GiveBlack`,
       body: `"${input.title}" by ${orgName} is now live. Tap to view.`,
-      data: { type: "campaign", campaignId: input.campaignId, orgId: input.orgId },
+      data: { type: "campaign", audience: "donor", campaignId: input.campaignId, orgId: input.orgId },
       preferenceKey: "new_campaigns",
       channelId: "campaigns",
       notificationType: "new",

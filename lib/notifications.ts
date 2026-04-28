@@ -53,6 +53,12 @@ export async function ensureAndroidNotificationChannels(): Promise<void> {
     description: "Volunteer signups for your organization",
     sound: "default",
   });
+  await Notifications.setNotificationChannelAsync("subscriptions", {
+    name: "Subscription & plan",
+    importance: ch,
+    description: "When your organization plan is upgraded",
+    sound: "default",
+  });
 }
 
 /**

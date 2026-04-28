@@ -1,4 +1,5 @@
 import React, { useState, useCallback } from "react";
+import { useFocusEffect } from "expo-router";
 import {
   View,
   Text,
@@ -78,6 +79,12 @@ export default function NotificationsScreen() {
     await refresh();
     setRefreshing(false);
   }, [refresh]);
+
+  useFocusEffect(
+    useCallback(() => {
+      void refresh();
+    }, [refresh])
+  );
 
   const openDetail = useCallback(
     (notif: AppNotification) => {

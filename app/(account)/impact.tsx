@@ -8,6 +8,7 @@ import Colors from "@/constants/colors";
 import { useThemeColors } from "@/context/ThemeContext";
 import { useAuth } from "@/context/AuthContext";
 import { getApiUrl } from "@/lib/query-client";
+import { resolveAvatarUrl } from "@/lib/avatar-url";
 import { getPreferredDisplayName } from "@/lib/user-display";
 import AppHeader from "@/components/AppHeader";
 import GuestLockSheet from "@/components/GuestLockSheet";
@@ -33,6 +34,7 @@ interface TopDonor {
 function ImpactContent() {
   const { user, avatarUrl, donationSummary, refreshDonationSummary } = useAuth();
   const displayName = getPreferredDisplayName(user?.name, user?.email, "GiveBlack Member");
+  const selfAvatarDisplay = resolveAvatarUrl(avatarUrl);
 
   useFocusEffect(
     useCallback(() => {
@@ -79,8 +81,8 @@ function ImpactContent() {
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}
       >
         <View style={[styles.headerCard, { backgroundColor: c.cardBg }]}>
-          {avatarUrl ? (
-            <Image source={{ uri: avatarUrl }} style={styles.avatarImage} cachePolicy="memory-disk" transition={200} />
+          {selfAvatarDisplay ? (
+            <Image source={{ uri: selfAvatarDisplay }} style={styles.avatarImage} cachePolicy="memory-disk" transition={200} />
           ) : (
             <View style={[styles.avatarCircle, { backgroundColor: c.green }]}>
               <Text style={styles.avatarInitial}>
@@ -115,12 +117,19 @@ function ImpactContent() {
         ) : topDonors.length === 0 ? (
           <Text style={[styles.empty, { color: c.textMuted }]}>No donors yet.</Text>
         ) : (
-          topDonors.map((d, i) => (
+          topDonors.map((d, i) => {
+            const donorAvatarUri = resolveAvatarUrl(d.avatar_url);
+            return (
             <View key={d.id} style={[styles.donorRow, { borderColor: c.border }]}>
               <Text style={[styles.rank, { color: c.textMuted }]}>#{i + 1}</Text>
               <View style={styles.donorAvatarWrap}>
-                {d.avatar_url ? (
-                  <Image source={{ uri: d.avatar_url }} style={styles.donorAvatar} cachePolicy="memory-disk" transition={200} />
+                {donorAvatarUri ? (
+                  <Image
+                    source={{ uri: donorAvatarUri }}
+                    style={styles.donorAvatar}
+                    cachePolicy="memory-disk"
+                    transition={200}
+                  />
                 ) : (
                   <View style={[styles.donorAvatar, { backgroundColor: c.green }]}>
                     <Text style={styles.donorInitial}>
@@ -145,7 +154,8 @@ function ImpactContent() {
                 </Text>
               </View>
             </View>
-          ))
+            );
+          })
         )}
       </ScrollView>
     </View>

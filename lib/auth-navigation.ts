@@ -15,9 +15,32 @@ function resolveReturnTo(returnTo: string | undefined): Href | undefined {
 }
 
 /**
+ * Pop the root stack to its first route, then replace with the given href.
+ * Without this, a flow like `(tabs)` → push `donor-login` → `replace(tabs)` can leave
+ * `donor-login` under `(tabs)` in history, so the iOS back gesture returns to the login screen.
+ */
+export function resetNavigationStackThenReplace(href: Href): void {
+  try {
+    router.dismissAll();
+  } catch {
+    /* dismissAll can throw if nav not ready; replace still runs */
+  }
+  // Run a second dismiss + replace on the next tick so the first POP_TO_TOP is applied
+  // before REPLACE (some stacks, including charity → /(org), otherwise keep auth under the shell).
+  queueMicrotask(() => {
+    try {
+      router.dismissAll();
+    } catch {
+      /* ignore */
+    }
+    router.replace(href);
+  });
+}
+
+/**
  * After login, signup, or guest access, navigate to the main app shell.
- * Uses `router.replace` (not `dismissTo`) so `/(tabs)` / `/(org)` resolve even when
- * they were never pushed (e.g. Welcome → login only); `dismissTo` POP_TO could hit +not-found.
+ * Uses `dismissAll` + `replace` so auth screens are not left under the main shell in the stack
+ * (fixes swipe-back landing on login after a successful sign-in).
  *
  * If no returnTo is provided, checks AsyncStorage for a saved donation intent and uses
  * it to restore the user to the correct donate screen (survives app restarts mid-flow).
@@ -28,7 +51,7 @@ function resolveReturnTo(returnTo: string | undefined): Href | undefined {
  */
 export async function navigateAfterAuth(role: AuthAppRole, returnTo?: string): Promise<void> {
   if (role === "charity") {
-    router.replace("/(org)");
+    resetNavigationStackThenReplace("/(org)");
     return;
   }
 
@@ -37,7 +60,7 @@ export async function navigateAfterAuth(role: AuthAppRole, returnTo?: string): P
     // Clear any persisted intent — the explicit returnTo already encodes the
     // destination, so the intent is no longer needed.
     clearDonationIntent();
-    router.replace(explicitDestination);
+    resetNavigationStackThenReplace(explicitDestination);
     return;
   }
 
@@ -50,9 +73,9 @@ export async function navigateAfterAuth(role: AuthAppRole, returnTo?: string): P
     if (intent.amount != null) qp.set("amount", String(intent.amount));
     const qs = qp.toString();
     const destination = `/donate/${intent.orgId}${qs ? `?${qs}` : ""}` as Href;
-    router.replace(destination);
+    resetNavigationStackThenReplace(destination);
     return;
   }
 
-  router.replace("/(tabs)");
+  resetNavigationStackThenReplace("/(tabs)");
 }

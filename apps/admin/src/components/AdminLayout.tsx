@@ -31,7 +31,7 @@ const routeLabels: Record<string, string> = {
   "/staff": "Staff",
   "/admin-emails": "Admin Emails",
   "/education-partners": "Education Partners",
-  "/broadcast": "Notify donors",
+  "/broadcast": "Notify users",
   "/settings": "Settings",
 };
 

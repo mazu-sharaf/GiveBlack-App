@@ -36,7 +36,6 @@ export default function SettingsTab() {
   const [orgName, setOrgName] = useState(user?.charityName || "");
   const [orgDesc, setOrgDesc] = useState(user?.charityDescription || "");
   const [orgUrl, setOrgUrl] = useState(user?.charityUrl || "");
-  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [orgImageUrl, setOrgImageUrl] = useState<string | null>(null);
   const [orgCoverUrl, setOrgCoverUrl] = useState<string | null>(null);
   const [uploadingImage, setUploadingImage] = useState(false);
@@ -785,16 +784,21 @@ export default function SettingsTab() {
 
         <Text style={[styles.sectionLabel, { color: c.textMuted }]}>PREFERENCES</Text>
         <View style={[styles.card, { backgroundColor: c.cardBg }]}>
-          <View style={styles.settingRow}>
-            <Ionicons name="notifications-outline" size={20} color={c.textMuted} />
-            <Text style={[styles.settingText, { color: c.text }]}>Notifications</Text>
-            <Switch
-              value={notificationsEnabled}
-              onValueChange={setNotificationsEnabled}
-              trackColor={{ false: c.border, true: c.green + "60" }}
-              thumbColor={notificationsEnabled ? c.green : c.textLight}
-            />
-          </View>
+          <Pressable
+            style={[styles.aboutRow, { borderBottomWidth: 0 }]}
+            onPress={() => router.push("/settings/notifications")}
+          >
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 10, flex: 1 }}>
+              <Ionicons name="notifications-outline" size={20} color={c.textMuted} />
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.settingText, { color: c.text }]}>Push notifications</Text>
+                <Text style={[styles.aboutValue, { color: c.textMuted, marginTop: 2 }]}>
+                  Donations, volunteers, campaign status — saved to your account
+                </Text>
+              </View>
+            </View>
+            <Ionicons name="chevron-forward" size={16} color={c.textMuted} />
+          </Pressable>
         </View>
 
         <Text style={[styles.sectionLabel, { color: c.textMuted }]}>APPEARANCE</Text>

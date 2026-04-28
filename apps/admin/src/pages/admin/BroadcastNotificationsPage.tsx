@@ -3,6 +3,9 @@ import {
   fetchDonorRecipients,
   fetchDonorRecipientIds,
   sendNotificationsToUserIds,
+  fetchCharityRecipients,
+  fetchCharityRecipientIds,
+  sendNotificationsToCharityUsers,
   type DonorRecipientRow,
 } from "@/lib/api";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -36,13 +39,16 @@ import { Bell, Send, AlertTriangle, Search, ChevronLeft, ChevronRight, Users } f
 
 const PAGE_SIZE = 10;
 
+type RecipientTab = "donors" | "charities";
+
 export default function BroadcastNotificationsPage() {
+  const [recipientTab, setRecipientTab] = useState<RecipientTab>("donors");
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
-  const [donors, setDonors] = useState<DonorRecipientRow[]>([]);
+  const [rows, setRows] = useState<DonorRecipientRow[]>([]);
   const [total, setTotal] = useState(0);
-  const [loadingDonors, setLoadingDonors] = useState(true);
+  const [loadingRows, setLoadingRows] = useState(true);
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
 
   const [pushTitle, setPushTitle] = useState("");
@@ -58,34 +64,46 @@ export default function BroadcastNotificationsPage() {
 
   useEffect(() => {
     setPage(1);
-  }, [search]);
+  }, [search, recipientTab]);
+
+  useEffect(() => {
+    setSelected(new Set());
+  }, [recipientTab]);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      setLoadingDonors(true);
+      setLoadingRows(true);
       try {
-        const res = await fetchDonorRecipients({ q: search, page, limit: PAGE_SIZE });
-        if (!cancelled) {
-          setDonors(res.donors);
-          setTotal(res.total);
+        if (recipientTab === "donors") {
+          const res = await fetchDonorRecipients({ q: search, page, limit: PAGE_SIZE });
+          if (!cancelled) {
+            setRows(res.donors);
+            setTotal(res.total);
+          }
+        } else {
+          const res = await fetchCharityRecipients({ q: search, page, limit: PAGE_SIZE });
+          if (!cancelled) {
+            setRows(res.charities);
+            setTotal(res.total);
+          }
         }
       } catch (err: unknown) {
         if (!cancelled) {
-          toast.error(err instanceof Error ? err.message : "Failed to load donors");
-          setDonors([]);
+          toast.error(err instanceof Error ? err.message : "Failed to load recipients");
+          setRows([]);
           setTotal(0);
         }
       } finally {
-        if (!cancelled) setLoadingDonors(false);
+        if (!cancelled) setLoadingRows(false);
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [search, page]);
+  }, [search, page, recipientTab]);
 
-  const pageIds = donors.map((d) => d.id);
+  const pageIds = rows.map((d) => d.id);
   const allPageSelected = pageIds.length > 0 && pageIds.every((id) => selected.has(id));
   const somePageSelected = pageIds.some((id) => selected.has(id));
 
@@ -113,15 +131,19 @@ export default function BroadcastNotificationsPage() {
   const handleSelectAllMatching = async () => {
     setSelectingAll(true);
     try {
-      const res = await fetchDonorRecipientIds(search);
+      const res =
+        recipientTab === "donors"
+          ? await fetchDonorRecipientIds(search)
+          : await fetchCharityRecipientIds(search);
       setSelected((prev) => {
         const n = new Set(prev);
         res.ids.forEach((id) => n.add(id));
         return n;
       });
-      toast.success(`Added ${res.ids.length} donor(s) to selection (matching current search).`);
+      const label = recipientTab === "donors" ? "donor(s)" : "charity account(s)";
+      toast.success(`Added ${res.ids.length} ${label} to selection (matching current search).`);
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Could not load all matching donors");
+      toast.error(err instanceof Error ? err.message : "Could not load all matching recipients");
     } finally {
       setSelectingAll(false);
     }
@@ -139,14 +161,20 @@ export default function BroadcastNotificationsPage() {
     setSending(true);
     setConfirmOpen(false);
     try {
-      const res = await sendNotificationsToUserIds({
-        userIds,
-        pushTitle: pushTitle.trim(),
-        pushBody: pushBody.trim(),
-      });
-      toast.success(
-        `Sent to ${res.users} donor(s). Push delivered to ${res.pushTokens} device(s).`
-      );
+      const res =
+        recipientTab === "donors"
+          ? await sendNotificationsToUserIds({
+              userIds,
+              pushTitle: pushTitle.trim(),
+              pushBody: pushBody.trim(),
+            })
+          : await sendNotificationsToCharityUsers({
+              userIds,
+              pushTitle: pushTitle.trim(),
+              pushBody: pushBody.trim(),
+            });
+      const who = recipientTab === "donors" ? "donor(s)" : "charity account(s)";
+      toast.success(`Sent to ${res.users} ${who}. Push delivered to ${res.pushTokens} device(s).`);
       setPushTitle("");
       setPushBody("");
       setSelected(new Set());
@@ -157,25 +185,52 @@ export default function BroadcastNotificationsPage() {
     }
   };
 
+  const recipientLabelPlural = recipientTab === "donors" ? "donors" : "charities";
+  const recipientLabelSingular = recipientTab === "donors" ? "donor" : "charity account";
+  const emptyHint =
+    recipientTab === "donors"
+      ? "No eligible accounts yet—only admin, manager, and staff exist, everyone is disabled, or the API failed to load (check Network for /donor-recipients)."
+      : "No charity_owner accounts yet, or the API failed to load (check Network for /charity-recipients).";
+
   return (
     <div className="space-y-6 max-w-5xl">
       <div>
         <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
           <Bell className="h-7 w-7 text-emerald-500" />
-          Notify donors
+          Notify users
         </h1>
         <p className="text-muted-foreground text-sm mt-1">
-          Choose accounts from the list (everyone except admin, manager, and staff—same pool as Users minus
-          operators), then compose a push. Only selected recipients receive it (push + in-app).
+          Send push and in-app messages to donors (general pool) or to charity organization accounts only. Admin
+          messages always deliver (not gated by user notification toggles).
         </p>
+      </div>
+
+      <div className="flex gap-2 border-b border-border pb-2">
+        <Button
+          type="button"
+          variant={recipientTab === "donors" ? "default" : "ghost"}
+          size="sm"
+          className={recipientTab === "donors" ? "bg-emerald-600 hover:bg-emerald-700" : ""}
+          onClick={() => setRecipientTab("donors")}
+        >
+          Donors & general users
+        </Button>
+        <Button
+          type="button"
+          variant={recipientTab === "charities" ? "default" : "ghost"}
+          size="sm"
+          className={recipientTab === "charities" ? "bg-emerald-600 hover:bg-emerald-700" : ""}
+          onClick={() => setRecipientTab("charities")}
+        >
+          Charities (org accounts)
+        </Button>
       </div>
 
       <Alert variant="destructive" className="border-amber-600/50 bg-amber-950/20 text-amber-100 [&>svg]:text-amber-400">
         <AlertTriangle className="h-4 w-4" />
         <AlertTitle>Use carefully</AlertTitle>
         <AlertDescription>
-          Sends real push and in-app notifications to the donors you select. Double-check copy before sending. There is no
-          undo.
+          Sends real push and in-app notifications. Double-check copy before sending. There is no undo.
         </AlertDescription>
       </Alert>
 
@@ -186,9 +241,14 @@ export default function BroadcastNotificationsPage() {
             Select recipients
           </CardTitle>
           <CardDescription>
-            Active accounts that are <strong className="text-foreground">not</strong> admin, super_admin, manager, or
-            staff (includes donors, charity accounts, etc.). Search by name or email; use the role column to tell them
-            apart.
+            {recipientTab === "donors" ? (
+              <>
+                Active accounts that are <strong className="text-foreground">not</strong> admin, super_admin, manager,
+                or staff (donors and others). Search by name or email.
+              </>
+            ) : (
+              <>Accounts with role <strong className="text-foreground">charity_owner</strong> only. Search by name or email.</>
+            )}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -246,7 +306,7 @@ export default function BroadcastNotificationsPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {loadingDonors ? (
+                {loadingRows ? (
                   Array.from({ length: 5 }).map((_, i) => (
                     <TableRow key={i}>
                       <TableCell>
@@ -263,16 +323,14 @@ export default function BroadcastNotificationsPage() {
                       </TableCell>
                     </TableRow>
                   ))
-                ) : donors.length === 0 ? (
+                ) : rows.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
-                      {total === 0
-                        ? "No eligible accounts yet—only admin, manager, and staff exist, everyone is disabled, or the API failed to load (check Network for /donor-recipients)."
-                        : "No rows on this page."}
+                      {total === 0 ? emptyHint : "No rows on this page."}
                     </TableCell>
                   </TableRow>
                 ) : (
-                  donors.map((d) => (
+                  rows.map((d) => (
                     <TableRow key={d.id}>
                       <TableCell>
                         <Checkbox
@@ -301,7 +359,7 @@ export default function BroadcastNotificationsPage() {
                   type="button"
                   variant="outline"
                   size="sm"
-                  disabled={page <= 1 || loadingDonors}
+                  disabled={page <= 1 || loadingRows}
                   onClick={() => setPage((p) => Math.max(1, p - 1))}
                 >
                   <ChevronLeft className="h-4 w-4" />
@@ -313,7 +371,7 @@ export default function BroadcastNotificationsPage() {
                   type="button"
                   variant="outline"
                   size="sm"
-                  disabled={page >= totalPages || loadingDonors}
+                  disabled={page >= totalPages || loadingRows}
                   onClick={() => setPage((p) => p + 1)}
                 >
                   <ChevronRight className="h-4 w-4" />
@@ -370,10 +428,13 @@ export default function BroadcastNotificationsPage() {
       <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Send to {selectedCount} donor{selectedCount === 1 ? "" : "s"}?</AlertDialogTitle>
+            <AlertDialogTitle>
+              Send to {selectedCount} {selectedCount === 1 ? recipientLabelSingular : recipientLabelPlural}?
+            </AlertDialogTitle>
             <AlertDialogDescription className="space-y-2">
               <span>
-                This will send push and in-app notifications to the selected donor accounts only. Confirm the content is
+                This will send push and in-app notifications to the selected{" "}
+                {selectedCount === 1 ? recipientLabelSingular : recipientLabelPlural} only. Confirm the content is
                 correct.
               </span>
             </AlertDialogDescription>
