@@ -41,17 +41,23 @@ export const campaignPageRoutes: FastifyPluginAsync = async (app) => {
     const proto = (request.headers["x-forwarded-proto"] as string) || request.protocol || "https";
     const host = (request.headers["x-forwarded-host"] as string) || request.hostname;
     const baseUrl = `${proto}://${host}`;
+    const publicBase = env.EXPO_PUBLIC_API_URL?.replace(/\/$/, "") || baseUrl;
+    const defaultOg = `${baseUrl.replace(/\/$/, "")}${DEFAULT_CAMPAIGN_OG_PATH}`;
+    const shareUrl = `${baseUrl}/link/c/${encodeURIComponent(campaignId)}`;
 
     try {
       const campRes = await db.query(
-        `SELECT c.title, c.description, o.name AS org_name
+        `SELECT c.title, c.description, c.main_image_url, o.name AS org_name
          FROM campaigns c
          JOIN organizations o ON o.id = c.organization_id
          WHERE c.id = $1
          LIMIT 1`,
         [campaignId]
       );
-      const row = (campRes.rows[0] as { title?: string; description?: string | null; org_name?: string } | undefined) || {};
+      const row =
+        (campRes.rows[0] as
+          | { title?: string; description?: string | null; org_name?: string; main_image_url?: string | null }
+          | undefined) || {};
       const title = row.title || "Campaign";
       const desc =
         stripHtmlForMeta(row.description || `Support ${row.org_name || "this organization"} on Give Black.`).slice(0, 300);
@@ -65,6 +71,10 @@ export const campaignPageRoutes: FastifyPluginAsync = async (app) => {
         deepLinkLandingPage({
           title,
           description: desc,
+          ogTitle: `Support ${title} on Give Black`,
+          ogDescription: desc,
+          ogImage: resolveCampaignOgImage(row.main_image_url, publicBase, defaultOg),
+          canonicalUrl: shareUrl,
           deepLink,
           webFallback,
           appleUrl,
@@ -81,6 +91,10 @@ export const campaignPageRoutes: FastifyPluginAsync = async (app) => {
         deepLinkLandingPage({
           title: "Give Black",
           description: "Open the GiveBlack app to view this campaign.",
+          ogTitle: "Give Black",
+          ogDescription: "Open the GiveBlack app to view this campaign.",
+          ogImage: defaultOg,
+          canonicalUrl: shareUrl,
           deepLink,
           webFallback,
           appleUrl,
@@ -508,6 +522,10 @@ a.btn:hover{background:#047857;}
 function deepLinkLandingPage(opts: {
   title: string;
   description: string;
+  ogTitle: string;
+  ogDescription: string;
+  ogImage: string;
+  canonicalUrl: string;
   deepLink: string;
   webFallback: string;
   appleUrl: string;
@@ -515,6 +533,10 @@ function deepLinkLandingPage(opts: {
 }): string {
   const title = escHtml(opts.title);
   const desc = escHtml(opts.description);
+  const ogT = escHtml(opts.ogTitle);
+  const ogD = escHtml(opts.ogDescription);
+  const img = escHtml(opts.ogImage);
+  const canon = escHtml(opts.canonicalUrl);
   const deep = escHtml(opts.deepLink);
   const web = escHtml(opts.webFallback);
   const apple = escHtml(opts.appleUrl);
@@ -529,6 +551,18 @@ function deepLinkLandingPage(opts: {
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>${title}</title>
 <meta name="description" content="${desc}"/>
+<link rel="canonical" href="${canon}"/>
+<meta property="og:title" content="${ogT}"/>
+<meta property="og:description" content="${ogD}"/>
+<meta property="og:type" content="website"/>
+<meta property="og:url" content="${canon}"/>
+<meta property="og:image" content="${img}"/>
+<meta property="og:image:alt" content="${ogT}"/>
+<meta property="og:site_name" content="Give Black"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<meta name="twitter:title" content="${ogT}"/>
+<meta name="twitter:description" content="${ogD}"/>
+<meta name="twitter:image" content="${img}"/>
 <style>${baseStyles()}
 .center{display:flex;align-items:center;justify-content:center;min-height:100vh;text-align:center;}
 .center h1{font-size:22px;margin-bottom:10px;}
