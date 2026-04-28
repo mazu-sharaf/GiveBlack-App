@@ -15,6 +15,12 @@ export function redirectSystemPath({
   path: string;
   initial: boolean;
 }) {
+  // /link/c/:id  →  /campaign/:id  (universal-link deep links)
+  const campaignLink = path.match(/^\/link\/c\/([^/?#]+)(.*)/);
+  if (campaignLink) {
+    return `/campaign/${campaignLink[1]}${campaignLink[2] ?? ""}`;
+  }
+
   // /c/:id  →  /campaign/:id  (campaign share-link short URLs)
   const campaignShort = path.match(/^\/c\/([^/?#]+)(.*)/);
   if (campaignShort) {

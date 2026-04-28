@@ -26,6 +26,12 @@ export function isBrevoConfigured(): boolean {
   return Boolean(brevoApiKey() && brevoFromEmail());
 }
 
+/** Back-compat for callers: return a friendly config error or null when configured. */
+export function getBrevoConfigError(): string | null {
+  if (isBrevoConfigured()) return null;
+  return "Brevo is not configured: set BREVO_API_KEY and BREVO_SENDER_EMAIL (verified sender) in server .env, then restart the API.";
+}
+
 /** Human-readable explanation for common Brevo API failures (operators copy .env from dashboard). */
 export function formatBrevoHttpError(status: number, bodyText: string): string {
   let message = "";

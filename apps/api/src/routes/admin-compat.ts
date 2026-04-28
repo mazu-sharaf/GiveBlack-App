@@ -1327,7 +1327,12 @@ export const adminCompatRoutes: FastifyPluginAsync = async (app) => {
       if (q.date_to) { values.push(q.date_to + "T23:59:59Z"); where.push(`d.created_at <= $${values.length}::timestamptz`); }
       const w = where.length ? `where ${where.join(" and ")}` : "";
       const countRes = await db.query(
-        `select count(*)::int as c from donations d left join users u on u.id = d.user_id left join organizations o on o.id = d.org_id ${w}`,
+        `select count(*)::int as c
+         from donations d
+         left join users u on u.id = d.user_id
+         left join campaigns c on c.id = d.campaign_id
+         left join organizations o on o.id = coalesce(d.org_id, c.organization_id)
+         ${w}`,
         values
       );
       const total = Number(countRes.rows[0]?.c ?? 0);
@@ -1343,7 +1348,8 @@ export const adminCompatRoutes: FastifyPluginAsync = async (app) => {
                 coalesce(ds.net_to_org, 0) as net_to_org
          from donations d
          left join users u on u.id = d.user_id
-         left join organizations o on o.id = d.org_id
+         left join campaigns c on c.id = d.campaign_id
+         left join organizations o on o.id = coalesce(d.org_id, c.organization_id)
          left join education_partners ep on ep.id = d.education_partner_id
          left join donation_splits ds on ds.donation_id = d.id
          ${w} order by d.created_at desc
@@ -1546,7 +1552,9 @@ export const adminCompatRoutes: FastifyPluginAsync = async (app) => {
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (!emailRegex.test(email)) return reply.code(400).send({ error: "Invalid email address" });
       try {
-        const { sendBrevoEmail } = await import("../services/brevo.js");
+        const { sendBrevoEmail, getBrevoConfigError } = await import("../services/brevo.js");
+        const brevoMissing = getBrevoConfigError();
+        if (brevoMissing) return reply.code(503).send({ error: brevoMissing });
         const { emailLayout } = await import("../services/email-template.js");
         const content = `
           <h2 style="color:#ffffff;margin:0 0 8px 0;font-size:22px;">Test email</h2>
@@ -1580,7 +1588,9 @@ export const adminCompatRoutes: FastifyPluginAsync = async (app) => {
         if (e && !toSend.includes(e.toLowerCase())) toSend.push(e.toLowerCase());
       }
       if (toSend.length === 0) return reply.code(400).send({ error: "No admin emails to send to. Add at least one admin email first." });
-      const { sendBrevoEmail } = await import("../services/brevo.js");
+      const { sendBrevoEmail, getBrevoConfigError } = await import("../services/brevo.js");
+      const brevoMissing = getBrevoConfigError();
+      if (brevoMissing) return reply.code(503).send({ error: brevoMissing });
       const { emailLayout } = await import("../services/email-template.js");
       const content = `
         <h2 style="color:#ffffff;margin:0 0 8px 0;font-size:22px;">Test email (all)</h2>
@@ -1589,6 +1599,7 @@ export const adminCompatRoutes: FastifyPluginAsync = async (app) => {
       `;
       let sent = 0;
       let failed = 0;
+      let lastFailureMessage = "";
       let firstError: string | undefined;
       for (const email of toSend) {
         try {
@@ -1601,13 +1612,17 @@ export const adminCompatRoutes: FastifyPluginAsync = async (app) => {
           sent++;
         } catch (err) {
           app.log.error({ err, email }, "Send test to all: failed for one");
+          lastFailureMessage = err instanceof Error ? err.message : String(err);
           failed++;
           if (!firstError) firstError = err instanceof Error ? err.message : String(err);
         }
       }
       if (sent === 0) {
         return reply.code(503).send({
-          error: firstError || "Failed to send to any recipient. Check BREVO_API_KEY and BREVO_SENDER_EMAIL on the server.",
+          error:
+            firstError ||
+            lastFailureMessage ||
+            "Failed to send to any recipient. Check BREVO_API_KEY and BREVO_SENDER_EMAIL on the server.",
         });
       }
       return { success: true, sent, failed, total: toSend.length };

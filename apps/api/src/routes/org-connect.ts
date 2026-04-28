@@ -1,4 +1,5 @@
 import type { FastifyPluginAsync } from "fastify";
+import { z } from "zod";
 import { db } from "../lib/db.js";
 import { resolveOrgForCharityUser } from "../lib/charity-org.js";
 import { env } from "../config/env.js";
@@ -155,6 +156,102 @@ export const orgConnectRoutes: FastifyPluginAsync = async (app) => {
       });
 
       return { url: link.url, accountId };
+    }
+  );
+
+  const manualSchema = z.object({
+    stripe_account_id: z.string().trim().min(1).max(128),
+  });
+
+  /**
+   * Manual Connect linking: set a Stripe Connect account id (acct_...) directly.
+   * Useful when onboarding is done outside the app.
+   */
+  app.post(
+    "/api/org/connect/manual",
+    { preHandler: [app.authenticate] },
+    async (request, reply) => {
+      if (!env.STRIPE_SECRET_KEY) return reply.code(503).send({ error: "Stripe not configured" });
+      const body = manualSchema.parse(request.body);
+      const acct = body.stripe_account_id;
+      if (!acct.startsWith("acct_")) return reply.code(400).send({ error: "Invalid Stripe account id (must start with acct_)" });
+
+      const user = request.user as { sub: string };
+      const userRes = await db.query("select email from users where id = $1", [user.sub]);
+      const email = (userRes.rows[0] as Record<string, unknown> | undefined)?.email as string | undefined;
+      if (!email) return reply.code(401).send({ error: "User not found" });
+
+      const resolved = await resolveOrgForCharityUser(user.sub, email);
+      if (!resolved) return reply.code(404).send({ error: "No organization linked to your account" });
+
+      const stripe = getStripe();
+      let payoutsEnabled = false;
+      try {
+        const account = await stripe.accounts.retrieve(acct);
+        payoutsEnabled = Boolean((account as any).payouts_enabled);
+      } catch {
+        return reply.code(400).send({ error: "Could not load Stripe account. Ensure this acct_ belongs to your platform Connect." });
+      }
+
+      await db.query(
+        "update organizations set stripe_account_id = $1, payouts_enabled = $2 where id = $3",
+        [acct, payoutsEnabled, resolved.id]
+      );
+
+      return { connected: true, payouts_enabled: payoutsEnabled, accountId: acct };
+    }
+  );
+
+  app.get(
+    "/api/org/payouts/history",
+    { preHandler: [app.authenticate] },
+    async (request, reply) => {
+      const user = request.user as { sub: string };
+      const userRes = await db.query("select email from users where id = $1", [user.sub]);
+      const email = (userRes.rows[0] as Record<string, unknown> | undefined)?.email as string | undefined;
+      if (!email) return reply.code(401).send({ error: "User not found" });
+
+      const resolved = await resolveOrgForCharityUser(user.sub, email);
+      if (!resolved) return reply.code(404).send({ error: "No organization linked to your account" });
+
+      // We don't store a transfer "created_at", so compute history by grouping released donations.
+      const result = await db.query(
+        `select
+           d.stripe_transfer_id as transfer_id,
+           count(*)::int as donation_count,
+           coalesce(sum(coalesce(d.net_amount_cents, 0)), 0)::bigint as amount_cents,
+           min(d.paid_at) as first_paid_at,
+           max(d.paid_at) as last_paid_at
+         from donations d
+         left join campaigns c on c.id = d.campaign_id
+         where d.status = 'succeeded'
+           and d.payout_transfer_status = 'released'
+           and d.stripe_transfer_id is not null
+           and coalesce(d.org_id, c.organization_id) = $1
+         group by d.stripe_transfer_id
+         order by max(d.paid_at) desc nulls last
+         limit 50`,
+        [resolved.id]
+      );
+
+      const rows = result.rows as Array<{
+        transfer_id: string;
+        donation_count: number;
+        amount_cents: string | bigint;
+        first_paid_at: string | Date | null;
+        last_paid_at: string | Date | null;
+      }>;
+
+      return {
+        org_id: resolved.id,
+        payouts: rows.map((r) => ({
+          transfer_id: r.transfer_id,
+          donation_count: Number(r.donation_count),
+          amount_cents: Number(r.amount_cents),
+          first_paid_at: r.first_paid_at,
+          last_paid_at: r.last_paid_at,
+        })),
+      };
     }
   );
 };

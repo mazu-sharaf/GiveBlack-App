@@ -89,7 +89,7 @@ export default function CampaignsTab() {
   const base = getApiUrl().replace(/\/$/, "");
   const publicHost = process.env.EXPO_PUBLIC_DOMAIN || "giveblackapp.com";
 
-  const campaignShareUrl = (campaignId: string) => `https://${publicHost}/c/${encodeURIComponent(campaignId)}`;
+  const campaignShareUrl = (campaignId: string) => `https://${publicHost}/link/c/${encodeURIComponent(campaignId)}`;
 
   async function shareCampaignLink(e: any, camp: Campaign) {
     try {

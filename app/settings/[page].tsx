@@ -205,7 +205,7 @@ function NotificationsPage() {
                 <SettingRow
                   icon="heart-outline"
                   label="Donation confirmations"
-                  description="When your gift is successfully processed"
+                  description="When your donation is successfully processed"
                   right={
                     <Switch
                       value={prefs.donor_receipts}

@@ -120,25 +120,33 @@ export async function presentNativePaymentSheet(
             }
           : {};
 
-    const initResult = params.clientSecret
-      ? await stripeModule.initPaymentSheet({
-          paymentIntentClientSecret: params.clientSecret,
-          customerEphemeralKeySecret: params.ephemeralKey,
-          customerId: params.customerId,
-          merchantDisplayName: params.merchantName || "GiveBlack",
-          returnURL: params.returnURL,
-          allowsDelayedPaymentMethods: params.allowsDelayedPaymentMethods ?? false,
-          ...walletSheet,
-        })
-      : await stripeModule.initPaymentSheet({
-          setupIntentClientSecret: params.setupIntentClientSecret!,
-          customerEphemeralKeySecret: params.ephemeralKey,
-          customerId: params.customerId,
-          merchantDisplayName: params.merchantName || "GiveBlack",
-          returnURL: params.returnURL,
-          allowsDelayedPaymentMethods: params.allowsDelayedPaymentMethods ?? false,
-          ...walletSheet,
-        });
+    const initSheet = async (opts: Record<string, unknown>) => {
+      return params.clientSecret
+        ? stripeModule.initPaymentSheet({
+            paymentIntentClientSecret: params.clientSecret,
+            customerEphemeralKeySecret: params.ephemeralKey,
+            customerId: params.customerId,
+            merchantDisplayName: params.merchantName || "GiveBlack",
+            returnURL: params.returnURL,
+            allowsDelayedPaymentMethods: params.allowsDelayedPaymentMethods ?? false,
+            ...opts,
+          })
+        : stripeModule.initPaymentSheet({
+            setupIntentClientSecret: params.setupIntentClientSecret!,
+            customerEphemeralKeySecret: params.ephemeralKey,
+            customerId: params.customerId,
+            merchantDisplayName: params.merchantName || "GiveBlack",
+            returnURL: params.returnURL,
+            allowsDelayedPaymentMethods: params.allowsDelayedPaymentMethods ?? false,
+            ...opts,
+          });
+    };
+
+    let initResult = await initSheet(walletSheet);
+    // Card-only fallback: if Apple Pay isn't configured on this build, retry without wallet options.
+    if (initResult.error?.message && /merchantidentifier/i.test(initResult.error.message)) {
+      initResult = await initSheet({});
+    }
 
     if (initResult.error) {
       if (isNativeUnavailableMessage(initResult.error.message)) {

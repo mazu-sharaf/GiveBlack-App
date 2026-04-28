@@ -33,7 +33,9 @@ const charitySignupSchema = z.object({
 
 const loginSchema = z.object({
   email: z.string().email(),
-  password: z.string().min(6)
+  password: z.string().min(6),
+  /** Donor and charity use separate login screens but may share the same email. */
+  loginAs: z.enum(["donor", "charity"]).optional(),
 });
 
 const refreshSchema = z.object({
@@ -59,18 +61,27 @@ type JwtApp = { jwt: { sign: (payload: Record<string, unknown>, opts: Record<str
 export async function issueSessionForUser(
   app: JwtApp,
   request: { headers: Record<string, string | string[] | undefined>; ip?: string },
-  user: { id: string; email: string; role: Role }
+  user: { id: string; email: string; role: Role },
+  opts?: { sessionRole?: Role }
 ): Promise<{ accessToken: string; refreshToken: string }> {
   const refreshToken = generateRefreshToken();
   const refreshHash = hashToken(refreshToken);
   const expiresAt = new Date(Date.now() + env.JWT_REFRESH_TTL_DAYS * 24 * 60 * 60 * 1000);
   await db.query(
-    `insert into user_sessions (user_id, refresh_token_hash, user_agent, ip_address, expires_at)
-     values ($1, $2, $3, $4, $5)`,
-    [user.id, refreshHash, request.headers["user-agent"] ?? null, request.ip ?? null, expiresAt]
+    `insert into user_sessions (user_id, refresh_token_hash, session_role, user_agent, ip_address, expires_at)
+     values ($1, $2, $3, $4, $5, $6)`,
+    [
+      user.id,
+      refreshHash,
+      opts?.sessionRole ?? null,
+      request.headers["user-agent"] ?? null,
+      request.ip ?? null,
+      expiresAt,
+    ]
   );
+  const roleForToken = opts?.sessionRole ?? user.role;
   return {
-    accessToken: makeAccessToken(app, user),
+    accessToken: makeAccessToken(app, { ...user, role: roleForToken }),
     refreshToken,
   };
 }
@@ -196,21 +207,45 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
   app.post("/api/auth/signup/charity", async (request, reply) => {
     const body = charitySignupSchema.parse(request.body);
     const email = body.email.toLowerCase();
-    const existing = await db.query("select id from users where email = $1 limit 1", [email]);
-    if (existing.rowCount) {
-      return reply.code(409).send({ error: "Email already in use" });
-    }
-
-    const passwordHash = await hashPassword(body.password);
-    
-    // Create user with charity_owner role (pending approval)
-    const created = await db.query(
-      `insert into users (email, full_name, password_hash, role)
-       values ($1, $2, $3, $4)
-       returning id, email, full_name as name, role`,
-      [email, body.name, passwordHash, "charity_owner"]
+    const existing = await db.query(
+      "select id, email, full_name, role, password_hash, disabled_at from users where email = $1 limit 1",
+      [email]
     );
-    const user = created.rows[0] as { id: string; email: string; name: string; role: Role };
+    const existingUser = existing.rows[0] as
+      | {
+          id: string;
+          email: string;
+          full_name: string;
+          role: Role;
+          password_hash: string | null;
+          disabled_at?: string | null;
+        }
+      | undefined;
+
+    const isExisting = Boolean(existingUser);
+    let user: { id: string; email: string; name: string; role: Role };
+    if (existingUser) {
+      if (existingUser.disabled_at) return reply.code(403).send({ error: "This account has been disabled." });
+      if (!existingUser.password_hash) {
+        return reply.code(409).send({
+          error:
+            "This email already exists with social sign-in. Please sign in first, then request charity access with that account.",
+        });
+      }
+      const ok = await verifyPassword(body.password, existingUser.password_hash);
+      if (!ok) return reply.code(401).send({ error: "Invalid credentials" });
+      user = { id: existingUser.id, email: existingUser.email, name: existingUser.full_name, role: existingUser.role };
+    } else {
+      const passwordHash = await hashPassword(body.password);
+      // Create user with charity_owner role (pending approval)
+      const created = await db.query(
+        `insert into users (email, full_name, password_hash, role)
+         values ($1, $2, $3, $4)
+         returning id, email, full_name as name, role`,
+        [email, body.name, passwordHash, "charity_owner"]
+      );
+      user = created.rows[0] as { id: string; email: string; name: string; role: Role };
+    }
 
     let categoryLabel = body.category?.trim() || "other";
     if (body.categoryId) {
@@ -263,19 +298,31 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
     // Store profile
     const profileCategory = categoryLabel;
     await db.query(
-      `insert into profiles (id, name, email, user_type, charity_name, charity_category, charity_description, charity_url) 
+      `insert into profiles (id, name, email, user_type, charity_name, charity_category, charity_description, charity_url)
        values ($1, $2, $3, $4, $5, $6, $7, $8)
        on conflict (id) do update set
          charity_name = excluded.charity_name,
          charity_category = excluded.charity_category,
          charity_description = excluded.charity_description,
          charity_url = excluded.charity_url`,
-      [user.id, body.name, email, "charity", body.charityName, profileCategory, body.description || "", body.url || ""]
-    ).catch((err) => { app.log.warn({ err, msg: "Failed to insert charity profile" }); });
+      [
+        user.id,
+        body.name,
+        email,
+        // Preserve donor identity if this is an existing donor account.
+        isExisting ? "donor" : "charity",
+        body.charityName,
+        profileCategory,
+        body.description || "",
+        body.url || "",
+      ]
+    ).catch((err) => {
+      app.log.warn({ err, msg: "Failed to insert charity profile" });
+    });
 
-    return reply.code(201).send({ 
+    return reply.code(201).send({
       success: true,
-      user: { id: user.id, email: user.email, name: user.name, role: user.role, type: "charity" }
+      user: { id: user.id, email: user.email, name: body.name, role: user.role, type: "charity" },
     });
   });
 
@@ -356,8 +403,10 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
     const ok = await verifyPassword(body.password, user.password_hash);
     if (!ok) return reply.code(401).send({ error: "Invalid credentials" });
 
-    // For charity owners, require that their charity request is approved
-    if (user.role === "charity_owner") {
+    const desired = body.loginAs === "charity" ? ("charity_owner" as Role) : user.role;
+
+    // For charity sessions, require that their charity request is approved
+    if (desired === "charity_owner") {
       try {
         const reqRes = await db.query(
           "select status from charity_requests where user_id = $1 order by created_at desc limit 1",
@@ -374,17 +423,18 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
     }
 
     // Claim any guest donations made with this email before this login
-    if (user.role === "donor") {
+    if (desired === "donor") {
       await claimGuestDonations(user.id, user.email).catch((err) => {
         app.log.warn({ err, userId: user.id, email: user.email }, "Failed to claim guest donations on login");
       });
     }
 
-    const tokens = await issueSessionForUser(app, request, {
-      id: user.id,
-      email: user.email,
-      role: user.role,
-    });
+    const tokens = await issueSessionForUser(
+      app,
+      request,
+      { id: user.id, email: user.email, role: user.role },
+      { sessionRole: desired }
+    );
 
     // Get profile data
     let profileData: Record<string, unknown> = {};
@@ -407,8 +457,8 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
         id: user.id,
         email: user.email,
         name: user.full_name,
-        role: user.role,
-        type: profileData.user_type || (user.role === "charity_owner" ? "charity" : "donor"),
+        role: desired,
+        type: desired === "charity_owner" ? "charity" : (profileData.user_type || "donor"),
         zipCode: profileData.zip_code,
         collegeAttended: profileData.college_attended,
         charityName: profileData.charity_name,
@@ -423,7 +473,7 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
     const body = refreshSchema.parse(request.body);
     const oldHash = hashToken(body.refreshToken);
     const sessionQuery = await db.query(
-      `select s.id, s.user_id, s.expires_at, u.email, u.role, u.disabled_at
+      `select s.id, s.user_id, s.expires_at, s.session_role, u.email, u.role, u.disabled_at
        from user_sessions s
        join users u on u.id = s.user_id
        where s.refresh_token_hash = $1 and s.revoked_at is null
@@ -437,6 +487,7 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
       user_id: string;
       email: string;
       role: Role;
+      session_role?: Role | null;
       expires_at: string;
       disabled_at?: string | null;
     };
@@ -451,13 +502,25 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
       hashToken(nextRefreshToken)
     ]);
 
+    const desired = session.session_role ? roleSchema.parse(session.session_role) : roleSchema.parse(session.role);
+    if (desired === "charity_owner") {
+      const reqRes = await db.query(
+        "select status from charity_requests where user_id = $1 order by created_at desc limit 1",
+        [session.user_id]
+      );
+      const status = (reqRes.rows[0] as { status: string } | undefined)?.status;
+      if (status !== "approved") {
+        return reply.code(403).send({ error: "Your charity account is not approved yet." });
+      }
+    }
+
     return {
       accessToken: makeAccessToken(app, {
         id: session.user_id,
         email: session.email,
-        role: roleSchema.parse(session.role)
+        role: desired,
       }),
-      refreshToken: nextRefreshToken
+      refreshToken: nextRefreshToken,
     };
   });
 

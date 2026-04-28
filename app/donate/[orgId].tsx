@@ -1245,7 +1245,7 @@ export default function DonateScreen() {
               {amountGuideStep === 0
                 ? "What happens next"
                 : amountGuideStep === 1
-                  ? "How your gift helps"
+                  ? "How your donation helps"
                   : "Keep your records"}
             </Text>
             <Text style={[styles.amountGuideDetailText, { color: c.textMuted }]}>

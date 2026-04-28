@@ -18,7 +18,7 @@
       "supportsTablet": false,
       "usesAppleSignIn": true,
       "appleTeamId": "W5NB3UT9SS",
-      "buildNumber": "10",
+      "buildNumber": "12",
       "bundleIdentifier": "com.giveblack.app",
       "associatedDomains": [
         "applinks:giveblackapp.com",
@@ -48,10 +48,21 @@
           "action": "VIEW",
           "autoVerify": true,
           "data": [
-            { "scheme": "https", "host": "giveblackapp.com", "pathPrefix": "/link/" },
-            { "scheme": "https", "host": "www.giveblackapp.com", "pathPrefix": "/link/" }
+            {
+              "scheme": "https",
+              "host": "giveblackapp.com",
+              "pathPrefix": "/link/"
+            },
+            {
+              "scheme": "https",
+              "host": "www.giveblackapp.com",
+              "pathPrefix": "/link/"
+            }
           ],
-          "category": ["BROWSABLE", "DEFAULT"]
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
         }
       ]
     },
@@ -79,7 +90,7 @@
       [
         "@stripe/stripe-react-native",
         {
-          "merchantIdentifier": ""
+          "merchantIdentifier": "merchant.com.giveblack.app"
         }
       ],
       "expo-font",

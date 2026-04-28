@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { dbQuery, dbQuerySingle, dbMutate, fetchCategories, resolveImageUrl, uploadFile, deleteAdminOrganization } from "@/lib/api";
+import { dbQuery, dbQuerySingle, dbMutate, fetchCategories, resolveImageUrl, uploadFile, deleteAdminOrganization, invokeFunction } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -33,6 +33,7 @@ export default function OrganizationDetailPage() {
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState<"logo" | "cover" | null>(null);
   const [dragOver, setDragOver] = useState<"logo" | "cover" | null>(null);
+  const [syncBusy, setSyncBusy] = useState(false);
   const logoInputRef = useRef<HTMLInputElement>(null);
   const coverInputRef = useRef<HTMLInputElement>(null);
 
@@ -109,6 +110,24 @@ export default function OrganizationDetailPage() {
       toast.error(e instanceof Error ? e.message : "Upload failed");
     } finally {
       setUploading(null);
+    }
+  };
+
+  const syncStripeStatus = async () => {
+    if (!form.id || isNew || syncBusy) return;
+    setSyncBusy(true);
+    try {
+      const r = await invokeFunction<{ connected: boolean; payouts_enabled: boolean; details_submitted: boolean; accountId: string | null }>(
+        "check-connect-status",
+        { orgId: form.id }
+      );
+      set("payouts_enabled", Boolean(r.payouts_enabled));
+      if (r.accountId) set("stripe_account_id", String(r.accountId));
+      toast.success("Stripe status synced");
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Stripe sync failed");
+    } finally {
+      setSyncBusy(false);
     }
   };
 
@@ -231,6 +250,7 @@ export default function OrganizationDetailPage() {
                   type="file"
                   accept="image/*"
                   className="hidden"
+                  aria-label="Upload organization logo"
                   onChange={(e) => {
                     const file = e.target.files?.[0];
                     if (file) void handlePickedFile("logo", file);
@@ -297,6 +317,7 @@ export default function OrganizationDetailPage() {
               type="file"
               accept="image/*"
               className="hidden"
+              aria-label="Upload cover image"
               onChange={(e) => {
                 const file = e.target.files?.[0];
                 if (file) void handlePickedFile("cover", file);
@@ -351,7 +372,14 @@ export default function OrganizationDetailPage() {
             <div className="space-y-2">
               <Label>Avatar Color</Label>
               <div className="flex items-center gap-2">
-                <input type="color" value={form.image_color} onChange={(e) => set("image_color", e.target.value)} className="h-10 w-10 rounded cursor-pointer border-0" />
+                <input
+                  type="color"
+                  value={form.image_color}
+                  onChange={(e) => set("image_color", e.target.value)}
+                  className="h-10 w-10 rounded cursor-pointer border-0"
+                  aria-label="Avatar color"
+                  title="Avatar color"
+                />
                 <Input value={form.image_color} onChange={(e) => set("image_color", e.target.value)} className="flex-1" />
               </div>
             </div>
@@ -407,6 +435,14 @@ export default function OrganizationDetailPage() {
               <Label>Stripe Account ID</Label>
               <Input value={form.stripe_account_id} onChange={(e) => set("stripe_account_id", e.target.value)} placeholder="acct_..." />
             </div>
+            {!isNew && (
+              <div className="flex items-center gap-2">
+                <Button type="button" variant="outline" size="sm" onClick={syncStripeStatus} disabled={syncBusy}>
+                  {syncBusy ? "Syncing..." : "Sync Stripe status"}
+                </Button>
+                <span className="text-xs text-muted-foreground">Refresh payouts_enabled from Stripe</span>
+              </div>
+            )}
           </div>
 
           <div className="border-t border-border pt-4 space-y-3">

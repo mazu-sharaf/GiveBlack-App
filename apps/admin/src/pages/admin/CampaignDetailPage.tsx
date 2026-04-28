@@ -184,7 +184,8 @@ export default function CampaignDetailPage() {
         const cid = newCampaignIdRef.current || `camp-${Date.now()}`;
         payload.id = cid;
         payload.organization_id = form.organization_id;
-        payload.status = "active";
+        // Save as pending_review so publish is an explicit action.
+        payload.status = "pending_review";
         await dbMutate("campaigns", "insert", payload);
         if (gallery.length > 0) {
           await Promise.all(
@@ -200,7 +201,7 @@ export default function CampaignDetailPage() {
             )
           );
         }
-        toast.success("Campaign created");
+        toast.success("Campaign saved (not published yet)");
         navigate(`/campaigns/${cid}`, { replace: true });
       } else {
         await dbMutate("campaigns", "update", payload, [
@@ -217,8 +218,63 @@ export default function CampaignDetailPage() {
   };
 
   const publishCampaign = async () => {
-    if (!campaign) return;
     try {
+      // If this is a brand new campaign, create it as pending_review first so the
+      // pending_review -> active transition triggers donor notifications.
+      if (isNew) {
+        if (!form.title.trim()) {
+          toast.error("Title is required");
+          return;
+        }
+        if (!form.organization_id) {
+          toast.error("Please select an organization");
+          return;
+        }
+        setSaving(true);
+        const cid = newCampaignIdRef.current || `camp-${Date.now()}`;
+        const payload: Record<string, unknown> = {
+          id: cid,
+          organization_id: form.organization_id,
+          title: form.title,
+          description: form.description || null,
+          story: form.story || null,
+          about: form.about || null,
+          main_image_url: form.main_image_url || null,
+          location: form.location || null,
+          featured: Boolean(form.featured),
+          goal: Number(form.goal) || 0,
+          raised: Number(form.raised) || 0,
+          donor_count: Number(form.donor_count) || 0,
+          status: "pending_review",
+          updated_at: new Date().toISOString(),
+        };
+        await dbMutate("campaigns", "insert", payload);
+        if (gallery.length > 0) {
+          await Promise.all(
+            gallery.map((img, i) =>
+              dbMutate("campaign_images", "insert", {
+                id: `img-${cid}-${i}-${Date.now()}`,
+                campaign_id: cid,
+                org_id: form.organization_id,
+                image_url: img.image_url,
+                caption: img.caption || null,
+                sort_order: i,
+              })
+            )
+          );
+        }
+        await dbMutate(
+          "campaigns",
+          "update",
+          { status: "active", updated_at: new Date().toISOString() },
+          [{ column: "id", op: "eq", value: cid }]
+        );
+        toast.success("Campaign published. It is now live for donations.");
+        navigate(`/campaigns/${cid}`, { replace: true });
+        return;
+      }
+
+      if (!campaign) return;
       await dbMutate(
         "campaigns",
         "update",
@@ -229,6 +285,8 @@ export default function CampaignDetailPage() {
       setCampaign((c) => (c ? { ...c, status: "active" } : c));
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Failed to publish");
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -544,9 +602,20 @@ export default function CampaignDetailPage() {
               </AlertDialogContent>
             </AlertDialog>
           )}
-          <Button onClick={handleSave} disabled={saving}>
-            <Save className="h-4 w-4 mr-1" /> {saving ? "Saving..." : "Save"}
-          </Button>
+          {isNew ? (
+            <>
+              <Button variant="outline" onClick={handleSave} disabled={saving}>
+                <Save className="h-4 w-4 mr-1" /> {saving ? "Saving..." : "Save"}
+              </Button>
+              <Button className="bg-violet-600 hover:bg-violet-700" onClick={publishCampaign} disabled={saving}>
+                Publish
+              </Button>
+            </>
+          ) : (
+            <Button onClick={handleSave} disabled={saving}>
+              <Save className="h-4 w-4 mr-1" /> {saving ? "Saving..." : "Save"}
+            </Button>
+          )}
         </div>
       </div>
 
@@ -573,6 +642,7 @@ export default function CampaignDetailPage() {
                   <label className="text-sm text-muted-foreground mb-1 block">Organization</label>
                   <select
                     className="w-full border rounded-md px-3 py-2 bg-background text-foreground"
+                    aria-label="Organization"
                     value={form.organization_id}
                     onChange={(e) => update("organization_id", e.target.value)}
                   >
@@ -648,6 +718,8 @@ export default function CampaignDetailPage() {
                   type="file"
                   accept="image/*"
                   className="hidden"
+                  aria-label="Upload gallery image"
+                  title="Upload gallery image"
                   onChange={(e) => void handleGalleryFile(e)}
                 />
                 <div className="flex flex-wrap gap-2">
@@ -717,6 +789,8 @@ export default function CampaignDetailPage() {
                 type="file"
                 accept="image/*"
                 className="hidden"
+                aria-label="Upload main image"
+                title="Upload main image"
                 onChange={(e) => void handleMainImageFile(e)}
               />
               {form.main_image_url ? (

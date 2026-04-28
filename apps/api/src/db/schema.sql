@@ -52,12 +52,15 @@ create table if not exists user_sessions (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references users(id) on delete cascade,
   refresh_token_hash text not null unique,
+  session_role text null,
   user_agent text null,
   ip_address text null,
   expires_at timestamptz not null,
   revoked_at timestamptz null,
   created_at timestamptz not null default now()
 );
+
+alter table user_sessions add column if not exists session_role text null;
 
 create table if not exists categories (
   id text primary key default gen_random_uuid()::text,

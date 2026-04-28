@@ -279,7 +279,7 @@ export async function notifyDonationFromPaymentIntent(stripePaymentIntentId: str
     await notifyUsers({
       userIds: [row.user_id],
       title: "Thank you",
-      body: `Your ${amtStr} gift to ${orgLabel} was received.`,
+      body: `Your ${amtStr} donation to ${orgLabel} was received.`,
       data: {
         type: "donation",
         audience: "donor",

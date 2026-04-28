@@ -20,21 +20,10 @@ function resolveReturnTo(returnTo: string | undefined): Href | undefined {
  * `donor-login` under `(tabs)` in history, so the iOS back gesture returns to the login screen.
  */
 export function resetNavigationStackThenReplace(href: Href): void {
-  try {
-    router.dismissAll();
-  } catch {
-    /* dismissAll can throw if nav not ready; replace still runs */
-  }
-  // Run a second dismiss + replace on the next tick so the first POP_TO_TOP is applied
-  // before REPLACE (some stacks, including charity → /(org), otherwise keep auth under the shell).
-  queueMicrotask(() => {
-    try {
-      router.dismissAll();
-    } catch {
-      /* ignore */
-    }
-    router.replace(href);
-  });
+  // `dismissAll()` dispatches POP_TO_TOP under the hood. In Expo Go / certain navigator
+  // states this is *not handled* and causes a dev-only warning. To keep dev clean, avoid
+  // calling dismissAll and rely on replace (acceptable in production too).
+  router.replace(href);
 }
 
 /**

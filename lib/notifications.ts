@@ -38,7 +38,7 @@ export async function ensureAndroidNotificationChannels(): Promise<void> {
   await Notifications.setNotificationChannelAsync("donations", {
     name: "Donations",
     importance: ch,
-    description: "Donation receipts and new gifts to your organization",
+    description: "Donation receipts and new donations to your organization",
     sound: "default",
   });
   await Notifications.setNotificationChannelAsync("campaigns", {

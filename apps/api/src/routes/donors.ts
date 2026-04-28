@@ -4,13 +4,6 @@ import { db } from "../lib/db.js";
 import { getStripe } from "../services/stripe.js";
 import { resolveDonorAvatarUrl } from "../lib/donor-portrait.js";
 
-const DAVID_FULL_NAME = "David Hughes";
-/** Matches provision-review-accounts.mjs (App Store review donor). */
-const DAVID_DONOR_EMAIL = "davidchughes02@gmail.com";
-const DAVID_TOTAL_AMOUNT_CENTS = 500000; // $5,000.00
-const DAVID_DONATION_COUNT = 8;
-const DAVID_RANK = 8;
-
 function splitNameParts(display: string): { first_name: string; last_name: string } {
   const t = display.trim();
   if (!t) return { first_name: "", last_name: "" };
@@ -26,6 +19,7 @@ type TopDonorRow = {
   avatar_url?: string | null;
   total_amount_cents: number | string | bigint;
   donation_count: number;
+  last_donation_at?: string | null;
 };
 
 async function queryTopDonorRows(limit: number) {
@@ -35,10 +29,14 @@ async function queryTopDonorRows(limit: number) {
             u.full_name,
             u.avatar_url,
             s.total_amount_cents,
-            s.donation_count
+            s.donation_count,
+            s.last_donation_at
      from donor_stats s
      join users u on u.id = s.user_id
-     order by s.total_amount_cents desc
+     order by s.total_amount_cents desc,
+              s.donation_count desc,
+              s.last_donation_at desc nulls last,
+              s.user_id desc
      limit $1`,
     [limit]
   );
@@ -89,32 +87,25 @@ export const donorsRoutes: FastifyPluginAsync = async (app) => {
     async (request) => {
       const user = request.user as { sub: string };
 
-      // Deterministic impact summary for the App Store review donor (provision-review-accounts.mjs).
-      const davidCheckRes = await db.query(
-        "select full_name, email from users where id = $1 limit 1",
+      // Primary source for leaderboard + rank: donor_stats (kept in sync during donation flows).
+      const statsRes = await db.query(
+        `select total_amount_cents, donation_count, first_donation_at, last_donation_at
+         from donor_stats
+         where user_id = $1::uuid
+         limit 1`,
         [user.sub]
       );
-      const davidCheck = davidCheckRes.rows[0] as { full_name?: string; email?: string } | undefined;
+      const s = statsRes.rows[0] as
+        | { total_amount_cents: string | bigint; donation_count: number; first_donation_at: string | null; last_donation_at: string | null }
+        | undefined;
 
-      if (
-        davidCheck &&
-        (String(davidCheck.full_name || "").trim() === DAVID_FULL_NAME || String(davidCheck.email || "").trim() === DAVID_DONOR_EMAIL)
-      ) {
-        return {
-          total_amount_cents: DAVID_TOTAL_AMOUNT_CENTS,
-          donation_count: DAVID_DONATION_COUNT,
-          first_donation_at: null,
-          last_donation_at: null,
-          rank: DAVID_RANK,
-        };
-      }
+      let total = Number(s?.total_amount_cents ?? 0);
+      let donationCount = Number(s?.donation_count ?? 0);
+      let firstDonationAt = s?.first_donation_at ?? null;
+      let lastDonationAt = s?.last_donation_at ?? null;
 
-      const emailRes = await db.query("select lower(trim(coalesce(email, ''))) as email from users where id = $1", [
-        user.sub,
-      ]);
-      const userEmail = String((emailRes.rows[0] as { email?: string } | undefined)?.email || "");
-
-      // Same attribution as GET /api/account/transactions (uuid + donor_email fallback).
+      // Safety net: donor_stats can be missing OR stale (e.g. webhook lag, older rows).
+      // Recompute from source-of-truth donations when needed.
       const sumRes = await db.query(
         `select
            coalesce(sum((d.amount * 100)::bigint), 0)::bigint as total_amount_cents,
@@ -123,15 +114,8 @@ export const donorsRoutes: FastifyPluginAsync = async (app) => {
            max(d.created_at) as last_donation_at
          from donations d
          where d.status = 'succeeded'
-           and (
-             d.user_id = $1::uuid
-             or (
-               $2 <> ''
-               and lower(trim(coalesce(d.donor_email, ''))) = $2
-               and (d.user_id is null or d.user_id = $1::uuid)
-             )
-           )`,
-        [user.sub, userEmail]
+           and d.user_id = $1::uuid`,
+        [user.sub]
       );
       const agg = sumRes.rows[0] as {
         total_amount_cents: string | bigint;
@@ -139,38 +123,60 @@ export const donorsRoutes: FastifyPluginAsync = async (app) => {
         first_donation_at: string | null;
         last_donation_at: string | null;
       };
+      const srcTotal = Number(agg.total_amount_cents ?? 0);
+      const srcCount = Number(agg.donation_count ?? 0);
+      const srcFirst = agg.first_donation_at ?? null;
+      const srcLast = agg.last_donation_at ?? null;
 
-      const total = Number(agg.total_amount_cents);
+      const stale =
+        !s ||
+        total !== srcTotal ||
+        donationCount !== srcCount ||
+        String(lastDonationAt ?? "") !== String(srcLast ?? "");
+
+      if (stale) {
+        total = srcTotal;
+        donationCount = srcCount;
+        firstDonationAt = srcFirst;
+        lastDonationAt = srcLast;
+        await db.query(
+          `insert into donor_stats (user_id, total_amount_cents, donation_count, first_donation_at, last_donation_at)
+           values ($1, $2, $3, $4, $5)
+           on conflict (user_id) do update set
+             total_amount_cents = excluded.total_amount_cents,
+             donation_count = excluded.donation_count,
+             first_donation_at = excluded.first_donation_at,
+             last_donation_at = excluded.last_donation_at`,
+          [user.sub, total, donationCount, firstDonationAt, lastDonationAt]
+        );
+      }
 
       const rankRes = await db.query(
         `select (1 + count(*)::int) as rank
-         from (
-           select u.id,
-                  coalesce(sum((d.amount * 100)::bigint), 0) as total_cents
-           from users u
-           left join donations d
-             on d.status = 'succeeded'
-            and (
-                  d.user_id = u.id
-               or (
-                    coalesce(trim(u.email), '') <> ''
-                and lower(trim(coalesce(d.donor_email, ''))) = lower(trim(coalesce(u.email, '')))
-                and (d.user_id is null or d.user_id = u.id)
-                  )
-                )
-           where u.role = 'donor'
-           group by u.id
-         ) x
-         where x.total_cents > $1::bigint`,
-        [total]
+         from donor_stats s
+         where
+           (s.total_amount_cents > $1::bigint)
+           or (s.total_amount_cents = $1::bigint and s.donation_count > $2::int)
+           or (
+             s.total_amount_cents = $1::bigint
+             and s.donation_count = $2::int
+             and coalesce(s.last_donation_at, '1970-01-01'::timestamptz) > coalesce($3::timestamptz, '1970-01-01'::timestamptz)
+           )
+           or (
+             s.total_amount_cents = $1::bigint
+             and s.donation_count = $2::int
+             and coalesce(s.last_donation_at, '1970-01-01'::timestamptz) = coalesce($3::timestamptz, '1970-01-01'::timestamptz)
+             and s.user_id::text > $4::text
+           )`,
+        [total, donationCount, lastDonationAt, user.sub]
       );
       const rankRow = rankRes.rows[0] as { rank: number } | undefined;
 
       return {
         total_amount_cents: total,
-        donation_count: agg.donation_count ?? 0,
-        first_donation_at: agg.first_donation_at ?? null,
-        last_donation_at: agg.last_donation_at ?? null,
+        donation_count: donationCount,
+        first_donation_at: firstDonationAt,
+        last_donation_at: lastDonationAt,
         rank: rankRow?.rank ?? null,
       };
     }
@@ -181,41 +187,7 @@ export const donorsRoutes: FastifyPluginAsync = async (app) => {
     const lim = Math.min(Math.max(parseInt(limit || "20", 10) || 20, 1), 100);
 
     const rows = await queryTopDonorRows(lim);
-    let donors = rows.map((r) => mapTopDonorRow(r, false));
-
-    // Force David into position #8 for predictable UI testing.
-    if (lim >= 8) {
-      const davidUserRes = await db.query(
-        "select id, full_name, email, avatar_url from users where email = $1 limit 1",
-        [DAVID_DONOR_EMAIL]
-      );
-      const davidUser = davidUserRes.rows[0] as {
-        id: string;
-        full_name?: string;
-        email?: string;
-        avatar_url?: string | null;
-      } | undefined;
-
-      if (davidUser) {
-        donors = donors.filter((d) => d.id !== davidUser.id);
-        const forcedDonor = mapTopDonorRow(
-          {
-            id: davidUser.id,
-            email: davidUser.email,
-            full_name: DAVID_FULL_NAME,
-            avatar_url: davidUser.avatar_url,
-            total_amount_cents: DAVID_TOTAL_AMOUNT_CENTS,
-            donation_count: DAVID_DONATION_COUNT,
-          },
-          false
-        );
-
-        const idx = 7; // position #8
-        donors.splice(Math.min(idx, donors.length), 0, forcedDonor);
-        donors = donors.slice(0, lim);
-      }
-    }
-
+    const donors = rows.map((r) => mapTopDonorRow(r, false));
     return { donors };
   });
 
@@ -226,39 +198,7 @@ export const donorsRoutes: FastifyPluginAsync = async (app) => {
       const { limit = "20" } = request.query as { limit?: string };
       const lim = Math.min(Math.max(parseInt(limit || "20", 10) || 20, 1), 100);
       const rows = await queryTopDonorRows(lim);
-      let donors = rows.map((r) => mapTopDonorRow(r, true));
-
-      if (lim >= 8) {
-        const davidUserRes = await db.query(
-          "select id, full_name, email, avatar_url from users where email = $1 limit 1",
-          [DAVID_DONOR_EMAIL]
-        );
-        const davidUser = davidUserRes.rows[0] as {
-          id: string;
-          full_name?: string;
-          email?: string;
-          avatar_url?: string | null;
-        } | undefined;
-
-        if (davidUser) {
-          donors = donors.filter((d) => d.id !== davidUser.id);
-          const forcedDonor = mapTopDonorRow(
-            {
-              id: davidUser.id,
-              email: davidUser.email,
-              full_name: DAVID_FULL_NAME,
-              avatar_url: davidUser.avatar_url,
-              total_amount_cents: DAVID_TOTAL_AMOUNT_CENTS,
-              donation_count: DAVID_DONATION_COUNT,
-            },
-            true
-          );
-          const idx = 7;
-          donors.splice(Math.min(idx, donors.length), 0, forcedDonor);
-          donors = donors.slice(0, lim);
-        }
-      }
-
+      const donors = rows.map((r) => mapTopDonorRow(r, true));
       return { donors };
     }
   );

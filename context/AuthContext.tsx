@@ -291,6 +291,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const data = await apiCall("/api/auth/login", "POST", {
           email: email.trim().toLowerCase(),
           password,
+          loginAs: type,
         });
 
         if (data.accessToken && data.user) {

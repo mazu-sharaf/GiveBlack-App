@@ -780,7 +780,7 @@ export default function Dashboard() {
         <Card className="flex min-w-0 flex-col overflow-hidden rounded-2xl border-white/10 shadow-lg">
           <CardHeader className="border-b border-white/5 pb-3">
             <CardTitle className="text-base font-semibold text-foreground">Donations by category</CardTitle>
-            <p className="text-xs text-muted-foreground">Share of recorded gift volume</p>
+            <p className="text-xs text-muted-foreground">Share of recorded donation volume</p>
           </CardHeader>
           <CardContent className="flex flex-1 flex-col px-2 pt-2 sm:px-4">
             {categoryData.length > 0 ? (

@@ -213,7 +213,7 @@ export default function RatingModal({
 
   const title =
     variant === "first_donation"
-      ? "Thanks for your first gift!"
+      ? "Thanks for your first donation!"
       : variant === "first_campaign"
         ? "Your first campaign is on its way"
         : "Enjoying GiveBlack?";

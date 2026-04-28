@@ -127,7 +127,15 @@ export default function HomeScreen() {
     () => filteredCampaigns.filter((c: any) => Boolean(c?.featured)).slice(0, 8),
     [filteredCampaigns]
   );
-  const latest = filteredCampaigns.slice(0, 6);
+  const latest = React.useMemo(() => {
+    const list = [...filteredCampaigns];
+    list.sort((a: any, b: any) => {
+      const at = a?.createdAt ? new Date(String(a.createdAt)).getTime() : 0;
+      const bt = b?.createdAt ? new Date(String(b.createdAt)).getTime() : 0;
+      return bt - at;
+    });
+    return list.slice(0, 6);
+  }, [filteredCampaigns]);
 
   const bottomPad = insets.bottom;
 

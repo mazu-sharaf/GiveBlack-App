@@ -7,7 +7,7 @@ import {
   Text,
   useWindowDimensions,
 } from "react-native";
-import { Tabs } from "expo-router";
+import { Tabs, router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme, useThemeColors } from "@/context/ThemeContext";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -190,7 +190,12 @@ export default function OrgTabsLayout() {
 
   return (
     <View style={{ flex: 1, backgroundColor: c.background }}>
-      <AppHeader variant="org" title="Dashboard" showSearch={false} />
+      <AppHeader
+        variant="org"
+        title="Dashboard"
+        showSearch={false}
+        showNotifications
+      />
       <Tabs
         tabBar={(props) => <OrgTabBar {...props} />}
         screenOptions={{ headerShown: false }}

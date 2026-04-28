@@ -55,6 +55,8 @@ export default function SettingsTab() {
     payouts_enabled: boolean;
   } | null>(null);
   const [connectBusy, setConnectBusy] = useState(false);
+  const [manualStripeAccountId, setManualStripeAccountId] = useState("");
+  const [manualStripeBusy, setManualStripeBusy] = useState(false);
 
   const base = getApiUrl().replace(/\/$/, "");
   const stripeRedirectUri = Linking.createURL("org-stripe");
@@ -77,6 +79,7 @@ export default function SettingsTab() {
           setAccountLast4(String(data.org.account_last4 ?? ""));
           setTaxId(String(data.org.tax_id ?? ""));
           setOrgCoverUrl(data.org.cover_image_url ? String(data.org.cover_image_url) : null);
+          setManualStripeAccountId(String(data.org.stripe_account_id ?? ""));
         }
         if (data.org?.image_url) {
           setOrgImageUrl(data.org.image_url);
@@ -100,6 +103,35 @@ export default function SettingsTab() {
       setStripeStatus(null);
     }
   }, [session, fetchWithAuth]);
+
+  const applyManualStripeAccountId = useCallback(async () => {
+    if (!session || manualStripeBusy) return;
+    const acct = manualStripeAccountId.trim();
+    if (!acct) {
+      Alert.alert("Stripe", "Enter your Stripe Connect account id (starts with acct_).");
+      return;
+    }
+    setManualStripeBusy(true);
+    try {
+      const res = await fetchWithAuth("/api/org/connect/manual", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ stripe_account_id: acct }),
+      });
+      const json = (await res.json().catch(() => ({}))) as { error?: string; payouts_enabled?: boolean; connected?: boolean };
+      if (!res.ok) {
+        Alert.alert("Stripe", json.error || "Could not link Stripe account.");
+        return;
+      }
+      await loadConnectStatus();
+      Alert.alert("Stripe", "Stripe account linked. We’ll update payout status automatically.");
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Something went wrong";
+      Alert.alert("Stripe", msg);
+    } finally {
+      setManualStripeBusy(false);
+    }
+  }, [session, manualStripeBusy, manualStripeAccountId, fetchWithAuth, loadConnectStatus]);
 
   useEffect(() => {
     loadOrgProfile();
@@ -415,31 +447,15 @@ export default function SettingsTab() {
       >
         <Text style={[styles.headerTitle, { color: c.text }]}>Settings</Text>
 
-        <View style={[styles.profileCard, { backgroundColor: c.cardBg }]}>
-          <Pressable onPress={pickProfileImage} disabled={uploadingImage} style={styles.avatarWrapper}>
-            {resolvedOrgImage ? (
-              <Image
-                source={{ uri: resolvedOrgImage }}
-                style={styles.avatarImage}
-                contentFit="cover"
-                cachePolicy="memory-disk"
-                transition={200}
-              />
-            ) : (
-              <View style={[styles.avatar, { backgroundColor: c.green }]}>
-                <Text style={styles.avatarText}>
-                  {(user?.charityName || user?.name || "O").charAt(0).toUpperCase()}
-                </Text>
-              </View>
-            )}
-            <View style={[styles.cameraOverlay, { backgroundColor: c.green }]}>
-              {uploadingImage ? (
-                <ActivityIndicator size={12} color="#fff" />
-              ) : (
-                <Ionicons name="camera" size={12} color="#fff" />
-              )}
-            </View>
-          </Pressable>
+        <Pressable
+          style={[styles.profileCard, { backgroundColor: c.cardBg }]}
+          onPress={() => router.push("/(org)/organization-profile")}
+        >
+          <View style={[styles.avatar, { backgroundColor: c.green }]}>
+            <Text style={styles.avatarText}>
+              {(user?.charityName || user?.name || "O").charAt(0).toUpperCase()}
+            </Text>
+          </View>
           <View style={{ flex: 1 }}>
             <Text style={[styles.profileName, { color: c.text }]} numberOfLines={1}>
               {user?.charityName || user?.name || "Organization"}
@@ -448,325 +464,73 @@ export default function SettingsTab() {
               {user?.email}
             </Text>
           </View>
-        </View>
+          <Ionicons name="chevron-forward" size={16} color={c.textMuted} />
+        </Pressable>
 
-        <Text style={[styles.sectionLabel, { color: c.textMuted }]}>COVER IMAGE (OPTIONAL)</Text>
+        <Text style={[styles.sectionLabel, { color: c.textMuted }]}>INBOX</Text>
         <View style={[styles.card, { backgroundColor: c.cardBg }]}>
-          <Pressable
-            onPress={pickCoverImage}
-            disabled={uploadingCover}
-            style={[styles.coverUpload, { borderColor: c.border, backgroundColor: c.inputBg }]}
-          >
-            {resolvedCoverImage ? (
-              <Image
-                source={{ uri: resolvedCoverImage }}
-                style={styles.coverImage}
-                contentFit="cover"
-                cachePolicy="memory-disk"
-                transition={200}
-              />
-            ) : (
-              <View style={styles.coverPlaceholder}>
-                <Ionicons name="image-outline" size={22} color={c.textMuted} />
-                <Text style={[styles.coverHint, { color: c.textMuted }]}>
-                  {uploadingCover ? "Uploading…" : "Tap to upload cover image"}
+          <Pressable style={[styles.aboutRow, { borderBottomWidth: 0 }]} onPress={() => router.push("/notifications")}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 10, flex: 1 }}>
+              <Ionicons name="notifications-outline" size={20} color={c.textMuted} />
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.settingText, { color: c.text }]}>Inbox</Text>
+                <Text style={[styles.aboutValue, { color: c.textMuted, marginTop: 2 }]}>
+                  View your notification messages
                 </Text>
               </View>
-            )}
-            {uploadingCover ? (
-              <View style={[styles.coverBusyPill, { backgroundColor: c.green }]}>
-                <ActivityIndicator size={12} color="#fff" />
-                <Text style={styles.coverBusyText}>Uploading</Text>
-              </View>
-            ) : null}
+            </View>
+            <Ionicons name="chevron-forward" size={16} color={c.textMuted} />
           </Pressable>
-
-          {resolvedCoverImage ? (
-            <Pressable
-              onPress={() => {
-                Alert.alert("Remove cover image?", "This will remove your organization cover image.", [
-                  { text: "Cancel", style: "cancel" },
-                  { text: "Remove", style: "destructive", onPress: () => void removeCoverImage() },
-                ]);
-              }}
-              disabled={uploadingCover}
-              style={styles.coverRemoveBtn}
-            >
-              <Ionicons name="trash-outline" size={16} color={c.danger} />
-              <Text style={[styles.coverRemoveText, { color: c.danger }]}>Remove cover</Text>
-            </Pressable>
-          ) : null}
         </View>
 
-        <Text style={[styles.sectionLabel, { color: c.textMuted }]}>ORGANIZATION PROFILE</Text>
+        <Text style={[styles.sectionLabel, { color: c.textMuted }]}>ORGANIZATION</Text>
         <View style={[styles.card, { backgroundColor: c.cardBg }]}>
-          {editMode ? (
-            <>
-              <View style={styles.editField}>
-                <Text style={[styles.editLabel, { color: c.textMuted }]}>Organization Name</Text>
-                <TextInput
-                  style={[styles.editInput, { backgroundColor: c.inputBg, color: c.text }]}
-                  value={orgName}
-                  onChangeText={setOrgName}
-                  placeholder="Organization name"
-                  placeholderTextColor={c.textLight}
-                />
+          <Pressable
+            style={[styles.aboutRow, { borderBottomWidth: 1, borderBottomColor: c.border }]}
+            onPress={() => router.push("/(org)/organization-profile")}
+          >
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 10, flex: 1 }}>
+              <Ionicons name="business-outline" size={20} color={c.textMuted} />
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.settingText, { color: c.text }]}>Organization profile</Text>
+                <Text style={[styles.aboutValue, { color: c.textMuted, marginTop: 2 }]}>
+                  Name, category, website, description, cover/logo
+                </Text>
               </View>
-              <View style={styles.editField}>
-                <Text style={[styles.editLabel, { color: c.textMuted }]}>Category</Text>
-                <Pressable
-                  style={[styles.editInput, styles.categoryPickerBtn, { backgroundColor: c.inputBg, borderColor: c.border }]}
-                  onPress={() => {
-                    if (!categoriesLoading && categories.length > 0) setCategoryModalVisible(true);
-                    else if (!categoriesLoading && categories.length === 0) {
-                      Alert.alert("Categories unavailable", "Could not load categories. Try again later.");
-                    }
-                  }}
-                >
-                  <Text style={{ color: orgCategoryId ? c.text : c.textLight, fontFamily: "SpaceGrotesk_400Regular", fontSize: 14 }}>
-                    {categoriesLoading
-                      ? "Loading categories…"
-                      : orgCategoryName || "Select category"}
-                  </Text>
-                  <Ionicons name="chevron-down" size={18} color={c.textMuted} />
-                </Pressable>
-              </View>
-              <View style={styles.editField}>
-                <Text style={[styles.editLabel, { color: c.textMuted }]}>Description</Text>
-                <TextInput
-                  style={[styles.editInput, { backgroundColor: c.inputBg, color: c.text, minHeight: 80, textAlignVertical: "top" }]}
-                  value={orgDesc}
-                  onChangeText={setOrgDesc}
-                  placeholder="Describe your organization"
-                  placeholderTextColor={c.textLight}
-                  multiline
-                />
-              </View>
-              <View style={styles.editField}>
-                <Text style={[styles.editLabel, { color: c.textMuted }]}>Website</Text>
-                <TextInput
-                  style={[styles.editInput, { backgroundColor: c.inputBg, color: c.text }]}
-                  value={orgUrl}
-                  onChangeText={setOrgUrl}
-                  placeholder="https://..."
-                  placeholderTextColor={c.textLight}
-                  keyboardType="url"
-                />
-              </View>
-              <Text style={[styles.editLabel, { color: c.textMuted, marginBottom: 8 }]}>Bank details</Text>
-              <TextInput
-                style={[styles.editInput, styles.editField, { backgroundColor: c.inputBg, color: c.text }]}
-                value={bankName}
-                onChangeText={setBankName}
-                placeholder="Bank name"
-                placeholderTextColor={c.textLight}
-              />
-              <TextInput
-                style={[styles.editInput, styles.editField, { backgroundColor: c.inputBg, color: c.text }]}
-                value={accountHolder}
-                onChangeText={setAccountHolder}
-                placeholder="Account holder name"
-                placeholderTextColor={c.textLight}
-              />
-              <View style={styles.bankRow}>
-                <TextInput
-                  style={[styles.editInput, styles.bankHalf, { backgroundColor: c.inputBg, color: c.text }]}
-                  value={routingNumber}
-                  onChangeText={setRoutingNumber}
-                  placeholder="Routing #"
-                  placeholderTextColor={c.textLight}
-                  keyboardType="number-pad"
-                />
-                <TextInput
-                  style={[styles.editInput, styles.bankHalf, { backgroundColor: c.inputBg, color: c.text }]}
-                  value={accountLast4}
-                  onChangeText={(t) => setAccountLast4(t.replace(/\D/g, "").slice(0, 4))}
-                  placeholder="Last 4"
-                  placeholderTextColor={c.textLight}
-                  keyboardType="number-pad"
-                  maxLength={4}
-                />
-              </View>
-              <TextInput
-                style={[styles.editInput, styles.editField, { backgroundColor: c.inputBg, color: c.text }]}
-                value={taxId}
-                onChangeText={setTaxId}
-                placeholder="Tax ID / EIN (optional)"
-                placeholderTextColor={c.textLight}
-                autoCapitalize="characters"
-              />
-              <View style={[styles.stripeRow, { borderTopColor: c.border, marginTop: 8 }]}>
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.infoLabel, { color: c.textMuted }]}>Stripe payouts</Text>
-                  <Text style={[styles.infoValue, { color: c.text }]}>
-                    {stripeStatus == null
-                      ? "…"
-                      : stripeStatus.payouts_enabled
-                        ? "Payouts enabled"
-                        : stripeStatus.connected
-                          ? "Finish setup in Stripe"
-                          : "Not connected"}
-                  </Text>
-                </View>
-                <Pressable
-                  style={[styles.stripeBtn, { backgroundColor: c.green, opacity: connectBusy ? 0.7 : 1 }]}
-                  onPress={openStripeOnboarding}
-                  disabled={connectBusy || !session}
-                >
-                  {connectBusy ? (
-                    <ActivityIndicator size="small" color="#fff" />
-                  ) : (
-                    <Text style={styles.stripeBtnText}>
-                      {stripeStatus?.connected ? "Continue" : "Connect"}
-                    </Text>
-                  )}
-                </Pressable>
-              </View>
-              <View style={styles.editActions}>
-                <Pressable
-                  style={[styles.editActionBtn, { borderColor: c.border }]}
-                  onPress={handleCancelEdit}
-                >
-                  <Text style={[styles.editActionText, { color: c.textMuted }]}>Cancel</Text>
-                </Pressable>
-                <Pressable
-                  style={[styles.editActionBtn, { backgroundColor: c.green, borderColor: c.green }]}
-                  onPress={handleSaveProfile}
-                >
-                  <Text style={[styles.editActionText, { color: "#fff" }]}>Save</Text>
-                </Pressable>
-              </View>
-            </>
-          ) : (
-            <>
-              <View style={[styles.infoRow, { borderBottomColor: c.border }]}>
-                <Ionicons name="business-outline" size={18} color={c.textMuted} />
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.infoLabel, { color: c.textMuted }]}>Organization Name</Text>
-                  <Text style={[styles.infoValue, { color: c.text }]}>{orgName || "-"}</Text>
-                </View>
-              </View>
-              <View style={[styles.infoRow, { borderBottomColor: c.border }]}>
-                <Ionicons name="grid-outline" size={18} color={c.textMuted} />
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.infoLabel, { color: c.textMuted }]}>Category</Text>
-                  <Text style={[styles.infoValue, { color: c.text }]}>{orgCategoryName || "-"}</Text>
-                </View>
-              </View>
-              <View style={[styles.infoRow, { borderBottomColor: c.border }]}>
-                <Ionicons name="document-text-outline" size={18} color={c.textMuted} />
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.infoLabel, { color: c.textMuted }]}>Description</Text>
-                  <Text style={[styles.infoValue, { color: c.text }]} numberOfLines={2}>{orgDesc || "-"}</Text>
-                </View>
-              </View>
-              <View style={[styles.infoRow, { borderBottomColor: c.border }]}>
-                <Ionicons name="globe-outline" size={18} color={c.textMuted} />
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.infoLabel, { color: c.textMuted }]}>Website</Text>
-                  <Text style={[styles.infoValue, { color: c.green }]}>{orgUrl || "-"}</Text>
-                </View>
-              </View>
-              <View style={[styles.infoRow, { borderBottomColor: c.border }]}>
-                <Ionicons name="wallet-outline" size={18} color={c.textMuted} />
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.infoLabel, { color: c.textMuted }]}>Bank</Text>
-                  <Text style={[styles.infoValue, { color: c.text }]}>
-                    {!bankName && !accountHolder && !routingNumber && !accountLast4
-                      ? "-"
-                      : [
-                          bankName || null,
-                          accountHolder || null,
-                          routingNumber ? `Routing ···${routingNumber.slice(-4)}` : null,
-                          accountLast4 ? `Acct ···${accountLast4}` : null,
-                        ]
-                          .filter(Boolean)
-                          .join(" · ")}
-                  </Text>
-                  {taxId ? (
-                    <Text style={[styles.infoSub, { color: c.textMuted }]}>Tax ID on file</Text>
-                  ) : null}
-                </View>
-              </View>
-              <View style={[styles.stripeRow, { borderTopColor: c.border }]}>
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.infoLabel, { color: c.textMuted }]}>Stripe payouts</Text>
-                  <Text style={[styles.infoValue, { color: c.text }]}>
-                    {stripeStatus == null
-                      ? "…"
-                      : stripeStatus.payouts_enabled
-                        ? "Payouts enabled"
-                        : stripeStatus.connected
-                          ? "Finish setup in Stripe"
-                          : "Not connected"}
-                  </Text>
-                </View>
-                <Pressable
-                  style={[styles.stripeBtn, { backgroundColor: c.green, opacity: connectBusy ? 0.7 : 1 }]}
-                  onPress={openStripeOnboarding}
-                  disabled={connectBusy || !session}
-                >
-                  {connectBusy ? (
-                    <ActivityIndicator size="small" color="#fff" />
-                  ) : (
-                    <Text style={styles.stripeBtnText}>
-                      {stripeStatus?.connected ? "Continue" : "Connect"}
-                    </Text>
-                  )}
-                </Pressable>
-              </View>
-              <Pressable
-                style={[styles.editBtn, { borderColor: c.border }]}
-                onPress={() => setEditMode(true)}
-              >
-                <Ionicons name="create-outline" size={16} color={c.text} />
-                <Text style={[styles.editBtnText, { color: c.text }]}>Edit Profile</Text>
-              </Pressable>
-            </>
-          )}
-        </View>
-
-        <Modal
-          visible={categoryModalVisible}
-          animationType="slide"
-          transparent
-          onRequestClose={() => setCategoryModalVisible(false)}
-        >
-          <Pressable style={[styles.modalBackdrop, { backgroundColor: c.modalOverlay }]} onPress={() => setCategoryModalVisible(false)}>
-            <Pressable style={[styles.modalSheet, { backgroundColor: c.background }]} onPress={(e) => e.stopPropagation()}>
-              <View style={[styles.modalHeader, { borderBottomColor: c.border }]}>
-                <Text style={[styles.modalTitle, { color: c.text }]}>Organization category</Text>
-                <Pressable onPress={() => setCategoryModalVisible(false)} hitSlop={12}>
-                  <Ionicons name="close" size={26} color={c.text} />
-                </Pressable>
-              </View>
-              <FlatList
-                data={categories}
-                keyExtractor={(item) => item.id}
-                contentContainerStyle={styles.modalList}
-                renderItem={({ item }) => (
-                  <Pressable
-                    style={[
-                      styles.categoryRow,
-                      { borderBottomColor: c.border },
-                      orgCategoryId === item.id && { backgroundColor: Colors.green + "18" },
-                    ]}
-                    onPress={() => {
-                      setOrgCategoryId(item.id);
-                      setOrgCategoryName(item.name);
-                      setCategoryModalVisible(false);
-                    }}
-                  >
-                    <Text style={[styles.categoryRowText, { color: c.text }]}>{item.name}</Text>
-                    {orgCategoryId === item.id ? (
-                      <Ionicons name="checkmark-circle" size={22} color={Colors.green} />
-                    ) : null}
-                  </Pressable>
-                )}
-              />
-            </Pressable>
+            </View>
+            <Ionicons name="chevron-forward" size={16} color={c.textMuted} />
           </Pressable>
-        </Modal>
+          <Pressable
+            style={[styles.aboutRow, { borderBottomWidth: 1, borderBottomColor: c.border }]}
+            onPress={() => router.push("/(org)/payouts")}
+          >
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 10, flex: 1 }}>
+              <Ionicons name="card-outline" size={20} color={c.textMuted} />
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.settingText, { color: c.text }]}>Payouts & payments</Text>
+                <Text style={[styles.aboutValue, { color: c.textMuted, marginTop: 2 }]}>
+                  Stripe account id (mandatory) and bank details
+                </Text>
+              </View>
+            </View>
+            <Ionicons name="chevron-forward" size={16} color={c.textMuted} />
+          </Pressable>
+          <Pressable
+            style={[styles.aboutRow, { borderBottomWidth: 0 }]}
+            onPress={() => router.push("/(org)/payment-history")}
+          >
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 10, flex: 1 }}>
+              <Ionicons name="time-outline" size={20} color={c.textMuted} />
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.settingText, { color: c.text }]}>Payment history</Text>
+                <Text style={[styles.aboutValue, { color: c.textMuted, marginTop: 2 }]}>
+                  Releases and transfer history
+                </Text>
+              </View>
+            </View>
+            <Ionicons name="chevron-forward" size={16} color={c.textMuted} />
+          </Pressable>
+        </View>
 
         <Text style={[styles.sectionLabel, { color: c.textMuted }]}>VOLUNTEERS</Text>
         <View style={[styles.card, { backgroundColor: c.cardBg }]}>
@@ -785,7 +549,7 @@ export default function SettingsTab() {
         <Text style={[styles.sectionLabel, { color: c.textMuted }]}>PREFERENCES</Text>
         <View style={[styles.card, { backgroundColor: c.cardBg }]}>
           <Pressable
-            style={[styles.aboutRow, { borderBottomWidth: 0 }]}
+            style={[styles.aboutRow, { borderBottomWidth: 1, borderBottomColor: c.border }]}
             onPress={() => router.push("/settings/notifications")}
           >
             <View style={{ flexDirection: "row", alignItems: "center", gap: 10, flex: 1 }}>
