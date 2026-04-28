@@ -326,8 +326,8 @@ export const publicRoutes: FastifyPluginAsync = async (app) => {
       ? env.EXPO_PUBLIC_API_URL.replace(/\/app\/?$/, "").replace(/\/$/, "")
       : `${request.protocol}://${request.hostname}`;
 
-    const successUrl = `${adminDomain}/admin/c/${body.campaignId}?donation=success&session_id={CHECKOUT_SESSION_ID}`;
-    const cancelUrl = `${adminDomain}/admin/c/${body.campaignId}?donation=canceled`;
+    const successUrl = `${adminDomain}/c/${body.campaignId}/thank-you?session_id={CHECKOUT_SESSION_ID}`;
+    const cancelUrl = `${adminDomain}/c/${body.campaignId}?cancelled=1`;
 
     const session = await stripe.checkout.sessions.create({
       mode: "payment",

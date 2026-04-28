@@ -143,7 +143,8 @@ export const campaignPageRoutes: FastifyPluginAsync = async (app) => {
       const pageTitle = `Support ${row.title} on Give Black`;
       const ogImage = resolveCampaignOgImage(row.main_image_url, publicBase, defaultOg);
       const canonicalUrl = `${baseUrl}/c/${encodeURIComponent(campaignId)}`;
-      const webCampaignUrl = `${baseUrl}/admin/c/${encodeURIComponent(campaignId)}`;
+      // Public campaign share URL should not be under /admin.
+      const webCampaignUrl = `${baseUrl}/c/${encodeURIComponent(campaignId)}`;
       const brandIconUrl = `${baseUrl.replace(/\/$/, "")}/admin/giveblack-icon.png`;
 
       const appleUrl = env.APP_STORE_URL || "https://apps.apple.com/app/giveblack";
@@ -201,7 +202,7 @@ export const campaignPageRoutes: FastifyPluginAsync = async (app) => {
     const publicBase = env.EXPO_PUBLIC_API_URL?.replace(/\/$/, "") || baseUrl;
 
     const successUrl = `${publicBase}/c/${encodeURIComponent(body.campaignId)}/thank-you?session_id={CHECKOUT_SESSION_ID}`;
-    const cancelUrl = `${baseUrl}/admin/c/${encodeURIComponent(body.campaignId)}?cancelled=1`;
+    const cancelUrl = `${publicBase}/c/${encodeURIComponent(body.campaignId)}?cancelled=1`;
 
     const donorUserId = body.isAnonymous ? null : await optionalDonorUserId(app, request);
     if (donorUserId && body.donorEmail) {
@@ -411,7 +412,7 @@ function notFoundPage() {
   <div>
     <h1>Campaign Not Found</h1>
     <p>This campaign may have ended or the link is incorrect.</p>
-    <a href="/" class="btn-primary" style="display:inline-block;text-decoration:none;">Go Home</a>
+    <a href="https://giveblackapp.com/" class="btn-primary" style="display:inline-block;text-decoration:none;">Go Home</a>
   </div>
 </div>
 </body></html>`;
@@ -517,7 +518,7 @@ ${thankYouStyles()}
     ${accountBlock}
 
     <div class="back-link">
-      <a href="/admin/c/${encodeURIComponent(campaignId)}">← Back to Campaign</a>
+      <a href="/c/${encodeURIComponent(campaignId)}">← Back to Campaign</a>
     </div>
   </div>
 
