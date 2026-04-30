@@ -335,8 +335,8 @@ export default function OrgDashboardHome() {
               <Text style={styles.planStatLabel}>Max Goal</Text>
             </View>
           </View>
-          {/* Manage subscription */}
-          <View style={styles.subActionsRow}>
+          {/* Manage subscription — full-width pill (row parent alone caused iOS corner/padding glitches) */}
+          <View style={styles.upgradeRow}>
             <Pressable
               style={styles.upgradeBtn}
               onPress={() => router.push("/(org)/subscriptions")}
@@ -533,15 +533,20 @@ const styles = StyleSheet.create({
   planStatValue: { fontFamily: "SpaceGrotesk_700Bold", fontSize: 20, color: "#fff" },
   planStatLabel: { fontFamily: "SpaceGrotesk_400Regular", fontSize: 11, color: "rgba(255,255,255,0.7)", marginTop: 2 },
   planDivider: { width: 1, height: 36, alignSelf: "center" },
+  upgradeRow: {
+    width: "100%",
+    marginTop: 16,
+  },
   upgradeBtn: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 6,
+    gap: 8,
     backgroundColor: "#fff",
     borderRadius: 14,
     paddingVertical: 12,
-    marginTop: 16,
+    paddingHorizontal: 20,
+    overflow: "hidden",
   },
   upgradeBtnText: { fontFamily: "SpaceGrotesk_600SemiBold", fontSize: 14 },
   subActionsRow: {

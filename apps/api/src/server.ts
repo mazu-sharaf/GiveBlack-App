@@ -116,7 +116,8 @@ export function buildServer() {
   app.register(multipart, { limits: { fileSize: 8 * 1024 * 1024 } });
   app.register(rawBody, {
     global: false,
-    routes: ["/api/webhooks/stripe"]
+    // Both paths: canonical + legacy dashboard URL (`/api/stripe/webhook`).
+    routes: ["/api/webhooks/stripe", "/api/stripe/webhook"],
   });
   app.register(jwt, {
     secret: env.JWT_ACCESS_SECRET

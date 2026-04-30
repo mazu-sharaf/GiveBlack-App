@@ -14,7 +14,7 @@ import {
 } from "../lib/org-payout-hold.js";
 import { stripeId } from "../lib/stripe-ids.js";
 import { TIER_LIMITS } from "../lib/tier-limits.js";
-import { maybeNotifyOrgSubscriptionPlanUpgrade } from "../services/user-push.js";
+import { maybeNotifyOrgSubscriptionPlanUpgrade, notifyDonationFromPaymentIntent } from "../services/user-push.js";
 
 export { TIER_LIMITS };
 
@@ -711,30 +711,50 @@ export const stripeRoutes: FastifyPluginAsync = async (app) => {
       const session = await stripe.checkout.sessions.retrieve(sessionId);
       const paymentIntentId = stripeId(session.payment_intent as string | { id?: string } | null);
       type DonationRow = {
+        id: string;
         status: string;
         amount: number;
         currency: string;
         org_id: string | null;
         campaign_id: string | null;
+        org_name: string | null;
+        donor_name: string | null;
+        is_anonymous: boolean;
+        paid_at: string | null;
+        created_at: string | null;
+        stripe_payment_intent_id: string | null;
       };
       let donationOut: DonationRow | null = null;
 
       const tryDonationLookup = async (key: string): Promise<void> => {
         const donRes = await db.query(
-          `select org_id, campaign_id, amount, currency, status
+          `select d.id, d.org_id, d.campaign_id, d.amount, d.currency, d.status,
+                  d.stripe_payment_intent_id,
+                  d.donor_name, d.is_anonymous, d.paid_at, d.created_at,
+                  o.name as org_name
            from donations
-           where stripe_payment_intent_id = $1
+           d
+           left join campaigns c on c.id = d.campaign_id
+           left join organizations o on o.id = coalesce(d.org_id, c.organization_id)
+           where d.stripe_payment_intent_id = $1
            limit 1`,
           [key]
         );
         if (donRes.rowCount && donRes.rows[0]) {
           const row = donRes.rows[0] as Record<string, unknown>;
           donationOut = {
+            id: String(row.id ?? ""),
             status: String(row.status ?? ""),
             amount: Number(row.amount),
             currency: String(row.currency ?? "usd"),
             org_id: (row.org_id as string | null) ?? null,
             campaign_id: (row.campaign_id as string | null) ?? null,
+            org_name: row.org_name ? String(row.org_name) : null,
+            donor_name: row.donor_name ? String(row.donor_name) : null,
+            is_anonymous: Boolean(row.is_anonymous),
+            paid_at: row.paid_at ? String(row.paid_at) : null,
+            created_at: row.created_at ? String(row.created_at) : null,
+            stripe_payment_intent_id: row.stripe_payment_intent_id ? String(row.stripe_payment_intent_id) : null,
           };
         }
       };
@@ -764,13 +784,39 @@ export const stripeRoutes: FastifyPluginAsync = async (app) => {
   app.get("/api/payments/checkout-success", async (request, reply) => {
     const q = request.query as { session_id?: string };
     const sessionId = q.session_id ? String(q.session_id) : "";
-    const deepLink = sessionId
-      ? `giveblack://checkout-result?session_id=${encodeURIComponent(sessionId)}`
-      : "giveblack://checkout-result";
 
-    return reply.type("text/html").send(`
+    if (sessionId && env.STRIPE_SECRET_KEY) {
+      try {
+        const stripe = getStripe();
+        const fin = await finalizeDonationFromCheckoutSession(stripe, sessionId);
+        notifyDonationFromPaymentIntent(fin.paymentIntentId).catch((err) => {
+          request.log.error({ err }, "notifyDonationFromPaymentIntent checkout-success");
+        });
+      } catch (e: unknown) {
+        request.log.warn({ err: e, sessionId }, "checkout-success: finalize skipped or failed");
+      }
+    }
+
+    const baseUrl = env.EXPO_PUBLIC_API_URL
+      ? env.EXPO_PUBLIC_API_URL.replace(/\/app\/?$/, "").replace(/\/$/, "")
+      : `${request.protocol}://${request.hostname}`;
+    // Prefer Universal Links for Safari/TestFlight reliability
+    const deepLink = sessionId
+      ? `${baseUrl}/link/checkout-result?session_id=${encodeURIComponent(sessionId)}`
+      : `${baseUrl}/link/checkout-result`;
+    const statusUrl = sessionId
+      ? `${baseUrl}/api/payments/checkout-status?session_id=${encodeURIComponent(sessionId)}`
+      : "";
+    const receiptPdfUrlBase = `${baseUrl}/c/receipt-pdf?donationId=`;
+
+    return reply
+      .header("Content-Type", "text/html; charset=utf-8")
+      .header("Cache-Control", "no-store, max-age=0")
+      .header("Pragma", "no-cache")
+      .send(`
       <!DOCTYPE html>
       <html><head><title>Payment Successful</title>
+      <meta charset="utf-8" />
       <meta name="viewport" content="width=device-width, initial-scale=1">
       <style>
         body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; background: #0a0a0a; color: #fff; }
@@ -779,25 +825,102 @@ export const stripeRoutes: FastifyPluginAsync = async (app) => {
         h1 { font-size: 24px; margin-bottom: 8px; }
         p { color: #999; font-size: 16px; margin-bottom: 24px; }
         .btn { background: #059669; color: #fff; border: none; padding: 14px 32px; border-radius: 12px; font-size: 16px; cursor: pointer; text-decoration: none; display: inline-block; }
+        .btn-secondary { background: rgba(255,255,255,0.12); color:#fff; border: 1px solid rgba(255,255,255,0.14); }
+        .btn-row { display:flex; gap:10px; justify-content:center; flex-wrap:wrap; margin-top: 10px; }
+        .receipt { margin-top: 18px; text-align:left; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.10); border-radius: 16px; padding: 16px; }
+        .rrow { display:flex; justify-content:space-between; gap:12px; padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.08); }
+        .rrow:last-child { border-bottom: none; }
+        .k { color:#9aa0a6; font-size: 13px; }
+        .v { color:#fff; font-size: 13px; text-align:right; max-width: 65%; overflow:hidden; text-overflow: ellipsis; white-space: nowrap; }
         .hint { color: #777; font-size: 13px; line-height: 18px; margin-top: 14px; }
       </style>
       </head><body>
         <div class="card">
           <div class="icon">&#10003;</div>
           <h1>Payment Successful</h1>
-          <p>Thank you for your donation! Returning you to the app to show your receipt.</p>
-          <a href="${deepLink}" class="btn">Return to app</a>
+          <p>Thank you for your donation! Your receipt is below.</p>
+
+          <div id="receipt" class="receipt" style="display:none;"></div>
+
+          <div class="btn-row">
+            <a id="downloadBtn" href="#" class="btn" style="display:none;" download>Download receipt (PDF)</a>
+            <button id="shareBtn" class="btn btn-secondary" type="button" style="display:none;">Share</button>
+          </div>
+
+          <div class="btn-row" style="margin-top:12px;">
+            <a href="${deepLink}" class="btn btn-secondary">Open app</a>
+          </div>
           <div class="hint">
-            If the app doesn’t open automatically, tap “Return to app”.
+            If the app doesn't open automatically, tap "Open app".
           </div>
         </div>
         <script>
           (function () {
             var url = ${JSON.stringify(deepLink)};
-            // Attempt immediately
+            // Try to open app in the background (Universal Link)
             window.location.href = url;
-            // Then again shortly after (some Safari contexts need a second attempt)
-            setTimeout(function () { window.location.href = url; }, 600);
+
+            var statusUrl = ${JSON.stringify(statusUrl)};
+            var receiptPdfUrlBase = ${JSON.stringify(receiptPdfUrlBase)};
+            var receiptEl = document.getElementById("receipt");
+            var downloadBtn = document.getElementById("downloadBtn");
+            var shareBtn = document.getElementById("shareBtn");
+
+            function esc(s) {
+              return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+                return ({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;" })[c];
+              });
+            }
+            function money(n) {
+              var x = Number(n || 0);
+              return "$" + x.toFixed(2);
+            }
+            function fmtDate(iso) {
+              if (!iso) return "";
+              try {
+                var d = new Date(iso);
+                if (!isFinite(d.getTime())) return "";
+                return d.toLocaleDateString();
+              } catch { return ""; }
+            }
+
+            if (statusUrl) {
+              fetch(statusUrl, { credentials: "omit" })
+                .then(function (r) { return r.json(); })
+                .then(function (j) {
+                  var d = j && j.donation ? j.donation : null;
+                  if (!d || !d.id) return;
+                  var reference = (d.stripe_payment_intent_id || d.id || "").slice(-12).toUpperCase();
+                  var rows = [
+                    ["Organization", d.org_name || "-"],
+                    ["Amount", money(d.amount)],
+                    ["Date", fmtDate(d.paid_at || d.created_at) || "-"],
+                    ["Reference", reference || "-"],
+                    ["Status", d.status || "-"]
+                  ];
+                  receiptEl.innerHTML = rows.map(function (kv) {
+                    return '<div class="rrow"><div class="k">' + esc(kv[0]) + '</div><div class="v">' + esc(kv[1]) + '</div></div>';
+                  }).join("");
+                  receiptEl.style.display = "block";
+
+                  downloadBtn.href = receiptPdfUrlBase + encodeURIComponent(d.id);
+                  downloadBtn.style.display = "inline-block";
+
+                  shareBtn.style.display = "inline-block";
+                  shareBtn.onclick = function () {
+                    var shareUrl = downloadBtn.href;
+                    var text = "GiveBlack donation receipt";
+                    if (navigator.share) {
+                      navigator.share({ title: "Donation receipt", text: text, url: shareUrl }).catch(function(){});
+                    } else {
+                      navigator.clipboard && navigator.clipboard.writeText(shareUrl).then(function () {
+                        alert("Receipt link copied.");
+                      }).catch(function(){});
+                    }
+                  };
+                })
+                .catch(function(){});
+            }
           })();
         </script>
       </body></html>
@@ -805,10 +928,19 @@ export const stripeRoutes: FastifyPluginAsync = async (app) => {
   });
 
   app.get("/api/payments/checkout-cancel", async (request, reply) => {
-    const deepLink = "giveblack://checkout-result?cancelled=1";
-    return reply.type("text/html").send(`
+    const baseUrl = env.EXPO_PUBLIC_API_URL
+      ? env.EXPO_PUBLIC_API_URL.replace(/\/app\/?$/, "").replace(/\/$/, "")
+      : `${request.protocol}://${request.hostname}`;
+    // Prefer Universal Links for Safari/TestFlight reliability
+    const deepLink = `${baseUrl}/link/checkout-result?cancelled=1`;
+    return reply
+      .header("Content-Type", "text/html; charset=utf-8")
+      .header("Cache-Control", "no-store, max-age=0")
+      .header("Pragma", "no-cache")
+      .send(`
       <!DOCTYPE html>
       <html><head><title>Payment Cancelled</title>
+      <meta charset="utf-8" />
       <meta name="viewport" content="width=device-width, initial-scale=1">
       <style>
         body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; background: #0a0a0a; color: #fff; }
@@ -826,7 +958,7 @@ export const stripeRoutes: FastifyPluginAsync = async (app) => {
           <p>Your donation was not processed. Return to the app to try again.</p>
           <a href="${deepLink}" class="btn">Return to app</a>
           <div class="hint">
-            If the app doesn’t open automatically, tap “Return to app”.
+            If the app doesn't open automatically, tap "Return to app".
           </div>
         </div>
         <script>
@@ -1818,6 +1950,88 @@ export const stripeRoutes: FastifyPluginAsync = async (app) => {
     }
   }
 
+  class FinalizeCheckoutDonationError extends Error {
+    readonly code:
+      | "SESSION_NOT_FOUND"
+      | "NOT_PAID"
+      | "NO_PAYMENT_INTENT"
+      | "PI_NOT_FOUND"
+      | "WALLET_TOPUP"
+      | "DB";
+
+    readonly paymentStatus?: string;
+
+    constructor(
+      code: FinalizeCheckoutDonationError["code"],
+      message: string,
+      opts?: { paymentStatus?: string }
+    ) {
+      super(message);
+      this.name = "FinalizeCheckoutDonationError";
+      this.code = code;
+      this.paymentStatus = opts?.paymentStatus;
+    }
+  }
+
+  /**
+   * Shared Checkout success finalization: map `cs_` → `pi_`, apply donation success path, commit.
+   * Used by POST /api/payments/finalize-checkout-donation and GET /api/payments/checkout-success.
+   */
+  async function finalizeDonationFromCheckoutSession(
+    stripe: NonNullable<ReturnType<typeof getStripe>>,
+    sessionId: string
+  ): Promise<{ paymentIntentId: string; piStatus?: string }> {
+    let session: Awaited<ReturnType<typeof stripe.checkout.sessions.retrieve>>;
+    try {
+      session = await stripe.checkout.sessions.retrieve(sessionId);
+    } catch {
+      throw new FinalizeCheckoutDonationError("SESSION_NOT_FOUND", "Invalid or expired checkout session");
+    }
+
+    if (session.payment_status !== "paid") {
+      throw new FinalizeCheckoutDonationError("NOT_PAID", "Payment not completed yet", {
+        paymentStatus: String(session.payment_status || ""),
+      });
+    }
+
+    const piId = stripeId(session.payment_intent as string | { id?: string } | null);
+    if (!piId) {
+      throw new FinalizeCheckoutDonationError("NO_PAYMENT_INTENT", "No payment intent for this session");
+    }
+
+    let piObj: Awaited<ReturnType<typeof stripe.paymentIntents.retrieve>>;
+    try {
+      piObj = await stripe.paymentIntents.retrieve(piId);
+    } catch {
+      throw new FinalizeCheckoutDonationError("PI_NOT_FOUND", "Could not load payment intent");
+    }
+
+    const md = (piObj.metadata || {}) as Record<string, string>;
+    if (md.type === "wallet_topup") {
+      throw new FinalizeCheckoutDonationError("WALLET_TOPUP", "Not a donation");
+    }
+
+    const client = await db.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query(
+        `update donations set stripe_payment_intent_id = $1
+         where stripe_payment_intent_id = $2 and status = 'pending'`,
+        [piId, sessionId]
+      );
+      await applyDonationFromSucceededPaymentIntent(client, piObj as unknown as Record<string, unknown>);
+      await client.query("COMMIT");
+    } catch (e: unknown) {
+      await client.query("ROLLBACK").catch(() => {});
+      app.log.error({ err: e }, "finalizeDonationFromCheckoutSession");
+      throw new FinalizeCheckoutDonationError("DB", e instanceof Error ? e.message : "Finalize failed");
+    } finally {
+      client.release();
+    }
+
+    return { paymentIntentId: piId, piStatus: (piObj as { status?: string }).status };
+  }
+
   const finalizeCheckoutDonationSchema = z.object({
     sessionId: z.string().min(1),
   });
@@ -1837,60 +2051,32 @@ export const stripeRoutes: FastifyPluginAsync = async (app) => {
     const stripe = requireStripe(reply);
     if (!stripe) return;
 
-    let session: Awaited<ReturnType<typeof stripe.checkout.sessions.retrieve>>;
+    let out: { paymentIntentId: string; piStatus?: string };
     try {
-      session = await stripe.checkout.sessions.retrieve(body.sessionId);
-    } catch {
-      return reply.code(400).send({ error: "Invalid or expired checkout session" });
-    }
-
-    if (session.payment_status !== "paid") {
-      return reply.code(400).send({
-        error: "Payment not completed yet",
-        paymentStatus: session.payment_status,
-      });
-    }
-
-    const piId = stripeId(session.payment_intent as string | { id?: string } | null);
-    if (!piId) {
-      return reply.code(400).send({ error: "No payment intent for this session" });
-    }
-
-    let piObj: Awaited<ReturnType<typeof stripe.paymentIntents.retrieve>>;
-    try {
-      piObj = await stripe.paymentIntents.retrieve(piId);
-    } catch {
-      return reply.code(400).send({ error: "Could not load payment intent" });
-    }
-
-    const md = (piObj.metadata || {}) as Record<string, string>;
-    if (md.type === "wallet_topup") {
-      return reply.code(400).send({ error: "Not a donation" });
-    }
-
-    // Some payment methods (or edge cases) can report Checkout `paid` while the PI is briefly `processing`.
-    // Since we already verified the Checkout session is paid, proceed to apply the donation updates
-    // (idempotent if already succeeded; webhooks may also apply later).
-
-    const client = await db.connect();
-    try {
-      await client.query("BEGIN");
-      await client.query(
-        `update donations set stripe_payment_intent_id = $1
-         where stripe_payment_intent_id = $2 and status = 'pending'`,
-        [piId, body.sessionId]
-      );
-      await applyDonationFromSucceededPaymentIntent(client, piObj as unknown as Record<string, unknown>);
-      await client.query("COMMIT");
+      out = await finalizeDonationFromCheckoutSession(stripe, body.sessionId);
     } catch (e: unknown) {
-      await client.query("ROLLBACK").catch(() => {});
-      app.log.error({ err: e }, "finalize-checkout-donation");
+      if (e instanceof FinalizeCheckoutDonationError) {
+        if (e.code === "SESSION_NOT_FOUND" || e.code === "PI_NOT_FOUND") {
+          return reply.code(400).send({ error: e.message });
+        }
+        if (e.code === "NOT_PAID") {
+          return reply.code(400).send({
+            error: e.message,
+            paymentStatus: e.paymentStatus,
+          });
+        }
+        if (e.code === "NO_PAYMENT_INTENT" || e.code === "WALLET_TOPUP") {
+          return reply.code(400).send({ error: e.message });
+        }
+      }
       return reply.code(500).send({ error: e instanceof Error ? e.message : "Finalize failed" });
-    } finally {
-      client.release();
     }
 
-    return { ok: true, paymentIntentId: piId, piStatus: (piObj as any)?.status };
+    notifyDonationFromPaymentIntent(out.paymentIntentId).catch((err) => {
+      app.log.error({ err }, "notifyDonationFromPaymentIntent finalize-checkout-donation");
+    });
+
+    return { ok: true, paymentIntentId: out.paymentIntentId, piStatus: out.piStatus };
   });
 
   /**
@@ -2412,7 +2598,7 @@ export const stripeRoutes: FastifyPluginAsync = async (app) => {
     return { ok: true };
   });
 
-  app.post("/api/webhooks/stripe", async (request, reply) => {
+  const stripeWebhookHandler = async (request: any, reply: any) => {
     const rawBody = request.rawBody as string | undefined;
     if (!rawBody) {
       return reply.code(400).send({ error: "Missing raw body" });
@@ -2757,5 +2943,9 @@ export const stripeRoutes: FastifyPluginAsync = async (app) => {
     }
 
     return { received: true };
-  });
+  };
+
+  app.post("/api/webhooks/stripe", stripeWebhookHandler);
+  /** Legacy/alternate dashboard URL — same handler + raw body as `/api/webhooks/stripe`. */
+  app.post("/api/stripe/webhook", stripeWebhookHandler);
 };

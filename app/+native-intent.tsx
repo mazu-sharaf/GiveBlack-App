@@ -15,6 +15,12 @@ export function redirectSystemPath({
   path: string;
   initial: boolean;
 }) {
+  // /link/checkout-result  →  /checkout-result (Stripe Checkout return)
+  const checkoutLink = path.match(/^\/link\/checkout-result(.*)/);
+  if (checkoutLink) {
+    return `/checkout-result${checkoutLink[1] ?? ""}`;
+  }
+
   // /link/c/:id  →  /campaign/:id  (universal-link deep links)
   const campaignLink = path.match(/^\/link\/c\/([^/?#]+)(.*)/);
   if (campaignLink) {

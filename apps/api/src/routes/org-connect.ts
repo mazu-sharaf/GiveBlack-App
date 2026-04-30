@@ -52,6 +52,8 @@ export const orgConnectRoutes: FastifyPluginAsync = async (app) => {
 </body>
 </html>`;
     reply.header("Content-Type", "text/html; charset=utf-8");
+    reply.header("Cache-Control", "no-store, max-age=0");
+    reply.header("Pragma", "no-cache");
     return reply.send(html);
   });
 

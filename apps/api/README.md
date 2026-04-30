@@ -39,7 +39,7 @@ The same step runs automatically when executing `apps/api/scripts/seed-demo-camp
 - `POST /api/auth/login`
 - `POST /api/auth/refresh`
 - `POST /api/payments/create-intent`
-- `POST /api/webhooks/stripe` — production URL behind Nginx: `https://giveblackapp.com/app/api/webhooks/stripe`
+- `POST /api/webhooks/stripe` — production URL behind Nginx: `https://giveblackapp.com/app/api/webhooks/stripe` (canonical). The API also accepts the legacy alias `POST /api/stripe/webhook` (same handler; raw body enabled for both).
 - `POST /api/notifications/push-token`
 - `POST /api/admin/notifications/broadcast`
 
