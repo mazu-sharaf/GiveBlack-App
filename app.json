@@ -18,7 +18,7 @@
       "supportsTablet": false,
       "usesAppleSignIn": true,
       "appleTeamId": "W5NB3UT9SS",
-      "buildNumber": "12",
+      "buildNumber": "16",
       "bundleIdentifier": "com.giveblack.app",
       "associatedDomains": [
         "applinks:giveblackapp.com",
@@ -26,6 +26,7 @@
       ],
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
+        "NSPhotoLibraryUsageDescription": "GiveBlack uses your photo library only when you choose to upload an image in the app—for example, selecting a profile photo or uploading an image for a charity profile or campaign. We can only access the photos you select, and we do not scan or upload your entire library.",
         "CFBundleURLTypes": [
           {
             "CFBundleURLSchemes": [

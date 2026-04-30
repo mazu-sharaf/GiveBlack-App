@@ -105,12 +105,12 @@ export default function CommunityCampaignsPage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Title</TableHead>
-                    <TableHead className="hidden sm:table-cell">Creator</TableHead>
+                    <TableHead>Creator</TableHead>
                     <TableHead className="text-right">Goal</TableHead>
                     <TableHead className="text-right">Raised</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Verified</TableHead>
-                    <TableHead className="hidden md:table-cell">Created</TableHead>
+                    <TableHead>Created</TableHead>
                     <TableHead className="w-16"></TableHead>
                   </TableRow>
                 </TableHeader>
@@ -123,12 +123,12 @@ export default function CommunityCampaignsPage() {
                           <p className="text-xs text-muted-foreground">{c.category_name || ""}</p>
                         </div>
                       </TableCell>
-                      <TableCell className="hidden sm:table-cell text-muted-foreground text-sm">{c.creator_name || "--"}</TableCell>
+                      <TableCell className="text-muted-foreground text-sm whitespace-nowrap">{c.creator_name || "--"}</TableCell>
                       <TableCell className="text-right text-muted-foreground">${Number(c.goal || c.goal_amount || 0).toLocaleString()}</TableCell>
                       <TableCell className="text-right font-medium text-primary">${Number(c.raised || c.raised_amount || 0).toLocaleString()}</TableCell>
                       <TableCell><Badge variant="outline" className={statusColors[c.status] || ""}>{c.status}</Badge></TableCell>
                       <TableCell><Badge variant="outline" className={verifyColors[c.verification_status] || ""}>{c.verification_status}</Badge></TableCell>
-                      <TableCell className="hidden md:table-cell text-muted-foreground text-sm">
+                      <TableCell className="text-muted-foreground text-sm whitespace-nowrap">
                         {c.created_at ? format(new Date(c.created_at), "MMM d, yyyy") : "--"}
                       </TableCell>
                       <TableCell>

@@ -145,7 +145,7 @@ export default function StaffPage() {
                     <TableHead>Name</TableHead>
                     <TableHead>Email</TableHead>
                     <TableHead>Role</TableHead>
-                    <TableHead className="hidden sm:table-cell">Joined</TableHead>
+                    <TableHead>Joined</TableHead>
                     <TableHead>Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -157,7 +157,7 @@ export default function StaffPage() {
                       <TableCell>
                         <Badge variant="outline" className={ROLE_COLORS[s.role] || ""}>{s.role}</Badge>
                       </TableCell>
-                      <TableCell className="hidden sm:table-cell text-muted-foreground text-sm">
+                      <TableCell className="text-muted-foreground text-sm whitespace-nowrap">
                         {s.created_at ? format(new Date(s.created_at), "MMM d, yyyy") : "--"}
                       </TableCell>
                       <TableCell>
@@ -258,7 +258,7 @@ export default function StaffPage() {
                 <AlertDialogHeader>
                   <AlertDialogTitle>Apply changes?</AlertDialogTitle>
                   <AlertDialogDescription>
-                    This will {editItem ? "update this staff member" : "create a new staff member"} and change their access.
+                    This will {editItem ? "update this staff member" : "create a new staff member or upgrade an existing donor account with this email"} and change their access.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>

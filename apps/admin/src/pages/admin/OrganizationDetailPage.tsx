@@ -24,6 +24,7 @@ export default function OrganizationDetailPage() {
     id: "", name: "", description: "", category_id: "", goal: 0, raised: 0,
     image_color: "#333333", initials: "", featured: false, verified: false, image_url: "",
     cover_image_url: "",
+    contact_name: "", contact_email: "",
     bank_name: "", account_holder_name: "", account_last4: "", routing_number: "",
     tax_id: "",
     stripe_account_id: "",
@@ -68,6 +69,7 @@ export default function OrganizationDetailPage() {
               image_color: String(d.image_color || "#333333"), initials: String(d.initials || ""),
               featured: Boolean(d.featured), verified: Boolean(d.verified), image_url: String(d.image_url || ""),
               cover_image_url: String(d.cover_image_url || ""),
+              contact_name: String(d.contact_name || ""), contact_email: String(d.contact_email || ""),
               bank_name: String(d.bank_name || ""), account_holder_name: String(d.account_holder_name || ""),
               account_last4: String(d.account_last4 || ""), routing_number: String(d.routing_number || ""),
               tax_id: String(d.tax_id || ""),
@@ -152,6 +154,8 @@ export default function OrganizationDetailPage() {
         initials: form.initials || form.name.slice(0, 2).toUpperCase(),
         featured: form.featured, verified: form.verified, image_url: form.image_url || null,
         cover_image_url: form.cover_image_url || null,
+        contact_name: form.contact_name || null,
+        contact_email: form.contact_email || null,
         bank_name: form.bank_name || null,
         account_holder_name: form.account_holder_name || null,
         account_last4: form.account_last4 || null,
@@ -365,6 +369,20 @@ export default function OrganizationDetailPage() {
             <div className="space-y-2">
               <Label>Raised ($)</Label>
               <Input type="number" value={form.raised} onChange={(e) => set("raised", Number(e.target.value))} />
+            </div>
+          </div>
+
+          <div className="border-t border-border pt-4 space-y-4">
+            <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Contact Person</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Contact Name</Label>
+                <Input value={form.contact_name} onChange={(e) => set("contact_name", e.target.value)} placeholder="e.g. Jane Doe" />
+              </div>
+              <div className="space-y-2">
+                <Label>Contact Email</Label>
+                <Input value={form.contact_email} onChange={(e) => set("contact_email", e.target.value)} placeholder="e.g. contact@org.com" />
+              </div>
             </div>
           </div>
 

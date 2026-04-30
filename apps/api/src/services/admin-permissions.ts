@@ -48,6 +48,13 @@ function mergeOverrides(base: AdminPermissionMap, overrides: unknown): AdminPerm
 export async function getEffectiveAdminPermissions(userId: string): Promise<AdminPermissionMap> {
   const res = await db.query("select role, admin_permissions from users where id = $1 limit 1", [userId]);
   const row = res.rows[0] as { role?: string; admin_permissions?: unknown } | undefined;
+  const r = String(row?.role || "").toLowerCase();
+  // Full platform roles: always effective full access. JSON overrides are for manager/staff only;
+  // applying false overrides to admin/super_admin caused "can load Staff page but Forbidden on Save"
+  // (db/query bypasses checks for these roles; staff POST does not).
+  if (r === "admin" || r === "super_admin") {
+    return { ...ALL_TRUE };
+  }
   const base = baseAdminPermissionsForRole(row?.role || "");
   return mergeOverrides(base, row?.admin_permissions);
 }

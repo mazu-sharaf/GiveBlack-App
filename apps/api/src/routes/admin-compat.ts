@@ -1457,10 +1457,33 @@ export const adminCompatRoutes: FastifyPluginAsync = async (app) => {
       if (!["admin", "manager", "staff"].includes(body.role || "")) {
         return reply.code(400).send({ error: "role must be admin, manager, or staff" });
       }
+      const email = body.email.toLowerCase().trim();
+      const staffRoles = ["admin", "super_admin", "manager", "staff"];
+      const existing = await db.query<{ id: string; role: string }>(
+        "select id, role from users where lower(email) = $1 limit 1",
+        [email]
+      );
+      if (existing.rowCount) {
+        const row = existing.rows[0];
+        if (staffRoles.includes(row.role)) {
+          return reply.code(409).send({ error: "This user is already a staff member" });
+        }
+        if (row.role === "charity_owner") {
+          return reply.code(409).send({
+            error:
+              "This email is a charity account. Add a different email for staff, or change the account role outside the staff form.",
+          });
+        }
+        await db.query(
+          `update users set full_name = $1, role = $2, admin_permissions = $3::jsonb, updated_at = now() where id = $4`,
+          [body.name, body.role, JSON.stringify(body.permissions ?? null), row.id]
+        );
+        return { success: true };
+      }
       try {
         await db.query(
           `insert into users (email, full_name, password_hash, role, admin_permissions) values ($1, $2, null, $3, $4::jsonb)`,
-          [body.email.toLowerCase(), body.name, body.role, JSON.stringify(body.permissions ?? null)]
+          [email, body.name, body.role, JSON.stringify(body.permissions ?? null)]
         );
         return { success: true };
       } catch (e: unknown) {
@@ -1497,11 +1520,36 @@ export const adminCompatRoutes: FastifyPluginAsync = async (app) => {
     async (request, reply) => {
       const email = (request.query as Record<string, string>)?.email;
       if (!email) return reply.code(400).send({ error: "email query parameter required" });
+      const emailNorm = email.toLowerCase().trim();
       const currentUser = request.user as { sub: string; email: string };
-      if (email.toLowerCase() === currentUser.email?.toLowerCase()) {
+      if (emailNorm === currentUser.email?.toLowerCase()) {
         return reply.code(400).send({ error: "Cannot delete your own account" });
       }
-      await db.query(`delete from users where email = $1`, [email.toLowerCase()]);
+      const u = await db.query<{ id: string; role: string; password_hash: string | null }>(
+        "select id, role, password_hash from users where lower(email) = $1 limit 1",
+        [emailNorm]
+      );
+      if (!u.rowCount) return reply.code(404).send({ error: "User not found" });
+      const row = u.rows[0];
+      const removableRoles = ["admin", "manager", "staff"];
+      if (!removableRoles.includes(row.role)) {
+        if (row.role === "super_admin") {
+          return reply.code(400).send({ error: "Cannot remove a super admin from this screen" });
+        }
+        return reply.code(400).send({ error: "Not a staff account" });
+      }
+      const oauth = await db.query("select 1 from oauth_identities where user_id = $1 limit 1", [row.id]);
+      const don = await db.query("select count(*)::int as c from donations where user_id = $1", [row.id]);
+      const donationCount = Number((don.rows[0] as { c?: number } | undefined)?.c ?? 0);
+      const hasRealAccount = Boolean(row.password_hash) || Boolean(oauth.rowCount) || donationCount > 0;
+      if (hasRealAccount) {
+        await db.query(
+          `update users set role = 'donor', admin_permissions = null, updated_at = now() where id = $1`,
+          [row.id]
+        );
+      } else {
+        await db.query(`delete from users where id = $1`, [row.id]);
+      }
       return { success: true };
     }
   );
@@ -1819,12 +1867,12 @@ export const adminCompatRoutes: FastifyPluginAsync = async (app) => {
         const { emailLayout } = await import("../services/email-template.js");
         const content = `
           <h2 style="color:#ffffff;margin:0 0 8px 0;font-size:22px;">Test email</h2>
-          <p style="color:#cccccc;margin:0 0 16px 0;font-size:16px;">This is a test from the GiveBlack admin panel. If you received this, Brevo is connected and email is working.</p>
+          <p style="color:#cccccc;margin:0 0 16px 0;font-size:16px;">This is a test from the GiveBlack admin panel. If you received this, outbound email from GiveBlack is working.</p>
           <p style="color:#999999;font-size:14px;">Sent at ${new Date().toISOString()}</p>
         `;
         await sendBrevoEmail({
           to: email,
-          subject: "GiveBlack – Test email (Brevo connected)",
+          subject: "GiveBlack – Test email",
           html: emailLayout(content),
           tags: ["giveblack", "test-admin"],
         });
@@ -1855,7 +1903,7 @@ export const adminCompatRoutes: FastifyPluginAsync = async (app) => {
       const { emailLayout } = await import("../services/email-template.js");
       const content = `
         <h2 style="color:#ffffff;margin:0 0 8px 0;font-size:22px;">Test email (all)</h2>
-        <p style="color:#cccccc;margin:0 0 16px 0;font-size:16px;">This is a test from the GiveBlack admin panel sent to all admin emails. If you received this, Brevo is connected and email is working.</p>
+        <p style="color:#cccccc;margin:0 0 16px 0;font-size:16px;">This is a test from the GiveBlack admin panel sent to all admin emails. If you received this, outbound email from GiveBlack is working.</p>
         <p style="color:#999999;font-size:14px;">Sent at ${new Date().toISOString()}</p>
       `;
       let sent = 0;
@@ -1866,7 +1914,7 @@ export const adminCompatRoutes: FastifyPluginAsync = async (app) => {
         try {
           await sendBrevoEmail({
             to: email,
-            subject: "GiveBlack – Test email (Brevo connected)",
+            subject: "GiveBlack – Test email",
             html: emailLayout(content),
             tags: ["giveblack", "test-admin"],
           });

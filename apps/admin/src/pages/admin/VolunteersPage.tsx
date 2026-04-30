@@ -166,11 +166,11 @@ export default function VolunteersPage() {
                   <TableRow>
                     <TableHead>Name</TableHead>
                     <TableHead>Email</TableHead>
-                    <TableHead className="hidden sm:table-cell">Skills</TableHead>
+                    <TableHead>Skills</TableHead>
                     <TableHead>Status</TableHead>
-                    <TableHead className="hidden md:table-cell">Organization</TableHead>
-                    <TableHead className="hidden lg:table-cell">Campaign</TableHead>
-                    <TableHead className="hidden lg:table-cell">Date</TableHead>
+                    <TableHead>Organization</TableHead>
+                    <TableHead>Campaign</TableHead>
+                    <TableHead>Date</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -178,7 +178,7 @@ export default function VolunteersPage() {
                     <TableRow key={v.id}>
                       <TableCell className="font-medium">{v.name || "--"}</TableCell>
                       <TableCell className="text-muted-foreground">{v.email || "--"}</TableCell>
-                      <TableCell className="hidden sm:table-cell text-muted-foreground truncate max-w-[150px]">{v.skills || "--"}</TableCell>
+                      <TableCell className="text-muted-foreground truncate max-w-[180px]">{v.skills || "--"}</TableCell>
                       <TableCell>
                         <Select value={v.status || "pending"} onValueChange={(val) => handleStatusChange(v.id, val)}>
                           <SelectTrigger className="w-[110px] h-8 text-xs">
@@ -192,7 +192,7 @@ export default function VolunteersPage() {
                           </SelectContent>
                         </Select>
                       </TableCell>
-                      <TableCell className="hidden md:table-cell">
+                      <TableCell>
                         <Select value={v.org_id || "__none__"} onValueChange={(val) => handleOrgAssign(v.id, val === "__none__" ? "" : val)}>
                           <SelectTrigger className="w-[140px] h-8 text-xs">
                             <SelectValue placeholder="Unassigned" />
@@ -205,10 +205,10 @@ export default function VolunteersPage() {
                           </SelectContent>
                         </Select>
                       </TableCell>
-                      <TableCell className="hidden lg:table-cell text-muted-foreground text-sm">
+                      <TableCell className="text-muted-foreground text-sm whitespace-nowrap">
                         {getCampaignName(v)}
                       </TableCell>
-                      <TableCell className="hidden lg:table-cell text-muted-foreground text-sm whitespace-nowrap">
+                      <TableCell className="text-muted-foreground text-sm whitespace-nowrap">
                         {v.created_at ? format(new Date(v.created_at), "MMM d, yyyy") : "--"}
                       </TableCell>
                     </TableRow>

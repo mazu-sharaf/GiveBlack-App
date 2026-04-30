@@ -104,8 +104,8 @@ export default function LedgerPage() {
                     <TableHead>Date</TableHead>
                     <TableHead>Account Type</TableHead>
                     <TableHead className="text-right">Amount</TableHead>
-                    <TableHead className="hidden sm:table-cell">Released</TableHead>
-                    <TableHead className="hidden md:table-cell">Donation ID</TableHead>
+                    <TableHead>Released</TableHead>
+                    <TableHead>Donation ID</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -122,12 +122,12 @@ export default function LedgerPage() {
                         <TableCell className={`text-right font-medium ${amt >= 0 ? "text-primary" : "text-red-400"}`}>
                           {amt >= 0 ? "+" : "-"}${Math.abs(amt).toFixed(2)}
                         </TableCell>
-                        <TableCell className="hidden sm:table-cell">
+                        <TableCell>
                           <Badge variant="outline" className={e.released ? "bg-primary/20 text-primary border-primary/30" : "bg-amber-500/20 text-amber-400 border-amber-500/30"}>
                             {e.released ? "Released" : "Held"}
                           </Badge>
                         </TableCell>
-                        <TableCell className="hidden md:table-cell text-muted-foreground text-xs font-mono truncate max-w-[120px]">
+                        <TableCell className="text-muted-foreground text-xs font-mono truncate max-w-[120px]">
                           {e.donation_id ? String(e.donation_id).slice(0, 12) + "..." : "--"}
                         </TableCell>
                       </TableRow>

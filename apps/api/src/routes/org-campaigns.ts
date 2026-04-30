@@ -64,8 +64,8 @@ export const orgCampaignRoutes: FastifyPluginAsync = async (app) => {
       const [result, periodRes] = await Promise.all([
         db.query(
           `select c.id, c.title, c.description, c.story, c.about, c.status, c.goal,
-                  coalesce(cd.raised, 0) as raised,
-                  coalesce(cd.donor_count, 0)::int as donor_count,
+                 (coalesce(c.raised, 0) + coalesce(cd.raised, 0)) as raised,
+                 (coalesce(c.donor_count, 0) + coalesce(cd.donor_count, 0))::int as donor_count,
                   c.main_image_url as image_url, c.location, c.created_at
            from campaigns c
            left join lateral (

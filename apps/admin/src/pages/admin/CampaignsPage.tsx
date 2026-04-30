@@ -252,12 +252,12 @@ export default function CampaignsPage() {
                       />
                     </TableHead>
                     <TableHead>Title</TableHead>
-                    <TableHead className="hidden md:table-cell">Organization</TableHead>
+                    <TableHead>Organization</TableHead>
                     <TableHead className="text-right">Goal</TableHead>
                     <TableHead className="text-right">Raised</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Link</TableHead>
-                    <TableHead className="hidden sm:table-cell">Created</TableHead>
+                    <TableHead>Created</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -285,7 +285,7 @@ export default function CampaignsPage() {
                           )}
                         </div>
                       </TableCell>
-                      <TableCell className="hidden md:table-cell text-muted-foreground text-sm">
+                      <TableCell className="text-muted-foreground text-sm whitespace-nowrap">
                         {r.organization_id}
                       </TableCell>
                       <TableCell className="text-right">${Number(r.goal).toLocaleString()}</TableCell>
@@ -376,7 +376,7 @@ export default function CampaignsPage() {
                           <span className="text-muted-foreground text-sm">—</span>
                         )}
                       </TableCell>
-                      <TableCell className="hidden sm:table-cell text-muted-foreground text-sm">
+                      <TableCell className="text-muted-foreground text-sm whitespace-nowrap">
                         {r.created_at ? format(new Date(r.created_at), "MMM d, yyyy") : "-"}
                       </TableCell>
                     </TableRow>

@@ -6,7 +6,8 @@ const TOKEN_KEY = "gb_admin_api_token";
  * Local Node serves `/api` at the origin root — `http://localhost:5000/app/api/...` returns 404. In dev,
  * strip a trailing `/app` from `VITE_API_URL`. In production builds with no env, same-host `/backoffice` uses `/app`.
  */
-function getApiBaseUrl(): string {
+/** Base URL for `/api/...` (e.g. `https://giveblackapp.com/app` or `http://localhost:5001`). */
+export function getApiBaseUrl(): string {
   let base = String(import.meta.env.VITE_API_URL || "").trim().replace(/\/$/, "");
   // Local Node serves `/api` at origin; `/app` is nginx-only. Strip only for localhost dev bases.
   if (

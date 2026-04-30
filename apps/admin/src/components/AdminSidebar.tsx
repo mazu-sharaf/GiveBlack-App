@@ -2,10 +2,11 @@ import { useNavigate, NavLink } from "react-router-dom";
 import {
   LayoutDashboard, Building2, Grid3X3, Heart, Users, FileText, CreditCard,
   LogOut, Settings, BookOpen, Zap, Megaphone, X, Shield,
-  Handshake, Mail, GraduationCap, Landmark, Bell, PieChart,
+  Handshake, Mail, GraduationCap, Landmark, Bell, PieChart, NotebookText,
 } from "lucide-react";
 import { logout, getCurrentName, getCurrentRole } from "@/lib/admin-auth";
 import { canAccessNav } from "@/lib/role-access";
+import { getApiBaseUrl } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -155,6 +156,15 @@ export function AdminSidebar({ open, onClose }: { open: boolean; onClose: () => 
             </Badge>
           </div>
         </div>
+        <a
+          href={`${getApiBaseUrl()}/adminguide/`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-sm text-[#a7acb1] transition-colors hover:bg-white/[0.05] hover:text-[#dee2e6]"
+        >
+          <NotebookText className="h-4 w-4 shrink-0" />
+          <span>Team guide</span>
+        </a>
         <button
           type="button"
           onClick={handleLogout}

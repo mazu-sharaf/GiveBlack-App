@@ -256,11 +256,11 @@ export default function CharityRequestsPage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Charity Name</TableHead>
-                    <TableHead className="hidden lg:table-cell">Category</TableHead>
-                    <TableHead className="hidden sm:table-cell">Contact</TableHead>
-                    <TableHead className="hidden md:table-cell">Description</TableHead>
+                    <TableHead>Category</TableHead>
+                    <TableHead>Contact</TableHead>
+                    <TableHead>Description</TableHead>
                     <TableHead>Status</TableHead>
-                    <TableHead className="hidden sm:table-cell">Date</TableHead>
+                    <TableHead>Date</TableHead>
                     <TableHead className="w-20">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -268,13 +268,13 @@ export default function CharityRequestsPage() {
                   {requests.map((r) => (
                     <TableRow key={r.id}>
                       <TableCell className="font-medium">{r.charity_name || "--"}</TableCell>
-                      <TableCell className="hidden lg:table-cell text-muted-foreground">{r.category || "-"}</TableCell>
-                      <TableCell className="hidden sm:table-cell text-muted-foreground">{r.contact_email || "--"}</TableCell>
-                      <TableCell className="hidden md:table-cell text-muted-foreground truncate max-w-[200px]">{r.description?.slice(0, 80) || "--"}</TableCell>
+                      <TableCell className="text-muted-foreground whitespace-nowrap">{r.category || "-"}</TableCell>
+                      <TableCell className="text-muted-foreground whitespace-nowrap">{r.contact_email || "--"}</TableCell>
+                      <TableCell className="text-muted-foreground truncate max-w-[200px]">{r.description?.slice(0, 80) || "--"}</TableCell>
                       <TableCell>
                         <Badge variant="outline" className={statusColors[r.status] || ""}>{r.status}</Badge>
                       </TableCell>
-                      <TableCell className="hidden sm:table-cell text-muted-foreground text-sm">
+                      <TableCell className="text-muted-foreground text-sm whitespace-nowrap">
                         {r.created_at ? format(new Date(r.created_at), "MMM d, yyyy") : "--"}
                       </TableCell>
                       <TableCell>
@@ -304,12 +304,12 @@ export default function CharityRequestsPage() {
       </Card>
 
       <Dialog open={!!reviewRequest} onOpenChange={() => { setReviewRequest(null); setOrgIdForReview(null); setOrgSubForReview(null); }}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="w-[95vw] max-w-2xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Review Request: {reviewRequest?.charity_name || "--"}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3 text-sm">
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <div><strong>Contact Name:</strong><br />{reviewRequest?.contact_name || "--"}</div>
               <div><strong>Contact Email:</strong><br />{reviewRequest?.contact_email || "--"}</div>
               <div><strong>Phone:</strong><br />{reviewRequest?.contact_phone || "--"}</div>
@@ -319,7 +319,7 @@ export default function CharityRequestsPage() {
             <div><strong>Description:</strong><br />{reviewRequest?.description || "--"}</div>
             <div className="border-t border-border pt-3 space-y-2">
               <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Payout / verification</div>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <div><strong>Tax ID:</strong><br />{reviewRequest?.tax_id || "-"}</div>
                 <div><strong>Routing:</strong><br />{maskDigitsLast4(reviewRequest?.routing_number)}</div>
                 <div><strong>Account last 4:</strong><br />{reviewRequest?.account_last4 || "-"}</div>
@@ -399,7 +399,7 @@ export default function CharityRequestsPage() {
             )}
           </div>
           {reviewRequest?.status === "pending" && (
-            <DialogFooter className="gap-2">
+            <DialogFooter className="gap-2 sm:gap-2 flex-col sm:flex-row">
               <Button variant="destructive" onClick={handleReject} disabled={processing}>
                 <XCircle className="h-4 w-4 mr-1" /> Reject
               </Button>

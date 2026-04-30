@@ -12,6 +12,7 @@ import { env, getCorsOrigins } from "./config/env.js";
 import { isBrevoConfigured } from "./services/brevo.js";
 import { healthRoutes } from "./routes/health.js";
 import { supportPageRoutes } from "./routes/support-page.js";
+import { adminGuidePageRoutes } from "./routes/admin-guide-page.js";
 import { authRoutes } from "./routes/auth.js";
 import { oauthRoutes } from "./routes/oauth.js";
 import { publicRoutes } from "./routes/public.js";
@@ -169,7 +170,17 @@ export function buildServer() {
       if (!uid) return reply.code(403).send({ error: "Forbidden" });
       const { getEffectiveAdminPermissions } = await import("./services/admin-permissions.js");
       const perms = await getEffectiveAdminPermissions(uid);
-      if (!perms[perm]) return reply.code(403).send({ error: "Forbidden" });
+      if (!perms[perm]) {
+        const hint: Record<string, string> = {
+          canManageUsers: "manage users / staff",
+          canChangeRoles: "change roles",
+          canAccessSettings: "platform settings",
+          canManagePayments: "payments / subscriptions",
+        };
+        return reply.code(403).send({
+          error: `Not allowed: missing "${hint[perm] || perm}". Ask a super admin to update your permissions.`,
+        });
+      }
     };
   });
 
@@ -225,6 +236,7 @@ export function buildServer() {
 
   app.register(healthRoutes);
   app.register(supportPageRoutes);
+  app.register(adminGuidePageRoutes);
   app.register(orgCampaignRoutes);
   app.register(orgVolunteerRoutes);
   app.register(orgConnectRoutes);

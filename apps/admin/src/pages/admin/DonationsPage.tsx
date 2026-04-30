@@ -168,10 +168,10 @@ export default function DonationsPage() {
                     <TableHead>Donor</TableHead>
                     <TableHead>Organization</TableHead>
                     <TableHead className="text-right">Amount</TableHead>
-                    <TableHead className="hidden md:table-cell text-right">Fee</TableHead>
+                    <TableHead className="text-right">Fee</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Date</TableHead>
-                    <TableHead className="hidden lg:table-cell max-w-[120px]">Partner</TableHead>
+                    <TableHead className="max-w-[120px]">Partner</TableHead>
                     <TableHead className="w-16">Fees</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -189,14 +189,14 @@ export default function DonationsPage() {
                       </TableCell>
                       <TableCell className="text-muted-foreground truncate max-w-[150px]">{String(d.org_name || "--")}</TableCell>
                       <TableCell className="text-right font-semibold text-primary">${Number(d.amount).toLocaleString()}</TableCell>
-                      <TableCell className="hidden md:table-cell text-right text-muted-foreground">${Number(d.platform_fee || 0).toFixed(2)}</TableCell>
+                      <TableCell className="text-right text-muted-foreground whitespace-nowrap">${Number(d.platform_fee || 0).toFixed(2)}</TableCell>
                       <TableCell>
                         <Badge variant="outline" className={STATUS_COLORS[String(d.status)] || ""}>{String(d.status || "pending")}</Badge>
                       </TableCell>
                       <TableCell className="text-muted-foreground text-sm whitespace-nowrap">
                         {d.created_at ? format(new Date(d.created_at as string), "MMM d, yyyy") : "--"}
                       </TableCell>
-                      <TableCell className="hidden lg:table-cell text-muted-foreground text-xs truncate max-w-[120px]">
+                      <TableCell className="text-muted-foreground text-xs truncate max-w-[120px]">
                         {d.education_partner_name ? String(d.education_partner_name) : "-"}
                       </TableCell>
                       <TableCell>

@@ -169,9 +169,9 @@ export default function SubscriptionsPage() {
                     <TableHead>Organization</TableHead>
                     <TableHead>Tier</TableHead>
                     <TableHead>Status</TableHead>
-                    <TableHead className="text-right hidden sm:table-cell">MRR</TableHead>
-                    <TableHead className="hidden md:table-cell">Period</TableHead>
-                    <TableHead className="hidden lg:table-cell">Stripe</TableHead>
+                    <TableHead className="text-right">MRR</TableHead>
+                    <TableHead>Period</TableHead>
+                    <TableHead>Stripe</TableHead>
                     <TableHead>Created</TableHead>
                     <TableHead>Actions</TableHead>
                   </TableRow>
@@ -191,15 +191,15 @@ export default function SubscriptionsPage() {
                       <TableCell>
                         <Badge variant="outline" className={statusColors[s.status] || ""}>{s.status}</Badge>
                       </TableCell>
-                      <TableCell className="text-right hidden sm:table-cell font-medium text-primary">
+                      <TableCell className="text-right font-medium text-primary whitespace-nowrap">
                         ${s.amount || TIER_PRICES[s.tier] || 0}
                       </TableCell>
-                      <TableCell className="hidden md:table-cell text-muted-foreground text-sm">
+                      <TableCell className="text-muted-foreground text-sm whitespace-nowrap">
                         {s.current_period_start ? format(new Date(s.current_period_start), "MMM d") : "--"}
                         {" - "}
                         {s.current_period_end ? format(new Date(s.current_period_end), "MMM d, yyyy") : "--"}
                       </TableCell>
-                      <TableCell className="hidden lg:table-cell">
+                      <TableCell>
                         <div className="flex items-center gap-1">
                           {s.stripe_subscription_id && (
                             <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openStripePortal(s.stripe_subscription_id)}>

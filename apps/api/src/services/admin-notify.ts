@@ -3,7 +3,7 @@ import { env } from "../config/env.js";
 import { isBrevoConfigured, sendBrevoEmail } from "./brevo.js";
 import { emailLayout, ctaButton } from "./email-template.js";
 
-/** Origin for the admin panel (no trailing slash). Strips a trailing `/admin` if present. */
+/** Origin for the admin panel (no trailing slash). Strips a trailing `/admin` or `/backoffice` if present. */
 export function getAdminAppBase(): string {
   const fromEnv = env.ADMIN_PANEL_URL?.replace(/\/$/, "");
   if (fromEnv) return stripTrailingAdminPath(fromEnv);
@@ -18,20 +18,24 @@ function stripTrailingAdminPath(originOrUrl: string): string {
     const u = new URL(originOrUrl);
     let p = u.pathname.replace(/\/$/, "");
     if (p === "/admin" || p.endsWith("/admin")) p = p.replace(/\/admin$/, "") || "/";
+    if (p === "/backoffice" || p.endsWith("/backoffice")) p = p.replace(/\/backoffice$/, "") || "/";
     u.pathname = p;
     u.search = "";
     u.hash = "";
     return u.origin;
   } catch {
-    return originOrUrl.replace(/\/admin\/?$/, "").replace(/\/$/, "");
+    return originOrUrl
+      .replace(/\/admin\/?$/, "")
+      .replace(/\/backoffice\/?$/, "")
+      .replace(/\/$/, "");
   }
 }
 
-/** Absolute URL into the mounted admin SPA (`/admin/...` routes). */
+/** Absolute URL into the mounted admin SPA (`/backoffice/...` routes). */
 function adminSpaUrl(pathname: string): string {
   const base = getAdminAppBase();
   const path = pathname.startsWith("/") ? pathname : `/${pathname}`;
-  return `${base}/admin${path}`;
+  return `${base}/backoffice${path}`;
 }
 
 async function getAdminRecipientEmails(): Promise<string[]> {

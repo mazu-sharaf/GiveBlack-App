@@ -26,7 +26,7 @@ function generateReference() {
 }
 
 export default function CheckoutResultScreen() {
-  const { session_id } = useLocalSearchParams<{ session_id?: string }>();
+  const { session_id, cancelled } = useLocalSearchParams<{ session_id?: string; cancelled?: string }>();
   const c = useThemeColors();
   const { user, session, refreshPendingDonationCount, refreshDonationSummary } = useAuth();
   const [status, setStatus] = useState<Status>("loading");
@@ -44,6 +44,11 @@ export default function CheckoutResultScreen() {
 
   useEffect(() => {
     async function loadStatus() {
+      if (cancelled === "1" || cancelled === "true") {
+        setStatus("failed");
+        setErrorMsg("Checkout was cancelled.");
+        return;
+      }
       if (!session_id) {
         setStatus("failed");
         setErrorMsg("Missing payment session. If you completed payment, it may take a moment to appear.");
@@ -51,26 +56,44 @@ export default function CheckoutResultScreen() {
       }
       try {
         const base = getApiUrl().replace(/\/$/, "");
-        const res = await fetch(`${base}/api/payments/checkout-status?session_id=${encodeURIComponent(String(session_id))}`);
-        if (!res.ok) {
-          const data = await res.json().catch(() => ({}));
-          throw new Error(data.error || "Could not verify payment status");
-        }
-        const data = await res.json();
+        const statusUrl = `${base}/api/payments/checkout-status?session_id=${encodeURIComponent(String(session_id))}`;
+
+        const fetchStatus = async () => {
+          const res = await fetch(statusUrl);
+          if (!res.ok) {
+            const data = await res.json().catch(() => ({}));
+            throw new Error(data.error || "Could not verify payment status");
+          }
+          return res.json() as Promise<{
+            paymentStatus?: string;
+            amountTotal?: number | null;
+            currency?: string | null;
+            donation?: { status?: string; amount?: number; currency?: string; org_id?: string | null } | null;
+          }>;
+        };
+
+        let data = await fetchStatus();
+
+        // If Checkout is paid but donation is still pending, attempt to finalize server-side
+        // and poll briefly so the donation history doesn't remain stuck in "pending".
         if (data.paymentStatus === "paid" && data.donation?.status === "pending") {
-          try {
-            await fetch(`${base}/api/payments/finalize-checkout-donation`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ sessionId: String(session_id) }),
-            });
-          } catch {
-            /* webhook or reconcile may still apply */
+          for (let i = 0; i < 10; i++) {
+            try {
+              await fetch(`${base}/api/payments/finalize-checkout-donation`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ sessionId: String(session_id) }),
+              });
+            } catch {
+              // ignore and re-check status; webhook may apply
+            }
+            await new Promise((r) => setTimeout(r, 650));
+            data = await fetchStatus();
+            if (data.donation?.status === "succeeded") break;
           }
         }
-        const paid =
-          data.paymentStatus === "paid" ||
-          data.donation?.status === "succeeded";
+
+        const paid = data.paymentStatus === "paid" || data.donation?.status === "succeeded";
         setAmount(typeof data.amountTotal === "number" ? data.amountTotal : data.donation?.amount ?? null);
         setCurrency(data.currency || "usd");
         if (data.donation?.org_id) {
@@ -82,8 +105,11 @@ export default function CheckoutResultScreen() {
             }
           } catch {}
         }
-        setStatus(paid ? "success" : "failed");
-        if (!paid) {
+
+        if (paid) {
+          setStatus("success");
+        } else {
+          setStatus("failed");
           setErrorMsg("Your payment was not completed. You can safely try again.");
         }
         void refreshPendingDonationCount();
@@ -94,7 +120,7 @@ export default function CheckoutResultScreen() {
       }
     }
     loadStatus();
-  }, [session_id, refreshPendingDonationCount]);
+  }, [session_id, cancelled, refreshPendingDonationCount]);
 
   useEffect(() => {
     if (status !== "success") {
