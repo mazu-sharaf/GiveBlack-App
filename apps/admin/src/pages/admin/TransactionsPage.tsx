@@ -82,9 +82,9 @@ export default function TransactionsPage() {
                     <TableHead>Date</TableHead>
                     <TableHead className="text-right">Amount</TableHead>
                     <TableHead>Status</TableHead>
-                    <TableHead className="hidden sm:table-cell">Type</TableHead>
-                    <TableHead className="hidden md:table-cell">Payment ID</TableHead>
-                    <TableHead className="hidden lg:table-cell">Org</TableHead>
+                    <TableHead>Type</TableHead>
+                    <TableHead>Payment ID</TableHead>
+                    <TableHead>Org</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -97,11 +97,11 @@ export default function TransactionsPage() {
                       <TableCell>
                         <Badge variant="outline" className={statusColors[t.status] || ""}>{t.status || "unknown"}</Badge>
                       </TableCell>
-                      <TableCell className="hidden sm:table-cell text-muted-foreground">{t.type || t.transaction_type || "--"}</TableCell>
-                      <TableCell className="hidden md:table-cell text-muted-foreground text-xs font-mono truncate max-w-[150px]">
+                      <TableCell className="text-muted-foreground whitespace-nowrap">{t.type || t.transaction_type || "--"}</TableCell>
+                      <TableCell className="text-muted-foreground text-xs font-mono truncate max-w-[150px]">
                         {t.stripe_payment_intent_id || "--"}
                       </TableCell>
-                      <TableCell className="hidden lg:table-cell text-muted-foreground truncate max-w-[120px]">{t.org_id || "--"}</TableCell>
+                      <TableCell className="text-muted-foreground truncate max-w-[120px]">{t.org_id || "--"}</TableCell>
                     </TableRow>
                   ))}
                   {transactions.length === 0 && (

@@ -81,8 +81,8 @@ export default function SettingsTab() {
           setOrgCoverUrl(data.org.cover_image_url ? String(data.org.cover_image_url) : null);
           setManualStripeAccountId(String(data.org.stripe_account_id ?? ""));
         }
-        if (data.org?.image_url) {
-          setOrgImageUrl(data.org.image_url);
+        if (data.org) {
+          setOrgImageUrl(data.org.image_url ? String(data.org.image_url) : null);
         }
       }
     } catch {}
@@ -168,7 +168,8 @@ export default function SettingsTab() {
   useFocusEffect(
     useCallback(() => {
       void loadConnectStatus();
-    }, [loadConnectStatus])
+      void loadOrgProfile();
+    }, [loadConnectStatus, loadOrgProfile])
   );
 
   async function openStripeOnboarding() {
@@ -451,10 +452,20 @@ export default function SettingsTab() {
           style={[styles.profileCard, { backgroundColor: c.cardBg }]}
           onPress={() => router.push("/(org)/organization-profile")}
         >
-          <View style={[styles.avatar, { backgroundColor: c.green }]}>
-            <Text style={styles.avatarText}>
-              {(user?.charityName || user?.name || "O").charAt(0).toUpperCase()}
-            </Text>
+          <View style={[styles.avatar, { backgroundColor: c.green, overflow: "hidden" }]}>
+            {resolvedOrgImage ? (
+              <Image
+                source={{ uri: resolvedOrgImage }}
+                style={styles.avatarImage}
+                contentFit="cover"
+                cachePolicy="memory-disk"
+                transition={200}
+              />
+            ) : (
+              <Text style={styles.avatarText}>
+                {(user?.charityName || user?.name || "O").charAt(0).toUpperCase()}
+              </Text>
+            )}
           </View>
           <View style={{ flex: 1 }}>
             <Text style={[styles.profileName, { color: c.text }]} numberOfLines={1}>

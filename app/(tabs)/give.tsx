@@ -69,7 +69,15 @@ function CampaignCard({ campaign, index }: { campaign: any; index: number }) {
         ]}
       >
         {imageUrl ? (
-          <Image source={{ uri: imageUrl }} style={styles.campaignImage} contentFit="cover" />
+          <Image
+            source={{ uri: imageUrl }}
+            style={styles.campaignImage}
+            contentFit="cover"
+            cachePolicy="memory-disk"
+            recyclingKey={campaign.id}
+            transition={200}
+            placeholder={{ blurhash: "L6PZfSi_.AyE_3t7t7R**0o#DgR4" }}
+          />
         ) : (
           <View style={[styles.campaignImagePlaceholder, { backgroundColor: c.surface }]}>
             <Ionicons name="heart" size={32} color={c.green} />

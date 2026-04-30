@@ -523,19 +523,24 @@ export default function CampaignDetailPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" onClick={() => navigate("/campaigns")}>
-          <ArrowLeft className="h-5 w-5" />
-        </Button>
-        <div className="flex-1">
-          <h2 className="text-2xl font-bold">{isNew ? "New Campaign" : form.title || "Campaign"}</h2>
-          {campaign && (
-            <div className="flex items-center gap-2 mt-1">
-              <Badge variant="outline" className={STATUS_COLORS[campaign.status] || ""}>{campaign.status}</Badge>
-            </div>
-          )}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <div className="flex items-start gap-3 min-w-0 flex-1">
+          <Button variant="ghost" size="icon" onClick={() => navigate("/campaigns")} className="shrink-0">
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+          <div className="min-w-0 flex-1">
+            <h2 className="text-xl sm:text-2xl font-bold leading-tight break-words">
+              {isNew ? "New Campaign" : form.title || "Campaign"}
+            </h2>
+            {campaign && (
+              <div className="flex items-center gap-2 mt-1">
+                <Badge variant="outline" className={STATUS_COLORS[campaign.status] || ""}>{campaign.status}</Badge>
+              </div>
+            )}
+          </div>
         </div>
-        <div className="flex gap-2">
+
+        <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:justify-end">
           {campaign?.status === "active" && (
             <>
               <Button variant="outline" size="sm" onClick={() => void handleSharePublicLink()}>
@@ -637,22 +642,27 @@ export default function CampaignDetailPage() {
                   />
                 </div>
               )}
-              {isNew && (
-                <div>
-                  <label className="text-sm text-muted-foreground mb-1 block">Organization</label>
-                  <select
-                    className="w-full border rounded-md px-3 py-2 bg-background text-foreground"
-                    aria-label="Organization"
-                    value={form.organization_id}
-                    onChange={(e) => update("organization_id", e.target.value)}
-                  >
-                    <option value="">Select organization...</option>
-                    {organizations.map((o) => (
-                      <option key={o.id} value={o.id}>{o.name}</option>
-                    ))}
-                  </select>
-                </div>
-              )}
+              <div>
+                <label className="text-sm text-muted-foreground mb-1 block">Organization</label>
+                <select
+                  className="w-full border rounded-md px-3 py-2 bg-background text-foreground disabled:opacity-70"
+                  aria-label="Organization"
+                  value={form.organization_id}
+                  onChange={(e) => update("organization_id", e.target.value)}
+                  disabled={!isNew}
+                  title={!isNew ? "Organization cannot be changed after creation" : undefined}
+                >
+                  <option value="">Select organization...</option>
+                  {organizations.map((o) => (
+                    <option key={o.id} value={o.id}>{o.name}</option>
+                  ))}
+                </select>
+                {!isNew && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Organization cannot be changed after creation.
+                  </p>
+                )}
+              </div>
               <div>
                 <label className="text-sm text-muted-foreground mb-1 block">Title</label>
                 <Input value={form.title} onChange={(e) => update("title", e.target.value)} placeholder="Campaign title" />
@@ -661,7 +671,7 @@ export default function CampaignDetailPage() {
                 <label className="text-sm text-muted-foreground mb-1 block">Short Description</label>
                 <Input value={form.description} onChange={(e) => update("description", e.target.value)} placeholder="Brief one-line description" />
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="text-sm text-muted-foreground mb-1 block">Goal ($)</label>
                   <Input type="number" value={form.goal} onChange={(e) => update("goal", e.target.value)} placeholder="50000" />

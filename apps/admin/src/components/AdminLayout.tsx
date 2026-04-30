@@ -75,7 +75,7 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
 
   const handleLogout = () => {
     logout();
-    window.location.href = "/admin/login";
+    window.location.href = "/backoffice/login";
   };
 
   const pathParts = location.pathname.split("/").filter(Boolean);
@@ -124,13 +124,13 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
           <Breadcrumb className="hidden min-w-0 flex-1 sm:flex">
             <BreadcrumbList className="text-sm text-[#a7acb1] [&_a]:text-[#dee2e6] [&_a:hover]:text-white [&_svg]:text-white/80">
               <BreadcrumbItem>
-                <BreadcrumbLink href="/admin/">Dashboard</BreadcrumbLink>
+                <BreadcrumbLink href="/backoffice/">Dashboard</BreadcrumbLink>
               </BreadcrumbItem>
               {parentLabel && (
                 <>
                   <BreadcrumbSeparator />
                   <BreadcrumbItem>
-                    <BreadcrumbLink href={`/admin${parentPath}`}>{parentLabel}</BreadcrumbLink>
+                    <BreadcrumbLink href={`/backoffice${parentPath}`}>{parentLabel}</BreadcrumbLink>
                   </BreadcrumbItem>
                 </>
               )}

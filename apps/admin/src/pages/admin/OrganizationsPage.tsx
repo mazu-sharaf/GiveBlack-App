@@ -289,10 +289,10 @@ export default function OrganizationsPage() {
                       />
                     </TableHead>
                     <TableHead>Organization</TableHead>
-                    <TableHead className="hidden sm:table-cell">Category</TableHead>
-                    <TableHead className="hidden sm:table-cell">Goal</TableHead>
-                    <TableHead className="hidden sm:table-cell">Raised</TableHead>
-                    <TableHead className="hidden md:table-cell">Progress</TableHead>
+                    <TableHead>Category</TableHead>
+                    <TableHead>Goal</TableHead>
+                    <TableHead>Raised</TableHead>
+                    <TableHead>Progress</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead className="w-20"></TableHead>
                   </TableRow>
@@ -321,11 +321,11 @@ export default function OrganizationsPage() {
                             </div>
                           </div>
                         </TableCell>
-                        <TableCell className="hidden sm:table-cell text-muted-foreground text-sm">{getCategoryName(org.category_id)}</TableCell>
-                        <TableCell className="hidden sm:table-cell text-muted-foreground">${Number(org.goal || 0).toLocaleString()}</TableCell>
-                        <TableCell className="hidden sm:table-cell font-medium text-primary">${raised.toLocaleString()}</TableCell>
-                        <TableCell className="hidden md:table-cell">
-                          <div className="flex items-center gap-2 min-w-[120px]">
+                        <TableCell className="text-muted-foreground text-sm whitespace-nowrap">{getCategoryName(org.category_id)}</TableCell>
+                        <TableCell className="text-muted-foreground whitespace-nowrap">${Number(org.goal || 0).toLocaleString()}</TableCell>
+                        <TableCell className="font-medium text-primary whitespace-nowrap">${raised.toLocaleString()}</TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2 min-w-[140px]">
                             <Progress value={progress} className="h-2 flex-1" />
                             <span className="text-xs text-muted-foreground w-10">{progress.toFixed(0)}%</span>
                           </div>

@@ -70,8 +70,8 @@ export const publicRoutes: FastifyPluginAsync = async (app) => {
         `select c.id, c.title, c.description, c.story, c.about, c.main_image_url,
                 c.location, c.goal,
                 c.featured,
-                coalesce(cd.raised, 0) as raised,
-                coalesce(cd.donor_count, 0)::int as donor_count,
+                (coalesce(c.raised, 0) + coalesce(cd.raised, 0)) as raised,
+                (coalesce(c.donor_count, 0) + coalesce(cd.donor_count, 0))::int as donor_count,
                 c.status,
                 c.organization_id, c.created_at,
                 o.name as org_name, o.image_url as org_image_url,
@@ -106,8 +106,8 @@ export const publicRoutes: FastifyPluginAsync = async (app) => {
         `select c.id, c.title, c.description, c.story, c.about, c.main_image_url,
                 c.location, c.goal,
                 c.featured,
-                coalesce(cd.raised, 0) as raised,
-                coalesce(cd.donor_count, 0)::int as donor_count,
+                (coalesce(c.raised, 0) + coalesce(cd.raised, 0)) as raised,
+                (coalesce(c.donor_count, 0) + coalesce(cd.donor_count, 0))::int as donor_count,
                 c.status,
                 c.organization_id, c.created_at,
                 o.name as org_name, o.image_url as org_image_url,
@@ -196,10 +196,19 @@ export const publicRoutes: FastifyPluginAsync = async (app) => {
       const org = result.rows[0];
 
       const campResult = await db.query(
-        `select id, title, description, main_image_url, goal, raised, donor_count, status
-         from campaigns
-         where organization_id = $1 and status = 'active'
-         order by created_at desc`,
+        `select c.id, c.title, c.description, c.main_image_url, c.goal,
+                (coalesce(c.raised, 0) + coalesce(cd.raised, 0)) as raised,
+                (coalesce(c.donor_count, 0) + coalesce(cd.donor_count, 0))::int as donor_count,
+                c.status
+         from campaigns c
+         left join lateral (
+           select coalesce(sum(d.amount), 0)::numeric as raised,
+                  count(*)::int as donor_count
+           from donations d
+           where d.campaign_id = c.id and d.status = 'succeeded'
+         ) cd on true
+         where c.organization_id = $1 and c.status = 'active'
+         order by c.created_at desc`,
         [id]
       );
       org.campaigns = campResult.rows;

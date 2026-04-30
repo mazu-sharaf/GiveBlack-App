@@ -1,0 +1,469 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>GiveBlack — operations &amp; app guide</title>
+    <meta name="description" content="Internal guide for GiveBlack mobile app and admin backoffice. Not indexed by search engines." />
+    <style>
+      :root {
+        --bg: #0c1210;
+        --card: #141c18;
+        --border: #1f2e26;
+        --text: #e8f0eb;
+        --muted: #9fb5a8;
+        --accent: #2d8f5a;
+        --toc-bg: #0f1713;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        line-height: 1.65;
+        font-size: 0.9375rem;
+      }
+      .layout {
+        max-width: 52rem;
+        margin: 0 auto;
+        padding: 2rem 1.25rem 4rem;
+        display: grid;
+        gap: 2rem;
+      }
+      @media (min-width: 960px) {
+        .layout {
+          grid-template-columns: 11rem 1fr;
+          align-items: start;
+        }
+      }
+      .toc {
+        position: sticky;
+        top: 1rem;
+        padding: 1rem;
+        background: var(--toc-bg);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        font-size: 0.8125rem;
+      }
+      .toc strong {
+        display: block;
+        font-size: 0.65rem;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin-bottom: 0.75rem;
+      }
+      .toc a {
+        display: block;
+        padding: 0.25rem 0;
+        color: #7dd4a8;
+        text-decoration: none;
+      }
+      .toc a:hover {
+        text-decoration: underline;
+      }
+      .main {
+        min-width: 0;
+      }
+      .brand {
+        font-size: 0.75rem;
+        font-weight: 600;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--accent);
+        margin-bottom: 0.5rem;
+      }
+      h1 {
+        font-size: 1.85rem;
+        font-weight: 700;
+        margin: 0 0 0.75rem;
+        letter-spacing: -0.02em;
+        line-height: 1.2;
+      }
+      .lead {
+        color: var(--muted);
+        margin: 0 0 2rem;
+        font-size: 1rem;
+      }
+      h2 {
+        font-size: 1.15rem;
+        font-weight: 700;
+        margin: 2.25rem 0 0.75rem;
+        padding-top: 0.5rem;
+        border-top: 1px solid var(--border);
+        scroll-margin-top: 1rem;
+      }
+      h2:first-of-type {
+        border-top: none;
+        margin-top: 0;
+        padding-top: 0;
+      }
+      h3 {
+        font-size: 0.8rem;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--muted);
+        margin: 1.5rem 0 0.5rem;
+        font-weight: 600;
+      }
+      .card {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 1.25rem 1.15rem;
+        margin-bottom: 1rem;
+      }
+      .card p:last-child {
+        margin-bottom: 0;
+      }
+      p {
+        margin: 0 0 0.85rem;
+      }
+      ul {
+        margin: 0 0 0.85rem;
+        padding-left: 1.25rem;
+      }
+      li {
+        margin-bottom: 0.35rem;
+      }
+      code,
+      .mono {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        font-size: 0.84em;
+        background: rgba(255, 255, 255, 0.06);
+        padding: 0.12em 0.35em;
+        border-radius: 4px;
+      }
+      a {
+        color: #7dd4a8;
+        text-decoration: none;
+      }
+      a:hover {
+        text-decoration: underline;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.8125rem;
+        margin: 0.5rem 0 1rem;
+      }
+      th,
+      td {
+        border: 1px solid var(--border);
+        padding: 0.45rem 0.5rem;
+        text-align: left;
+        vertical-align: top;
+      }
+      th {
+        background: rgba(45, 143, 90, 0.12);
+        color: var(--text);
+      }
+      .yes {
+        color: #7dd4a8;
+      }
+      .no {
+        color: #8a948e;
+      }
+      footer {
+        margin-top: 2.5rem;
+        padding-top: 1.5rem;
+        border-top: 1px solid var(--border);
+        font-size: 0.8125rem;
+        color: var(--muted);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="layout">
+      <nav class="toc" aria-label="On this page">
+        <strong>On this page</strong>
+        <a href="#intro">Introduction</a>
+        <a href="#mobile">Mobile app</a>
+        <a href="#mobile-start">— Get started</a>
+        <a href="#mobile-donor">— Donor experience</a>
+        <a href="#mobile-charity">— Charity / org</a>
+        <a href="#backoffice">Admin backoffice</a>
+        <a href="#bo-access">— URL &amp; login</a>
+        <a href="#bo-roles">— Roles</a>
+        <a href="#bo-pages">— Screens</a>
+        <a href="#bo-public">— Public links</a>
+        <a href="#support">Support</a>
+      </nav>
+      <article class="main">
+        <p class="brand">GiveBlack</p>
+        <h1 id="intro">Operations &amp; app guide</h1>
+        <p class="lead">
+          This page is for your team: how the <strong>GiveBlack mobile app</strong> works for donors and charities, and how to use the
+          <strong>admin backoffice</strong>. It is marked <code>noindex</code> and not intended for public search results.
+        </p>
+        <p class="lead" style="margin-top: -1rem; font-size: 0.875rem">
+          <strong>URL:</strong> you may be viewing this at <code>/app/adminguide/</code> (API prefix). After nginx is updated with a top-level
+          <code>/adminguide</code> block, the same content will also answer at <code>/adminguide/</code> on the main domain.
+        </p>
+
+        <h2 id="mobile">Mobile app (Expo)</h2>
+        <p>
+          The consumer app uses tab-based navigation and role-specific flows. Paths below are logical screens (Expo Router), not URLs in a
+          browser.
+        </p>
+
+        <h3 id="mobile-start">Get started</h3>
+        <div class="card">
+          <p><strong>Donors:</strong> create an account (email/password or social where enabled), sign in, complete onboarding if shown.</p>
+          <p><strong>Charities:</strong> use charity signup to submit organization details; approval may be required before full dashboard access.</p>
+          <p>Auth screens include donor login/signup, charity login/signup, password reset, and welcome flows.</p>
+        </div>
+
+        <h3 id="mobile-donor">Donor experience</h3>
+        <div class="card">
+          <ul>
+            <li><strong>Home tab</strong> — discovery feed and entry points to causes.</li>
+            <li><strong>Give tab</strong> — browse ways to give and act on campaigns.</li>
+            <li><strong>Categories</strong> — filter or explore by category.</li>
+            <li><strong>Favourites</strong> — saved organizations or campaigns.</li>
+            <li><strong>Account</strong> — profile, settings, and sign-out.</li>
+            <li><strong>Search</strong> — find organizations or campaigns.</li>
+            <li><strong>Donate</strong> — org-scoped donation flow (<code>donate/[orgId]</code>).</li>
+            <li><strong>Campaign</strong> — view a campaign and donate (<code>campaign/[id]</code>).</li>
+            <li><strong>Volunteer</strong> — sign up to volunteer with an organization (<code>volunteer/[orgId]</code>).</li>
+            <li><strong>Community</strong> — browse and open community campaigns; create flow where enabled.</li>
+            <li><strong>Impact</strong> — see giving impact and history-oriented summaries.</li>
+            <li><strong>Notifications</strong> — in-app notification list.</li>
+            <li><strong>Checkout result</strong> — return state after payment flows.</li>
+            <li><strong>Top-up / wallet-style flows</strong> — where configured in the build.</li>
+          </ul>
+        </div>
+
+        <h3 id="mobile-charity">Charity / organization dashboard</h3>
+        <div class="card">
+          <p>When signed in as a charity owner, the app exposes organization tools, typically including:</p>
+          <ul>
+            <li>Organization home, profile, and settings.</li>
+            <li>Campaigns list and management.</li>
+            <li>Donations and payment history for the org.</li>
+            <li>Volunteer signups for the org.</li>
+            <li>Payouts / Stripe Connect–related views where enabled.</li>
+            <li>Subscriptions (org subscription tier).</li>
+            <li>Plan / billing and fee-related settings where exposed in app.</li>
+          </ul>
+        </div>
+
+        <h2 id="backoffice">Admin backoffice</h2>
+        <p>
+          Operators use the web <strong>backoffice</strong> to manage users, organizations, campaigns, money movement, and platform settings.
+          Your deployment should expose it at a path like <code>/backoffice/</code> on the same host as the public site.
+        </p>
+
+        <h3 id="bo-access">URL &amp; sign-in</h3>
+        <div class="card">
+          <p>
+            <strong>Open the backoffice:</strong>
+            <a href="BACKOFFICE_URL_PLACEHOLDER">BACKOFFICE_URL_PLACEHOLDER</a>
+          </p>
+          <p><strong>Sign-in methods:</strong></p>
+          <ul>
+            <li><strong>Email one-time code</strong> — enter your authorized staff email, receive a short code, enter it to complete login.</li>
+            <li><strong>Google</strong> — use the Google button where configured; your Google account must match an authorized user record.</li>
+          </ul>
+          <p>Password login is disabled; use OTP or Google as shown on the login screen.</p>
+        </div>
+
+        <h3 id="bo-roles">Roles &amp; sidebar visibility</h3>
+        <p>Navigation items are filtered by role. Only <strong>admin</strong> and <strong>super_admin</strong> see every section.</p>
+        <table>
+          <thead>
+            <tr>
+              <th>Area / path</th>
+              <th>Admin / Super admin</th>
+              <th>Manager</th>
+              <th>Staff</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Dashboard <code>/</code></td>
+              <td class="yes">Yes</td>
+              <td class="yes">Yes</td>
+              <td class="yes">Yes</td>
+            </tr>
+            <tr>
+              <td>Users <code>/users</code></td>
+              <td class="yes">Yes</td>
+              <td class="no">No</td>
+              <td class="no">No</td>
+            </tr>
+            <tr>
+              <td>Organizations <code>/organizations</code></td>
+              <td class="yes">Yes</td>
+              <td class="yes">Yes</td>
+              <td class="yes">Yes</td>
+            </tr>
+            <tr>
+              <td>Campaigns <code>/campaigns</code></td>
+              <td class="yes">Yes</td>
+              <td class="yes">Yes</td>
+              <td class="yes">Yes</td>
+            </tr>
+            <tr>
+              <td>Community <code>/community-campaigns</code></td>
+              <td class="yes">Yes</td>
+              <td class="yes">Yes</td>
+              <td class="no">No</td>
+            </tr>
+            <tr>
+              <td>Charity requests <code>/charity-requests</code></td>
+              <td class="yes">Yes</td>
+              <td class="no">No</td>
+              <td class="no">No</td>
+            </tr>
+            <tr>
+              <td>Volunteers <code>/volunteers</code></td>
+              <td class="yes">Yes</td>
+              <td class="yes">Yes</td>
+              <td class="yes">Yes</td>
+            </tr>
+            <tr>
+              <td>Donations <code>/donations</code></td>
+              <td class="yes">Yes</td>
+              <td class="yes">Yes</td>
+              <td class="yes">Yes</td>
+            </tr>
+            <tr>
+              <td>Subscriptions <code>/subscriptions</code></td>
+              <td class="yes">Yes</td>
+              <td class="no">No</td>
+              <td class="no">No</td>
+            </tr>
+            <tr>
+              <td>Transactions <code>/transactions</code></td>
+              <td class="yes">Yes</td>
+              <td class="yes">Yes</td>
+              <td class="no">No</td>
+            </tr>
+            <tr>
+              <td>Fund release <code>/fund-release</code></td>
+              <td class="yes">Yes</td>
+              <td class="no">No</td>
+              <td class="no">No</td>
+            </tr>
+            <tr>
+              <td>Ledger <code>/ledger</code></td>
+              <td class="yes">Yes</td>
+              <td class="no">No</td>
+              <td class="no">No</td>
+            </tr>
+            <tr>
+              <td>GiveBlack financials <code>/giveblack-financials</code></td>
+              <td class="yes">Yes</td>
+              <td class="no">No</td>
+              <td class="no">No</td>
+            </tr>
+            <tr>
+              <td>Categories <code>/categories</code></td>
+              <td class="yes">Yes</td>
+              <td class="no">No</td>
+              <td class="no">No</td>
+            </tr>
+            <tr>
+              <td>Education partners <code>/education-partners</code></td>
+              <td class="yes">Yes</td>
+              <td class="no">No</td>
+              <td class="no">No</td>
+            </tr>
+            <tr>
+              <td>Staff <code>/staff</code></td>
+              <td class="yes">Yes</td>
+              <td class="no">No</td>
+              <td class="no">No</td>
+            </tr>
+            <tr>
+              <td>Admin emails <code>/admin-emails</code></td>
+              <td class="yes">Yes</td>
+              <td class="no">No</td>
+              <td class="no">No</td>
+            </tr>
+            <tr>
+              <td>Notify users <code>/broadcast</code></td>
+              <td class="yes">Yes</td>
+              <td class="no">No</td>
+              <td class="no">No</td>
+            </tr>
+            <tr>
+              <td>Settings <code>/settings</code></td>
+              <td class="yes">Yes</td>
+              <td class="no">No</td>
+              <td class="no">No</td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="card">
+          <p>
+            <strong>Staff management:</strong> only <strong>admin</strong> and <strong>super_admin</strong> can add, edit, or remove staff and
+            change roles. You can grant an existing donor email staff access; the account is upgraded in place (same email, new role).
+          </p>
+          <p>
+            <strong>Permission overrides</strong> on staff/manager rows can gate actions such as managing users, changing roles, platform
+            settings, and payments — enforced on the API. If an action is denied, ask a super admin to adjust overrides or role.
+          </p>
+        </div>
+
+        <h3 id="bo-pages">What each backoffice screen is for</h3>
+        <div class="card">
+          <p><strong>Dashboard</strong> — high-level stats and shortcuts; start here each session.</p>
+          <p><strong>Users</strong> — search and inspect donor/user records; open a donor detail view by email where linked.</p>
+          <p><strong>Organizations</strong> — list charities/orgs; open an org to edit profile, Stripe/Connect state, campaigns, media, and related tools.</p>
+          <p><strong>Campaigns</strong> — platform-wide campaign list and detail editing for org campaigns.</p>
+          <p><strong>Community</strong> — community campaigns (separate from org-only campaigns); create/edit/moderate as your policy allows.</p>
+          <p><strong>Charity requests</strong> — review pending charity applications; approve or reject with notes.</p>
+          <p><strong>Volunteers</strong> — review volunteer signups across organizations.</p>
+          <p><strong>Donations</strong> — payment records, statuses, and reconciliation aids.</p>
+          <p><strong>Subscriptions</strong> — organization subscription tiers and billing hooks (Stripe).</p>
+          <p><strong>Transactions</strong> — internal transaction listing for finance review.</p>
+          <p><strong>Fund release</strong> — workflows to release held funds where your process uses this tool.</p>
+          <p><strong>Ledger</strong> — ledger-style entries for auditing money movement.</p>
+          <p><strong>GiveBlack financials</strong> — aggregate platform financial views for leadership.</p>
+          <p><strong>Categories</strong> — taxonomy for organizations and filters in the app.</p>
+          <p><strong>Education partners</strong> — partners used for education/reinvest attribution features.</p>
+          <p><strong>Staff</strong> — maintain who can access the backoffice and with which role; set permission overrides per person.</p>
+          <p><strong>Admin emails</strong> — list of addresses that receive operational emails; send a test message to verify delivery.</p>
+          <p><strong>Notify users</strong> — broadcast push/in-app notifications to selected donor or charity segments (admin-gated).</p>
+          <p><strong>Settings</strong> — platform-wide configuration keys exposed to the admin UI.</p>
+        </div>
+
+        <h3 id="bo-public">Public &amp; shareable links</h3>
+        <div class="card">
+          <p>
+            <strong>Campaign microsite (backoffice-hosted):</strong> path pattern <code>/backoffice/c/:slug</code> — use for shareable campaign
+            pages that load inside the admin web bundle (useful for previews or short links depending on deployment).
+          </p>
+          <p>Payment return and short links may also use host routes such as <code>/c/</code> on the API host — align with your nginx map.</p>
+        </div>
+
+        <h2 id="support">Support</h2>
+        <div class="card">
+          <p>
+            User-facing help and contact:
+            <a href="SUPPORT_PAGE_URL_PLACEHOLDER">support page</a>
+            (<code>/support/</code> on the main site when proxied like production).
+          </p>
+          <p>
+            Email:
+            <a href="MAILTO_HREF_PLACEHOLDER">EMAIL_VISIBLE_PLACEHOLDER</a>
+          </p>
+          <p>Main site: <a href="SITE_URL_PLACEHOLDER">SITE_LABEL_PLACEHOLDER</a></p>
+        </div>
+
+        <footer>
+          <p style="margin: 0">
+            This guide lives at <a href="ADMINGUIDE_URL_PLACEHOLDER">ADMINGUIDE_URL_PLACEHOLDER</a>. Bookmark for your team only.
+          </p>
+        </footer>
+      </article>
+    </div>
+  </body>
+</html>

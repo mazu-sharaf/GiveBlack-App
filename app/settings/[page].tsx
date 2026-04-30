@@ -411,7 +411,7 @@ function PrivacyPage() {
   async function handleDeleteAccount() {
     Alert.alert(
       "Delete Account",
-      "Are you sure? This action cannot be undone. All your data including donation history, wallet balance, and saved cards will be permanently deleted.",
+      "Are you sure? This action cannot be undone. Your donor profile and saved login will be removed. Donation records required for taxes may be kept in anonymized form.",
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -421,18 +421,32 @@ function PrivacyPage() {
             setDeletingAccount(true);
             try {
               const apiBase = getApiUrl().replace(/\/$/, "");
-              const headers: Record<string, string> = { "Content-Type": "application/json" };
-              if (session?.accessToken) headers["Authorization"] = `Bearer ${session.accessToken}`;
-              await fetch(`${apiBase}/api/auth/delete-account`, {
-                method: "POST",
-                headers,
-              });
+              const headers: Record<string, string> = {};
+              if (session?.accessToken) headers.Authorization = `Bearer ${session.accessToken}`;
+              const primaryUrl = `${apiBase}/api/auth/delete-account`;
+              const candidates = [primaryUrl];
+              // Some deployments only proxy the API under `/app/*` (and do not expose bare `/api/*`).
+              if (!/\/app\/?$/.test(apiBase)) candidates.push(`${apiBase}/app/api/auth/delete-account`);
+              // Other environments may already include `/app` but proxy `/api/*` at the site root.
+              if (/\/app\/?$/.test(apiBase)) candidates.push(`${apiBase.replace(/\/app\/?$/, "")}/api/auth/delete-account`);
+
+              let res: Response | null = null;
+              for (const url of candidates) {
+                res = await fetch(url, { method: "POST", headers });
+                if (res.status !== 404) break;
+              }
+              const body = (await res.json().catch(() => ({}))) as { error?: string; message?: string };
+              if (!res.ok) {
+                Alert.alert("Could not delete account", body.error || body.message || `Error ${res.status}`);
+                return;
+              }
               await logout();
-              Alert.alert("Account Deleted", "Your account and all associated data have been deleted.");
+              Alert.alert("Account deleted", "Your account has been removed from GiveBlack.");
             } catch (e) {
-              Alert.alert("Error", "Failed to delete account. Please contact support@giveblack.org");
+              Alert.alert("Error", e instanceof Error ? e.message : "Failed to delete account. Please try again.");
+            } finally {
+              setDeletingAccount(false);
             }
-            setDeletingAccount(false);
           },
         },
       ]
@@ -459,15 +473,25 @@ function PrivacyPage() {
           `Your data includes:\n- Profile information\n- ${txCount} transactions\n- ${donCount} donations\n- ${cardCount} saved cards\n- Wallet balance: $${data.wallet?.balance || 0}\n\nExported at: ${new Date(data.exportedAt).toLocaleString()}`
         );
       } else {
-        Alert.alert("Error", "Failed to export data. Please try again or contact support@giveblack.org");
+        Alert.alert("Error", "Failed to export data. Please try again or contact david.hughes@giveblackapp.com");
       }
     } catch (e) {
-      Alert.alert("Error", "Failed to export data. Please try again or contact support@giveblack.org");
+      Alert.alert("Error", "Failed to export data. Please try again or contact david.hughes@giveblackapp.com");
     }
   }
 
+  const router = useRouter();
+
   return (
     <>
+      <InfoSection title="Legal">
+        <SettingRow
+          icon="document-text-outline"
+          label="Privacy Policy"
+          description="How we collect and use your information"
+          onPress={() => router.push("/settings/privacy-policy" as any)}
+        />
+      </InfoSection>
       <InfoSection title="Profile Privacy">
         <SettingRow
           icon="eye-outline"
@@ -576,15 +600,44 @@ function HelpPage() {
         <SettingRow
           icon="chatbubble-ellipses-outline"
           label="Contact Support"
-          description="Email us at support@giveblack.org"
-          onPress={() => Linking.openURL("mailto:support@giveblack.org")}
+          description="Email us at david.hughes@giveblackapp.com"
+          onPress={() => Linking.openURL("mailto:david.hughes@giveblackapp.com")}
+        />
+        <View style={[styles.sep, { backgroundColor: c.border }]} />
+        <SettingRow
+          icon="link-outline"
+          label="Help & links"
+          description="Open our Linktree"
+          onPress={() => Linking.openURL("https://linktr.ee/giveblack")}
         />
         <View style={[styles.sep, { backgroundColor: c.border }]} />
         <SettingRow
           icon="call-outline"
           label="Call Us"
-          description="(832) 555-0199 · Mon-Fri 9AM-5PM CST"
-          onPress={() => Linking.openURL("tel:8325550199")}
+          description="+1 (832) 425-4484"
+          onPress={() => Linking.openURL("tel:+18324254484")}
+        />
+      </InfoSection>
+      <InfoSection title="Follow us">
+        <SettingRow
+          icon="logo-instagram"
+          label="Instagram"
+          description="@giveblackapp"
+          onPress={() => Linking.openURL("https://www.instagram.com/giveblackapp")}
+        />
+        <View style={[styles.sep, { backgroundColor: c.border }]} />
+        <SettingRow
+          icon="logo-facebook"
+          label="Facebook"
+          description="GiveBlackApp"
+          onPress={() => Linking.openURL("https://www.facebook.com/GiveBlackApp/")}
+        />
+        <View style={[styles.sep, { backgroundColor: c.border }]} />
+        <SettingRow
+          icon="logo-twitter"
+          label="X"
+          description="@giveblackapp"
+          onPress={() => Linking.openURL("https://x.com/giveblackapp")}
         />
       </InfoSection>
       <InfoSection title="Frequently Asked Questions">
@@ -615,7 +668,7 @@ function HelpPage() {
         <View style={[styles.sep, { backgroundColor: c.border }]} />
         <FAQItem
           question="How do I get a refund?"
-          answer="Please contact support at support@giveblack.org within 48 hours of your donation. Refunds are processed on a case-by-case basis."
+          answer="Please contact support at david.hughes@giveblackapp.com within 48 hours of your donation. Refunds are processed on a case-by-case basis."
         />
       </InfoSection>
       <InfoSection title="Resources">
@@ -696,7 +749,7 @@ function TermsPage() {
           </Text>
           <Text style={[styles.legalHeading, { color: c.text }]}>10. Contact</Text>
           <Text style={[styles.legalText, { color: c.textMuted }]}>
-            For questions about these Terms, contact us at support@giveblack.org or call (832) 555-0199.
+            For questions about these Terms, contact us at david.hughes@giveblackapp.com or call +1 (832) 425-4484.
           </Text>
         </View>
       </InfoSection>
@@ -798,7 +851,7 @@ function PrivacyPolicyPage() {
             - Portability: Request your data in a portable, machine-readable format{"\n"}
             - Opt-out: Unsubscribe from marketing communications at any time{"\n"}
             - Restrict Processing: Request that we limit how we use your data{"\n\n"}
-            To exercise any of these rights, visit your Privacy & Security settings in the App or contact us at support@giveblack.org.
+            To exercise any of these rights, visit your Privacy & Security settings in the App or contact us at david.hughes@giveblackapp.com.
           </Text>
 
           <Text style={[styles.legalHeading, { color: c.text }]}>7. Children's Privacy</Text>
@@ -825,8 +878,8 @@ function PrivacyPolicyPage() {
           <Text style={[styles.legalText, { color: c.textMuted }]}>
             If you have questions, concerns, or requests regarding this Privacy Policy or our data practices, please contact us:{"\n\n"}
             GiveBlack Support{"\n"}
-            Email: support@giveblack.org{"\n"}
-            Phone: (832) 555-0199{"\n\n"}
+            Email: david.hughes@giveblackapp.com{"\n"}
+            Phone: +1 (832) 425-4484{"\n\n"}
             We will respond to your inquiry within 30 business days.
           </Text>
         </View>
@@ -883,7 +936,7 @@ function TermsOfServicePage() {
 
           <Text style={[styles.legalSubheading, { color: c.text }]}>b. No Refunds</Text>
           <Text style={[styles.legalText, { color: c.textMuted }]}>
-            Donations are generally non-refundable once processed. In exceptional circumstances (such as duplicate charges or processing errors), you may request a refund by contacting support@giveblack.org within 14 days of the transaction.
+            Donations are generally non-refundable once processed. In exceptional circumstances (such as duplicate charges or processing errors), you may request a refund by contacting david.hughes@giveblackapp.com within 14 days of the transaction.
           </Text>
 
           <Text style={[styles.legalSubheading, { color: c.text }]}>c. Platform Fees and Payment Processing</Text>
@@ -984,8 +1037,8 @@ function TermsOfServicePage() {
           <Text style={[styles.legalText, { color: c.textMuted }]}>
             For questions about these Terms of Service, please contact us:{"\n\n"}
             GiveBlack Support{"\n"}
-            Email: support@giveblack.org{"\n"}
-            Phone: (832) 555-0199{"\n\n"}
+            Email: david.hughes@giveblackapp.com{"\n"}
+            Phone: +1 (832) 425-4484{"\n\n"}
             We are here to help and will respond within 30 business days.
           </Text>
         </View>
@@ -1554,7 +1607,7 @@ function SettingsMainPage() {
       : []),
     { icon: "call-outline", label: "Contact", color: c.iconBgBlue, route: "/settings/help" },
     { icon: "help-circle-outline", label: "How to Donate", color: c.iconBgGreen, route: "/settings/how-to-donate" },
-    { icon: "shield-checkmark-outline", label: "Privacy", color: c.iconBgPurple, route: "/settings/privacy-settings" },
+    { icon: "shield-checkmark-outline", label: "Privacy & Security", color: c.iconBgPurple, route: "/settings/privacy" },
     { icon: "settings-outline", label: "Advanced Settings", color: c.iconBgGrey, route: "/settings/notifications" },
   ];
 
@@ -1611,6 +1664,28 @@ function SettingsMainPage() {
           </React.Fragment>
         ))}
       </View>
+      <InfoSection title="Follow us">
+        <SettingRow
+          icon="logo-instagram"
+          label="Instagram"
+          description="@giveblackapp"
+          onPress={() => Linking.openURL("https://www.instagram.com/giveblackapp")}
+        />
+        <View style={[styles.sep, { backgroundColor: c.border }]} />
+        <SettingRow
+          icon="logo-facebook"
+          label="Facebook"
+          description="GiveBlackApp"
+          onPress={() => Linking.openURL("https://www.facebook.com/GiveBlackApp/")}
+        />
+        <View style={[styles.sep, { backgroundColor: c.border }]} />
+        <SettingRow
+          icon="logo-twitter"
+          label="X"
+          description="@giveblackapp"
+          onPress={() => Linking.openURL("https://x.com/giveblackapp")}
+        />
+      </InfoSection>
     </>
   );
 }
@@ -1767,7 +1842,7 @@ function HowToDonatePage() {
           id="refunds"
           title="Refunds"
           body={
-            "Donations are generally non-refundable once processed. In exceptional circumstances (like duplicate charges or processing errors), refunds may be requested by contacting support.\n\nIf you need help, contact support@giveblack.org."
+            "Donations are generally non-refundable once processed. In exceptional circumstances (like duplicate charges or processing errors), refunds may be requested by contacting support.\n\nIf you need help, contact david.hughes@giveblackapp.com."
           }
         />
       </View>
@@ -1783,7 +1858,7 @@ function HelpCenterPage() {
     { q: "How do I track my donations?", a: "Visit your Profile tab to see your complete donation history, including amounts, dates, and the organizations you've supported." },
     { q: "Can I set up recurring donations?", a: "Recurring donations will be available in a future update. Currently, all donations are one-time gifts." },
     { q: "How are charities verified?", a: "Every charity undergoes a thorough vetting process. Our team verifies their 501(c)(3) status, bank information, and organizational mission before they appear on the platform." },
-    { q: "How do I get a refund?", a: "Please contact support at support@giveblack.org within 48 hours of your donation. Refunds are processed on a case-by-case basis." },
+    { q: "How do I get a refund?", a: "Please contact support at david.hughes@giveblackapp.com within 48 hours of your donation. Refunds are processed on a case-by-case basis." },
   ];
 
   return (
@@ -1802,42 +1877,31 @@ function HelpCenterPage() {
 
 function PrivacySettingsPage() {
   const c = useThemeColors();
+  const router = useRouter();
   return (
     <>
       <View style={[styles.sectionCard, { backgroundColor: c.cardBg, shadowColor: c.cardShadow }]}>
-        <Pressable
-          style={s2.menuRow}
-          onPress={() => Alert.alert("Privacy Policy", "Our privacy policy details how we collect, use, and protect your personal data. Visit giveblack.org/privacy for the full document.")}
-        >
-          <View style={[s2.menuIconCircle, { backgroundColor: c.iconBgBlue }]}>
-            <Ionicons name="shield-checkmark" size={20} color={c.iconFgBlue} />
+        <Pressable style={s2.menuRow} onPress={() => router.push("/settings/privacy" as any)}>
+          <View style={[s2.menuIconCircle, { backgroundColor: c.iconBgPurple }]}>
+            <Ionicons name="lock-closed" size={20} color={c.iconFgBlue} />
           </View>
-          <Text style={[s2.menuLabel, { color: c.text }]}>Privacy Policy</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={[s2.menuLabel, { color: c.text }]}>Privacy & Security</Text>
+            <Text style={{ fontSize: 12, color: c.textMuted, marginTop: 2 }}>
+              Password, data export, and delete account
+            </Text>
+          </View>
           <Ionicons name="chevron-forward" size={16} color={c.textLight} />
         </Pressable>
         <View style={[styles.sep, { backgroundColor: c.border }]} />
         <Pressable
           style={s2.menuRow}
-          onPress={() =>
-            Alert.alert(
-              "Delete All Private Data",
-              "Are you sure you want to delete all your private data? This action cannot be undone.",
-              [
-                { text: "Cancel", style: "cancel" },
-                {
-                  text: "Delete",
-                  style: "destructive",
-                  onPress: () =>
-                    Alert.alert("Data Deleted", "All your private data has been deleted."),
-                },
-              ]
-            )
-          }
+          onPress={() => router.push("/settings/privacy-policy" as any)}
         >
-          <View style={[s2.menuIconCircle, { backgroundColor: c.iconBgRed }]}>
-            <Ionicons name="trash" size={20} color={c.danger} />
+          <View style={[s2.menuIconCircle, { backgroundColor: c.iconBgBlue }]}>
+            <Ionicons name="shield-checkmark" size={20} color={c.iconFgBlue} />
           </View>
-          <Text style={[s2.menuLabel, { color: c.danger }]}>Delete all private data</Text>
+          <Text style={[s2.menuLabel, { color: c.text }]}>Privacy Policy</Text>
           <Ionicons name="chevron-forward" size={16} color={c.textLight} />
         </Pressable>
       </View>

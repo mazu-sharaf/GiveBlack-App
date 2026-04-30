@@ -662,4 +662,51 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
 
     return { success: true, message: "Password has been reset. Please log in with your new password." };
   });
+
+  /** In-app account deletion (App Store 5.1.1(v)). Donor accounts only; platform and charity accounts are blocked. */
+  app.post("/api/auth/delete-account", { preHandler: [app.authenticate] }, async (request, reply) => {
+    const jwtUser = request.user as { sub: string; role?: string };
+    const userId = String(jwtUser.sub || "").trim();
+    if (!userId) return reply.code(401).send({ error: "Unauthorized" });
+
+    const rowRes = await db.query(`select id, email, role from users where id = $1 limit 1`, [userId]);
+    if (!rowRes.rowCount) {
+      return reply.code(404).send({ error: "Account not found" });
+    }
+    const row = rowRes.rows[0] as { id: string; email: string; role: string };
+    const role = String(row.role || "").toLowerCase();
+
+    if (["super_admin", "admin", "manager", "staff"].includes(role)) {
+      return reply.code(403).send({
+        error: "This account cannot be deleted from the app. Use the admin backoffice or contact support.",
+      });
+    }
+    if (role === "charity_owner") {
+      return reply.code(403).send({
+        error:
+          "Charity accounts must contact support to close the organization and delete the account. Email " +
+          (env.SUPPORT_EMAIL || "support@giveblackapp.com") +
+          ".",
+      });
+    }
+    if (role !== "donor") {
+      return reply.code(403).send({ error: "This account type cannot be deleted from the app." });
+    }
+
+    const client = await db.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query(`delete from profiles where id = $1`, [userId]);
+      await client.query(`delete from users where id = $1`, [userId]);
+      await client.query("COMMIT");
+    } catch (e) {
+      await client.query("ROLLBACK").catch(() => {});
+      request.log.error({ err: e, userId }, "delete-account failed");
+      return reply.code(500).send({ error: "Could not delete account. Please try again or contact support." });
+    } finally {
+      client.release();
+    }
+
+    return { success: true, message: "Account deleted" };
+  });
 };

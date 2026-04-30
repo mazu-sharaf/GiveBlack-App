@@ -239,7 +239,13 @@ export default function DonorSignupScreen() {
         {/* Avatar picker */}
         <Pressable style={styles.avatarWrap} onPress={pickAvatar}>
           {avatarUri ? (
-            <Image source={{ uri: avatarUri }} style={styles.avatarImage} contentFit="cover" />
+            <Image
+              source={{ uri: avatarUri }}
+              style={styles.avatarImage}
+              contentFit="cover"
+              cachePolicy="memory-disk"
+              transition={200}
+            />
           ) : (
             <View style={[styles.avatarPlaceholder, { backgroundColor: c.inputBg, borderColor: c.border }]}>
               <Ionicons name="camera-outline" size={28} color={c.textMuted} />

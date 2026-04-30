@@ -309,7 +309,7 @@ export default function UsersPage() {
                     </TableHead>
                     <TableHead>User</TableHead>
                     <TableHead>Role</TableHead>
-                    <TableHead className="hidden sm:table-cell">Joined</TableHead>
+                    <TableHead>Joined</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead className="w-32">Actions</TableHead>
                   </TableRow>
@@ -348,7 +348,7 @@ export default function UsersPage() {
                           <Badge variant="outline" className={ROLE_COLORS[user.role] || ""}>{user.role}</Badge>
                         )}
                       </TableCell>
-                      <TableCell className="hidden sm:table-cell text-muted-foreground text-sm whitespace-nowrap">
+                      <TableCell className="text-muted-foreground text-sm whitespace-nowrap">
                         {user.created_at ? format(new Date(user.created_at), "MMM d, yyyy") : "--"}
                       </TableCell>
                       <TableCell>

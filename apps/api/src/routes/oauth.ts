@@ -154,9 +154,70 @@ async function findOrCreateOAuthDonor(
         error: "An account with this email already exists for an organization. Use the charity login.",
       });
     }
-    return reply.code(409).send({
-      error: "An account with this email already exists. Sign in with your password, or contact support to link social login.",
-    });
+
+    // Existing user by email: link OAuth provider to this same user.
+    const existingForUser = await db.query(
+      `select provider_user_id from oauth_identities where user_id = $1 and provider = $2 limit 1`,
+      [row.id, provider]
+    );
+    if (existingForUser.rowCount) {
+      const existing = existingForUser.rows[0] as { provider_user_id: string };
+      if (String(existing.provider_user_id) !== String(providerUserId)) {
+        return reply.code(409).send({
+          error:
+            "This account is already linked to a different social login. Please sign in with password or contact support.",
+        });
+      }
+      const uRes = await db.query(
+        "select id, email, full_name, role, disabled_at, avatar_url from users where id = $1 limit 1",
+        [row.id]
+      );
+      const u = uRes.rows[0] as {
+        id: string;
+        email: string;
+        full_name: string;
+        role: Role;
+        disabled_at?: string | null;
+        avatar_url?: string | null;
+      };
+      if (u?.disabled_at) return reply.code(403).send({ error: "This account has been disabled." });
+      return buildAuthResponse(app, request, u);
+    }
+
+    await db.query(
+      `insert into oauth_identities (user_id, provider, provider_user_id) values ($1, $2, $3)`,
+      [row.id, provider, providerUserId]
+    );
+
+    // Best-effort: if user has no avatar yet, store provider avatar.
+    if (providerAvatarUrl) {
+      try {
+        await db.query(
+          `update users
+           set avatar_url = coalesce(nullif(avatar_url, ''), $1),
+               avatar_source = case when avatar_url is null or avatar_url = '' then $2 else avatar_source end
+           where id = $3`,
+          [providerAvatarUrl, provider, row.id]
+        );
+      } catch {
+        /* ignore */
+      }
+    }
+
+    const uRes = await db.query(
+      "select id, email, full_name, role, disabled_at, avatar_url from users where id = $1 limit 1",
+      [row.id]
+    );
+    const u = uRes.rows[0] as {
+      id: string;
+      email: string;
+      full_name: string;
+      role: Role;
+      disabled_at?: string | null;
+      avatar_url?: string | null;
+    };
+    if (u?.disabled_at) return reply.code(403).send({ error: "This account has been disabled." });
+    return buildAuthResponse(app, request, u);
   }
 
   const avatarUrl = providerAvatarUrl || buildGeneratedAvatarUrl(fullName);

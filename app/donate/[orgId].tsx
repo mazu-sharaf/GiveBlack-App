@@ -9,6 +9,7 @@ import Colors from "@/constants/colors";
 import { useThemeColors } from "@/context/ThemeContext";
 import { apiGet, apiPost, getApiUrl } from "@/lib/query-client";
 import { isNativeStripeAvailable, presentNativePaymentSheet } from "@/lib/stripe-confirm";
+import * as WebBrowser from "expo-web-browser";
 import * as Print from "expo-print";
 import * as LegacyFileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
@@ -85,7 +86,7 @@ export default function DonateScreen() {
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
   const [isAnonymous, setIsAnonymous] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState<"native" | null>(null);
+  const [paymentMethod, setPaymentMethod] = useState<"native" | "safari" | null>(null);
 
   const [guestMode, setGuestMode] = useState(false);
   const [guestEmail, setGuestEmail] = useState("");
@@ -578,6 +579,87 @@ export default function DonateScreen() {
       return;
     }
 
+    // iOS App Store 3.2.2(iv): charitable donations complete in Safari (Stripe Checkout), not in-app Payment Sheet.
+    if (Platform.OS === "ios") {
+      setPaymentMethod("safari");
+      try {
+        const basePublic = getApiUrl().replace(/\/app\/?$/, "").replace(/\/$/, "");
+        const returnBase = `${basePublic}/api/payments/checkout-success`;
+        if (guestMode) {
+          const res = await apiPost<{ url?: string }>(
+            "/api/payments/guest-donate-checkout",
+            {
+              orgId: org!.id,
+              amount: value,
+              email: guestEmail,
+              reinvestOptIn: educationEnabled,
+              reinvestPct: Math.round(educationRate * 1000) / 10,
+              ...(resolvedPartner ? { educationPartnerCode: resolvedPartner.code } : {}),
+              ...(campaignId ? { campaignId } : {}),
+              returnUrl: returnBase,
+            }
+          );
+          if (!res.url) {
+            setErrorMsg("Failed to create checkout session. Please try again.");
+            setStep("error");
+            setLoading(false);
+            return;
+          }
+          const browserResult = await WebBrowser.openBrowserAsync(res.url);
+          if (browserResult.type === "cancel") {
+            setStep("amount");
+          } else {
+            void refresh();
+            setStep("amount");
+            Alert.alert(
+              "Checkout",
+              "If you completed your donation in the browser, thank you — a receipt will be sent by email. You can confirm in Give from your profile."
+            );
+          }
+        } else {
+          const token = session!.accessToken;
+          const res = await apiPost<{ url?: string }>(
+            "/api/payments/donate-checkout",
+            {
+              orgId: org!.id,
+              amount: value,
+              currency: "usd",
+              reinvestOptIn: educationEnabled,
+              reinvestPct: Math.round(educationRate * 1000) / 10,
+              ...(resolvedPartner ? { educationPartnerCode: resolvedPartner.code } : {}),
+              ...(campaignId ? { campaignId } : {}),
+              returnUrl: returnBase,
+            },
+            token
+          );
+          if (!res.url) {
+            setErrorMsg("Failed to create checkout session. Please try again.");
+            setStep("error");
+            setLoading(false);
+            return;
+          }
+          const browserResult = await WebBrowser.openBrowserAsync(res.url);
+          if (browserResult.type === "cancel") {
+            setStep("amount");
+          } else {
+            void refreshDonationSummary();
+            void refresh();
+            setStep("amount");
+            Alert.alert(
+              "Checkout",
+              "If you completed your donation in the browser, it will appear in your history shortly."
+            );
+          }
+        }
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e);
+        setErrorMsg(msg);
+        setStep("error");
+      }
+      setLoading(false);
+      return;
+    }
+
     const nativeAvailable = await isNativeStripeAvailable();
     if (!nativeAvailable) {
       setErrorMsg("Native Stripe checkout is only available in iOS/Android builds with Stripe native module enabled.");
@@ -921,7 +1003,13 @@ export default function DonateScreen() {
             <ActivityIndicator size="large" color={c.green} />
             <Text style={[styles.receiptTitle, { color: c.text, marginTop: 16 }]}>Processing Payment...</Text>
             <Text style={[styles.receiptSubtitle, { color: c.textMuted }]}>
-              {Platform.OS === "web" && guestMode ? "Redirecting to Stripe Checkout..." : paymentMethod === "native" ? "Opening secure Stripe payment sheet..." : "Please wait while we process your donation."}
+              {Platform.OS === "web" && guestMode
+                ? "Redirecting to Stripe Checkout..."
+                : paymentMethod === "native"
+                  ? "Opening secure Stripe payment sheet..."
+                  : paymentMethod === "safari"
+                    ? "Opening secure checkout in your browser..."
+                    : "Please wait while we process your donation."}
             </Text>
           </View>
 

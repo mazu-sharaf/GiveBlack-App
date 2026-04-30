@@ -602,9 +602,9 @@ export const stripeRoutes: FastifyPluginAsync = async (app) => {
         ? `${successBase}&session_id={CHECKOUT_SESSION_ID}`
         : `${successBase}?session_id={CHECKOUT_SESSION_ID}`;
 
-      const cancelBase = body.returnUrl && body.returnUrl.trim().length > 0
-        ? body.returnUrl.trim()
-        : `${baseUrl}/api/payments/checkout-cancel`;
+      // Even if the client provides a returnUrl for success, keep cancel separate so we can show a clear
+      // "return to app" fallback experience.
+      const cancelBase = `${baseUrl}/api/payments/checkout-cancel`;
 
       const cancelUrl = cancelBase.includes("?")
         ? `${cancelBase}&cancelled=1`
@@ -762,46 +762,80 @@ export const stripeRoutes: FastifyPluginAsync = async (app) => {
   });
 
   app.get("/api/payments/checkout-success", async (request, reply) => {
+    const q = request.query as { session_id?: string };
+    const sessionId = q.session_id ? String(q.session_id) : "";
+    const deepLink = sessionId
+      ? `giveblack://checkout-result?session_id=${encodeURIComponent(sessionId)}`
+      : "giveblack://checkout-result";
+
     return reply.type("text/html").send(`
       <!DOCTYPE html>
       <html><head><title>Payment Successful</title>
       <meta name="viewport" content="width=device-width, initial-scale=1">
       <style>
         body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; background: #0a0a0a; color: #fff; }
-        .card { text-align: center; padding: 40px; }
+        .card { text-align: center; padding: 40px; max-width: 520px; }
         .icon { font-size: 64px; margin-bottom: 16px; }
         h1 { font-size: 24px; margin-bottom: 8px; }
         p { color: #999; font-size: 16px; margin-bottom: 24px; }
         .btn { background: #059669; color: #fff; border: none; padding: 14px 32px; border-radius: 12px; font-size: 16px; cursor: pointer; text-decoration: none; display: inline-block; }
+        .hint { color: #777; font-size: 13px; line-height: 18px; margin-top: 14px; }
       </style>
       </head><body>
         <div class="card">
           <div class="icon">&#10003;</div>
           <h1>Payment Successful</h1>
-          <p>Thank you for your donation! You can close this window and return to the app.</p>
+          <p>Thank you for your donation! Returning you to the app to show your receipt.</p>
+          <a href="${deepLink}" class="btn">Return to app</a>
+          <div class="hint">
+            If the app doesn’t open automatically, tap “Return to app”.
+          </div>
         </div>
+        <script>
+          (function () {
+            var url = ${JSON.stringify(deepLink)};
+            // Attempt immediately
+            window.location.href = url;
+            // Then again shortly after (some Safari contexts need a second attempt)
+            setTimeout(function () { window.location.href = url; }, 600);
+          })();
+        </script>
       </body></html>
     `);
   });
 
   app.get("/api/payments/checkout-cancel", async (request, reply) => {
+    const deepLink = "giveblack://checkout-result?cancelled=1";
     return reply.type("text/html").send(`
       <!DOCTYPE html>
       <html><head><title>Payment Cancelled</title>
       <meta name="viewport" content="width=device-width, initial-scale=1">
       <style>
         body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; background: #0a0a0a; color: #fff; }
-        .card { text-align: center; padding: 40px; }
+        .card { text-align: center; padding: 40px; max-width: 520px; }
         .icon { font-size: 64px; margin-bottom: 16px; }
         h1 { font-size: 24px; margin-bottom: 8px; }
         p { color: #999; font-size: 16px; margin-bottom: 24px; }
+        .btn { background: #059669; color: #fff; border: none; padding: 14px 32px; border-radius: 12px; font-size: 16px; cursor: pointer; text-decoration: none; display: inline-block; }
+        .hint { color: #777; font-size: 13px; line-height: 18px; margin-top: 14px; }
       </style>
       </head><body>
         <div class="card">
           <div class="icon">&#10007;</div>
           <h1>Payment Cancelled</h1>
-          <p>Your donation was not processed. You can close this window and return to the app.</p>
+          <p>Your donation was not processed. Return to the app to try again.</p>
+          <a href="${deepLink}" class="btn">Return to app</a>
+          <div class="hint">
+            If the app doesn’t open automatically, tap “Return to app”.
+          </div>
         </div>
+        <script>
+          (function () {
+            var url = ${JSON.stringify(deepLink)};
+            window.location.href = url;
+            setTimeout(function () { window.location.href = url; }, 600);
+          })();
+        </script>
       </body></html>
     `);
   });
@@ -1834,9 +1868,9 @@ export const stripeRoutes: FastifyPluginAsync = async (app) => {
       return reply.code(400).send({ error: "Not a donation" });
     }
 
-    if (piObj.status !== "succeeded") {
-      return reply.code(400).send({ error: "Payment not succeeded yet", piStatus: piObj.status });
-    }
+    // Some payment methods (or edge cases) can report Checkout `paid` while the PI is briefly `processing`.
+    // Since we already verified the Checkout session is paid, proceed to apply the donation updates
+    // (idempotent if already succeeded; webhooks may also apply later).
 
     const client = await db.connect();
     try {
@@ -1856,7 +1890,7 @@ export const stripeRoutes: FastifyPluginAsync = async (app) => {
       client.release();
     }
 
-    return { ok: true, paymentIntentId: piId };
+    return { ok: true, paymentIntentId: piId, piStatus: (piObj as any)?.status };
   });
 
   /**
@@ -2091,12 +2125,17 @@ export const stripeRoutes: FastifyPluginAsync = async (app) => {
       ? env.EXPO_PUBLIC_API_URL.replace(/\/app\/?$/, "").replace(/\/$/, "")
       : `${request.protocol}://${request.hostname}`;
 
-    const successUrl = `${baseUrl}/api/payments/guest-checkout-success?session_id={CHECKOUT_SESSION_ID}`;
-    const cancelUrl = body.returnUrl && body.returnUrl.trim().length > 0
-      ? (body.returnUrl.trim().includes("?")
-        ? `${body.returnUrl.trim()}&cancelled=1`
-        : `${body.returnUrl.trim()}?cancelled=1`)
-      : `${baseUrl}/api/payments/checkout-cancel`;
+    const defaultGuestSuccess = `${baseUrl}/api/payments/guest-checkout-success?session_id={CHECKOUT_SESSION_ID}`;
+    const ret = body.returnUrl?.trim();
+    const successUrl = ret
+      ? ret.includes("{CHECKOUT_SESSION_ID}")
+        ? ret
+        : ret.includes("?")
+          ? `${ret}&session_id={CHECKOUT_SESSION_ID}`
+          : `${ret}?session_id={CHECKOUT_SESSION_ID}`
+      : defaultGuestSuccess;
+    // Keep cancel separate from success so we can show a clear "return to app" fallback experience.
+    const cancelUrl = `${baseUrl}/api/payments/checkout-cancel`;
 
     const donationMeta: Record<string, string> = {
       orgId: body.orgId,
