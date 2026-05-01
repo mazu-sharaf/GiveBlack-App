@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { View, Text, TextInput, StyleSheet, Pressable, Alert, ActivityIndicator, ScrollView, KeyboardAvoidingView, Platform, Animated, Switch } from "react-native";
 import { useSafeInsets } from "@/lib/safe-area";
-import { router, useLocalSearchParams } from "expo-router";
+import { router, useLocalSearchParams, type Href } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useApp } from "@/context/AppContext";
 import { useAuth } from "@/context/AuthContext";
@@ -586,7 +586,7 @@ export default function DonateScreen() {
         const basePublic = getApiUrl().replace(/\/app\/?$/, "").replace(/\/$/, "");
         const returnBase = `${basePublic}/api/payments/checkout-success`;
         if (guestMode) {
-          const res = await apiPost<{ url?: string }>(
+          const res = await apiPost<{ url?: string; sessionId?: string }>(
             "/api/payments/guest-donate-checkout",
             {
               orgId: org!.id,
@@ -605,20 +605,26 @@ export default function DonateScreen() {
             setLoading(false);
             return;
           }
-          const browserResult = await WebBrowser.openBrowserAsync(res.url);
-          if (browserResult.type === "cancel") {
-            setStep("amount");
-          } else {
-            void refresh();
-            setStep("amount");
-            Alert.alert(
-              "Checkout",
-              "If you completed your donation in the browser, thank you — a receipt will be sent by email. You can confirm in Give from your profile."
-            );
+          await saveDonationIntent({
+            orgId: org!.id,
+            ...(campaignId ? { campaignId } : {}),
+            amount: value,
+            pendingSafariCheckout: true,
+          });
+          const guestSessionId = res.sessionId;
+          router.replace("/(tabs)" as Href);
+          try {
+            await WebBrowser.openBrowserAsync(res.url);
+            if (guestSessionId) {
+              void refresh();
+              router.push(`/checkout-result?session_id=${encodeURIComponent(guestSessionId)}` as Href);
+            }
+          } finally {
+            void clearDonationIntent();
           }
         } else {
           const token = session!.accessToken;
-          const res = await apiPost<{ url?: string }>(
+          const res = await apiPost<{ url?: string; sessionId?: string }>(
             "/api/payments/donate-checkout",
             {
               orgId: org!.id,
@@ -638,17 +644,23 @@ export default function DonateScreen() {
             setLoading(false);
             return;
           }
-          const browserResult = await WebBrowser.openBrowserAsync(res.url);
-          if (browserResult.type === "cancel") {
-            setStep("amount");
-          } else {
-            void refreshDonationSummary();
-            void refresh();
-            setStep("amount");
-            Alert.alert(
-              "Checkout",
-              "If you completed your donation in the browser, it will appear in your history shortly."
-            );
+          await saveDonationIntent({
+            orgId: org!.id,
+            ...(campaignId ? { campaignId } : {}),
+            amount: value,
+            pendingSafariCheckout: true,
+          });
+          const authedSessionId = res.sessionId;
+          router.replace("/(tabs)" as Href);
+          try {
+            await WebBrowser.openBrowserAsync(res.url);
+            if (authedSessionId) {
+              void refreshDonationSummary();
+              void refresh();
+              router.push(`/checkout-result?session_id=${encodeURIComponent(authedSessionId)}` as Href);
+            }
+          } finally {
+            void clearDonationIntent();
           }
         }
       } catch (e: unknown) {
@@ -1018,7 +1030,7 @@ export default function DonateScreen() {
               {[
                 { icon: "checkmark-circle-outline", label: "Payment confirmed" },
                 { icon: "arrow-forward-circle-outline", label: "Sent to org" },
-                { icon: "document-text-outline", label: "Receipt ready" },
+                { icon: "checkmark-circle-outline", label: "Payment success" },
               ].map((stage, idx) => {
                 const isActive = processingGuideStep === idx;
                 const stageScale = isActive
@@ -1301,7 +1313,7 @@ export default function DonateScreen() {
               {[
                 { icon: "checkmark-circle-outline", label: "Payment confirmed" },
                 { icon: "arrow-forward-circle-outline", label: "Sent to org" },
-                { icon: "document-text-outline", label: "Receipt ready" },
+                { icon: "checkmark-circle-outline", label: "Payment success" },
               ].map((stage, idx) => {
                 const isActive = amountGuideStep === idx;
                 const stageScale = isActive
@@ -1334,14 +1346,14 @@ export default function DonateScreen() {
                 ? "What happens next"
                 : amountGuideStep === 1
                   ? "How your donation helps"
-                  : "Keep your records"}
+                  : "Thank you for your donation"}
             </Text>
             <Text style={[styles.amountGuideDetailText, { color: c.textMuted }]}>
               {amountGuideStep === 0
                 ? "Tap Continue to confirm your donation in secure checkout. We'll pause until payment is successful."
                 : amountGuideStep === 1
                   ? `After payment is confirmed, your donation is directed to the selected organization. Review the breakdown before you finalize.`
-                  : "When processing completes, you’ll be able to download or share your donation receipt."}
+                  : "After checkout, return to the GiveBlack app to see payment success and your receipt, with options to download or share a PDF."}
             </Text>
 
             <Text style={[styles.guideText, { color: c.textMuted }]}>
@@ -1349,7 +1361,7 @@ export default function DonateScreen() {
                 ? "1) Choose an amount, then tap Continue.\n2) Checkout is handled securely by Stripe."
                 : amountGuideStep === 1
                   ? "Once payment is confirmed, your donation is directed to the selected verified organization.\nReview the breakdown before you finish."
-                  : "After the donation is complete, you can download/share your receipt.\nYou can also track donations in your Profile."}
+                  : "When your donation is complete, the app shows payment success and your receipt.\nYou can download or share your receipt there, and track donations in your Profile."}
               {"\n\n"}
               {"GiveBlack details:\n• Verified organizations: Every org is vetted before it appears in the app.\n• Receipts: A donation receipt is provided for your records.\n• Tax-deductible: Your donation may be tax-deductible (based on the receiving organization’s status); keep your receipt.\n• Recurring donations: Not available yet (soon).\n• Refunds: Contact support within 48 hours for help."}
             </Text>

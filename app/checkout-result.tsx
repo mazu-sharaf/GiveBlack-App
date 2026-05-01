@@ -36,6 +36,9 @@ export default function CheckoutResultScreen() {
   const [errorMsg, setErrorMsg] = useState<string>("");
   const [donationRef] = useState(generateReference());
   const [showRating, setShowRating] = useState(false);
+  const [donationDate, setDonationDate] = useState<string | null>(null);
+  const [realRef, setRealRef] = useState<string | null>(null);
+  const [donationDonorName, setDonationDonorName] = useState<string | null>(null);
 
   const checkmarkScale = useRef(new Animated.Value(0)).current;
   const checkmarkOpacity = useRef(new Animated.Value(0)).current;
@@ -68,7 +71,18 @@ export default function CheckoutResultScreen() {
             paymentStatus?: string;
             amountTotal?: number | null;
             currency?: string | null;
-            donation?: { status?: string; amount?: number; currency?: string; org_id?: string | null } | null;
+            donation?: {
+              status?: string;
+              amount?: number;
+              currency?: string;
+              org_id?: string | null;
+              org_name?: string | null;
+              donor_name?: string | null;
+              is_anonymous?: boolean;
+              paid_at?: string | null;
+              created_at?: string | null;
+              stripe_payment_intent_id?: string | null;
+            } | null;
           }>;
         };
 
@@ -96,7 +110,46 @@ export default function CheckoutResultScreen() {
         const paid = data.paymentStatus === "paid" || data.donation?.status === "succeeded";
         setAmount(typeof data.amountTotal === "number" ? data.amountTotal : data.donation?.amount ?? null);
         setCurrency(data.currency || "usd");
-        if (data.donation?.org_id) {
+
+        const don = data.donation;
+        if (don) {
+          // Use org_name from donation first, fall back to API lookup
+          if (don.org_name) {
+            setOrgName(don.org_name);
+          } else if (don.org_id) {
+            try {
+              const orgRes = await fetch(`${base}/api/organizations/${don.org_id}`);
+              if (orgRes.ok) {
+                const orgData = await orgRes.json();
+                if (orgData.name) setOrgName(orgData.name);
+              }
+            } catch {}
+          }
+
+          // Real paid date
+          const rawDate = don.paid_at || don.created_at;
+          if (rawDate) {
+            try {
+              const d = new Date(rawDate);
+              if (isFinite(d.getTime())) {
+                setDonationDate(d.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" }));
+              }
+            } catch {}
+          }
+
+          // Real reference from Stripe payment intent
+          const piRef = don.stripe_payment_intent_id;
+          if (piRef) {
+            setRealRef(piRef.slice(-10).toUpperCase());
+          }
+
+          // Donor name from donation record
+          if (don.is_anonymous) {
+            setDonationDonorName("Anonymous");
+          } else if (don.donor_name) {
+            setDonationDonorName(don.donor_name);
+          }
+        } else if (data.donation?.org_id) {
           try {
             const orgRes = await fetch(`${base}/api/organizations/${data.donation.org_id}`);
             if (orgRes.ok) {
@@ -183,25 +236,26 @@ export default function CheckoutResultScreen() {
   }, [status]);
 
   const today = new Date();
-  const dateStr = today.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
-  const donorName = user?.name || user?.email || "Anonymous Donor";
-  const receiptFileName = `GiveBlack-Receipt-${donationRef}.pdf`;
+  const dateStr = donationDate || today.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+  const donorName = donationDonorName || user?.name || user?.email || "Anonymous Donor";
+  const displayRef = realRef || donationRef;
+  const receiptFileName = `GiveBlack-Receipt-${displayRef}.pdf`;
+  const total = amount || 0;
+  const platformFee = parseFloat((total * 0.03).toFixed(2));
+  const educationAmount = parseFloat((total * 0.05).toFixed(2));
+  const endowmentAmount = parseFloat((total * 0.01).toFixed(2));
+  const netToOrg = parseFloat((total - platformFee - educationAmount - endowmentAmount).toFixed(2));
   const displayAmount = amount != null
     ? amount.toLocaleString(undefined, { style: "currency", currency: currency.toUpperCase() })
     : "";
 
   function buildReceiptPdfParams() {
-    const total = amount || 0;
-    const platformFee = parseFloat((total * 0.03).toFixed(2));
-    const educationAmount = parseFloat((total * 0.05).toFixed(2));
-    const endowmentAmount = parseFloat((total * 0.01).toFixed(2));
-    const netToOrg = parseFloat((total - platformFee - educationAmount - endowmentAmount).toFixed(2));
     return new URLSearchParams({
       orgName,
       donorName,
-      isAnonymous: user ? "false" : "true",
+      isAnonymous: donationDonorName === "Anonymous" ? "true" : user ? "false" : "true",
       date: dateStr,
-      reference: donationRef,
+      reference: displayRef,
       amount: String(total),
       netToOrg: String(netToOrg),
       platformFee: String(platformFee),
@@ -227,9 +281,13 @@ export default function CheckoutResultScreen() {
       donorName,
       orgName,
       dateStr,
-      reference: donationRef,
-      totalCharged: amount || 0,
+      reference: displayRef,
+      totalCharged: total,
       currency,
+      orgAmount: netToOrg,
+      platformFee,
+      educationContribution: educationAmount,
+      endowmentContribution: endowmentAmount,
     });
     const { uri } = await Print.printToFileAsync({ html, base64: false });
     const docDir = LegacyFileSystem.documentDirectory;
@@ -359,9 +417,9 @@ export default function CheckoutResultScreen() {
               width: "100%",
             }}
           >
-            <Text style={[styles.title, { color: c.text }]}>Donation Complete</Text>
+            <Text style={[styles.title, { color: c.text }]}>Payment successful</Text>
             <Text style={[styles.message, { color: c.textMuted }]}>
-              Thank you for your generosity
+              Thank you for your donation.
             </Text>
 
             <View style={[styles.receiptCard, { backgroundColor: c.cardBg }]}>
@@ -391,12 +449,43 @@ export default function CheckoutResultScreen() {
               </View>
               <View style={styles.row}>
                 <Text style={[styles.rowLabel, { color: c.textMuted }]}>Reference</Text>
-                <Text style={[styles.rowValue, { color: c.text }]}>{donationRef}</Text>
+                <Text style={[styles.rowValue, { color: c.text }]}>{displayRef}</Text>
+              </View>
+              <View style={styles.row}>
+                <Text style={[styles.rowLabel, { color: c.textMuted }]}>Status</Text>
+                <Text style={[styles.rowValue, { color: c.green }]}>Confirmed</Text>
               </View>
 
               <View style={[styles.divider, { backgroundColor: c.border }]} />
 
-              {displayAmount ? (
+              {total > 0 ? (
+                <>
+                  <View style={styles.row}>
+                    <Text style={[styles.rowLabel, { color: c.textMuted }]}>To organization</Text>
+                    <Text style={[styles.rowValue, { color: c.text }]}>${netToOrg.toFixed(2)}</Text>
+                  </View>
+                  <View style={styles.row}>
+                    <Text style={[styles.rowLabel, { color: c.textMuted }]}>Platform fee (3%)</Text>
+                    <Text style={[styles.rowValue, { color: c.text }]}>${platformFee.toFixed(2)}</Text>
+                  </View>
+                  <View style={styles.row}>
+                    <Text style={[styles.rowLabel, { color: c.textMuted }]}>Education (5%)</Text>
+                    <Text style={[styles.rowValue, { color: c.text }]}>${educationAmount.toFixed(2)}</Text>
+                  </View>
+                  <View style={styles.row}>
+                    <Text style={[styles.rowLabel, { color: c.textMuted }]}>Endowment (1%)</Text>
+                    <Text style={[styles.rowValue, { color: c.text }]}>${endowmentAmount.toFixed(2)}</Text>
+                  </View>
+                  <View style={[styles.divider, { backgroundColor: c.border }]} />
+                  <View style={styles.row}>
+                    <Text style={[styles.totalLabel, { color: c.text }]}>Total charged</Text>
+                    <Text style={[styles.totalValue, { color: c.text }]}>{displayAmount}</Text>
+                  </View>
+                  <Text style={[styles.taxNote, { color: c.textMuted }]}>
+                    This donation may be tax-deductible. Keep this receipt for your records.
+                  </Text>
+                </>
+              ) : displayAmount ? (
                 <View style={styles.row}>
                   <Text style={[styles.totalLabel, { color: c.text }]}>Total</Text>
                   <Text style={[styles.totalValue, { color: c.text }]}>{displayAmount}</Text>
@@ -417,7 +506,7 @@ export default function CheckoutResultScreen() {
 
             <Pressable
               style={[styles.primaryBtn, { backgroundColor: c.green }]}
-              onPress={() => router.back()}
+              onPress={() => router.replace("/(tabs)" as any)}
             >
               <Text style={styles.primaryText}>Done</Text>
             </Pressable>
@@ -440,9 +529,9 @@ export default function CheckoutResultScreen() {
         </Text>
         <Pressable
           style={[styles.primaryBtn, { backgroundColor: c.green }]}
-          onPress={() => router.back()}
+          onPress={() => router.replace("/(tabs)" as any)}
         >
-          <Text style={styles.primaryText}>Try Again</Text>
+          <Text style={styles.primaryText}>Go Home</Text>
         </Pressable>
       </View>
     </View>
@@ -516,10 +605,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingVertical: 6,
   },
-  rowLabel: { fontFamily: "SpaceGrotesk_400Regular", fontSize: 14, flex: 1 },
-  rowValue: { fontFamily: "SpaceGrotesk_600SemiBold", fontSize: 14 },
+  rowLabel: { fontFamily: "SpaceGrotesk_400Regular", fontSize: 13, flex: 1 },
+  rowValue: { fontFamily: "SpaceGrotesk_600SemiBold", fontSize: 13 },
   totalLabel: { fontFamily: "SpaceGrotesk_700Bold", fontSize: 15 },
   totalValue: { fontFamily: "SpaceGrotesk_700Bold", fontSize: 20 },
+  taxNote: { fontFamily: "SpaceGrotesk_400Regular", fontSize: 11, textAlign: "center", marginTop: 10, lineHeight: 16, opacity: 0.7 },
   receiptActions: {
     flexDirection: "row",
     gap: 12,

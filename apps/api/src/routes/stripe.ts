@@ -800,14 +800,10 @@ export const stripeRoutes: FastifyPluginAsync = async (app) => {
     const baseUrl = env.EXPO_PUBLIC_API_URL
       ? env.EXPO_PUBLIC_API_URL.replace(/\/app\/?$/, "").replace(/\/$/, "")
       : `${request.protocol}://${request.hostname}`;
-    // Prefer Universal Links for Safari/TestFlight reliability
-    const deepLink = sessionId
+    // Universal Link into the app (same pattern as checkout-cancel). Receipt PDF/share live in-app on checkout-result.
+    const checkoutDeepLink = sessionId
       ? `${baseUrl}/link/checkout-result?session_id=${encodeURIComponent(sessionId)}`
       : `${baseUrl}/link/checkout-result`;
-    const statusUrl = sessionId
-      ? `${baseUrl}/api/payments/checkout-status?session_id=${encodeURIComponent(sessionId)}`
-      : "";
-    const receiptPdfUrlBase = `${baseUrl}/c/receipt-pdf?donationId=`;
 
     return reply
       .header("Content-Type", "text/html; charset=utf-8")
@@ -823,104 +819,29 @@ export const stripeRoutes: FastifyPluginAsync = async (app) => {
         .card { text-align: center; padding: 40px; max-width: 520px; }
         .icon { font-size: 64px; margin-bottom: 16px; }
         h1 { font-size: 24px; margin-bottom: 8px; }
-        p { color: #999; font-size: 16px; margin-bottom: 24px; }
+        p { color: #999; font-size: 16px; margin-bottom: 12px; line-height: 1.5; }
         .btn { background: #059669; color: #fff; border: none; padding: 14px 32px; border-radius: 12px; font-size: 16px; cursor: pointer; text-decoration: none; display: inline-block; }
-        .btn-secondary { background: rgba(255,255,255,0.12); color:#fff; border: 1px solid rgba(255,255,255,0.14); }
-        .btn-row { display:flex; gap:10px; justify-content:center; flex-wrap:wrap; margin-top: 10px; }
-        .receipt { margin-top: 18px; text-align:left; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.10); border-radius: 16px; padding: 16px; }
-        .rrow { display:flex; justify-content:space-between; gap:12px; padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.08); }
-        .rrow:last-child { border-bottom: none; }
-        .k { color:#9aa0a6; font-size: 13px; }
-        .v { color:#fff; font-size: 13px; text-align:right; max-width: 65%; overflow:hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .hint { color: #777; font-size: 13px; line-height: 18px; margin-top: 14px; }
+        .btn-row { display:flex; gap:10px; justify-content:center; flex-wrap:wrap; margin-top: 20px; }
+        .hint { color: #777; font-size: 13px; line-height: 18px; margin-top: 18px; }
       </style>
       </head><body>
         <div class="card">
           <div class="icon">&#10003;</div>
           <h1>Payment Successful</h1>
-          <p>Thank you for your donation! Your receipt is below.</p>
-
-          <div id="receipt" class="receipt" style="display:none;"></div>
-
+          <p>Thank you for your donation. Your generosity helps Black-led organizations and the communities they serve.</p>
+          <p>Returning you to the GiveBlack app now…</p>
           <div class="btn-row">
-            <a id="downloadBtn" href="#" class="btn" style="display:none;" download>Download receipt (PDF)</a>
-            <button id="shareBtn" class="btn btn-secondary" type="button" style="display:none;">Share</button>
-          </div>
-
-          <div class="btn-row" style="margin-top:12px;">
-            <a href="${deepLink}" class="btn btn-secondary">Open app</a>
+            <a href="${checkoutDeepLink}" class="btn">Open GiveBlack</a>
           </div>
           <div class="hint">
-            If the app doesn't open automatically, tap "Open app".
+            If the app does not open automatically, tap <strong>Open GiveBlack</strong>.
           </div>
         </div>
         <script>
-          (function () {
-            var url = ${JSON.stringify(deepLink)};
-            // Try to open app in the background (Universal Link)
+          (function(){
+            var url = ${JSON.stringify(checkoutDeepLink)};
             window.location.href = url;
-
-            var statusUrl = ${JSON.stringify(statusUrl)};
-            var receiptPdfUrlBase = ${JSON.stringify(receiptPdfUrlBase)};
-            var receiptEl = document.getElementById("receipt");
-            var downloadBtn = document.getElementById("downloadBtn");
-            var shareBtn = document.getElementById("shareBtn");
-
-            function esc(s) {
-              return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
-                return ({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;" })[c];
-              });
-            }
-            function money(n) {
-              var x = Number(n || 0);
-              return "$" + x.toFixed(2);
-            }
-            function fmtDate(iso) {
-              if (!iso) return "";
-              try {
-                var d = new Date(iso);
-                if (!isFinite(d.getTime())) return "";
-                return d.toLocaleDateString();
-              } catch { return ""; }
-            }
-
-            if (statusUrl) {
-              fetch(statusUrl, { credentials: "omit" })
-                .then(function (r) { return r.json(); })
-                .then(function (j) {
-                  var d = j && j.donation ? j.donation : null;
-                  if (!d || !d.id) return;
-                  var reference = (d.stripe_payment_intent_id || d.id || "").slice(-12).toUpperCase();
-                  var rows = [
-                    ["Organization", d.org_name || "-"],
-                    ["Amount", money(d.amount)],
-                    ["Date", fmtDate(d.paid_at || d.created_at) || "-"],
-                    ["Reference", reference || "-"],
-                    ["Status", d.status || "-"]
-                  ];
-                  receiptEl.innerHTML = rows.map(function (kv) {
-                    return '<div class="rrow"><div class="k">' + esc(kv[0]) + '</div><div class="v">' + esc(kv[1]) + '</div></div>';
-                  }).join("");
-                  receiptEl.style.display = "block";
-
-                  downloadBtn.href = receiptPdfUrlBase + encodeURIComponent(d.id);
-                  downloadBtn.style.display = "inline-block";
-
-                  shareBtn.style.display = "inline-block";
-                  shareBtn.onclick = function () {
-                    var shareUrl = downloadBtn.href;
-                    var text = "GiveBlack donation receipt";
-                    if (navigator.share) {
-                      navigator.share({ title: "Donation receipt", text: text, url: shareUrl }).catch(function(){});
-                    } else {
-                      navigator.clipboard && navigator.clipboard.writeText(shareUrl).then(function () {
-                        alert("Receipt link copied.");
-                      }).catch(function(){});
-                    }
-                  };
-                })
-                .catch(function(){});
-            }
+            setTimeout(function(){ window.location.href = url; }, 600);
           })();
         </script>
       </body></html>
@@ -1010,6 +931,7 @@ export const stripeRoutes: FastifyPluginAsync = async (app) => {
     let guestEmailForReceipt: string | null = null;
     let orgNameForReceipt: string | null = null;
     let amountForReceipt: number | null = null;
+    let guestNotifyPaymentIntentId: string | null = null;
 
     const escapeHtml = (s: string) =>
       s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
@@ -1031,6 +953,7 @@ export const stripeRoutes: FastifyPluginAsync = async (app) => {
           const wasPending = (donStatusRes.rows[0] as { status?: string } | undefined)?.status === "pending";
 
           const client = await db.connect();
+          let guestFinalizeOk = false;
           try {
             await client.query("BEGIN");
             await client.query(
@@ -1041,12 +964,14 @@ export const stripeRoutes: FastifyPluginAsync = async (app) => {
             const piObj = await stripe.paymentIntents.retrieve(piId);
             await applyDonationFromSucceededPaymentIntent(client, piObj as unknown as Record<string, unknown>);
             await client.query("COMMIT");
+            guestFinalizeOk = true;
           } catch (e) {
             await client.query("ROLLBACK").catch(() => {});
             request.log.error({ err: e }, "guest-checkout-success: finalize failed");
           } finally {
             client.release();
           }
+          if (guestFinalizeOk) guestNotifyPaymentIntentId = piId;
 
           if (wasPending && guestEmailForReceipt && md.orgId) {
             try {
@@ -1085,6 +1010,12 @@ export const stripeRoutes: FastifyPluginAsync = async (app) => {
       }
     } catch (e) {
       request.log.error({ err: e }, "guest-checkout-success: session retrieval failed");
+    }
+
+    if (guestNotifyPaymentIntentId) {
+      notifyDonationFromPaymentIntent(guestNotifyPaymentIntentId).catch((err) => {
+        request.log.error({ err }, "notifyDonationFromPaymentIntent guest-checkout-success");
+      });
     }
 
     const safeEmail = guestEmailForReceipt ? escapeHtml(guestEmailForReceipt) : null;
