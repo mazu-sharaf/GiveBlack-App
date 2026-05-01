@@ -59,7 +59,6 @@ export default function DonateScreen() {
 
   // Start at $0 with no preset selected.
   const [amount, setAmount] = useState<string>("0");
-  const [customAmount, setCustomAmount] = useState<string>("");
   const [selectedPreset, setSelectedPreset] = useState<number | null>(null);
 
   // Pre-fill amount from URL param (e.g. after returning from sign-up/login).
@@ -68,11 +67,9 @@ export default function DonateScreen() {
     if (PRESET_AMOUNTS.includes(suggestedAmount)) {
       setSelectedPreset(suggestedAmount);
       setAmount(suggestedAmount.toString());
-      setCustomAmount("");
     } else {
       setSelectedPreset(null);
       setAmount(suggestedAmount.toString());
-      setCustomAmount(suggestedAmount.toString());
     }
   }, [suggestedAmount]);
 
@@ -154,6 +151,8 @@ export default function DonateScreen() {
         ]),
       ]).start();
     }
+    // `Animated.Value` refs from `useRef` are stable; only `step` should retrigger the success animation.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step]);
 
   useEffect(() => {
@@ -404,11 +403,9 @@ export default function DonateScreen() {
   function selectPreset(value: number) {
     setSelectedPreset(value);
     setAmount(value.toString());
-    setCustomAmount("");
   }
 
   function handleCustomAmount(text: string) {
-    setCustomAmount(text);
     setSelectedPreset(null);
     setAmount(text);
   }
@@ -1252,7 +1249,6 @@ export default function DonateScreen() {
                 onFocus={() => {
                   if (amount === "0") {
                     setAmount("");
-                    setCustomAmount("");
                     setSelectedPreset(null);
                   }
                 }}

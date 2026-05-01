@@ -233,6 +233,8 @@ export default function CheckoutResultScreen() {
         ]),
       ]).start();
     }
+    // `Animated.Value` refs from `useRef` are stable; only `status` should retrigger the entrance animation.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status]);
 
   const today = new Date();
