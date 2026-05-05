@@ -3,7 +3,7 @@
     "name": "GiveBlack",
     "slug": "giveblack",
     "description": "The go-to app for Black Philanthropy. Created for us, by us. Donate to verified Black-led organizations, track your impact, volunteer, and share campaigns -- all in one place. Give back with purpose.",
-    "version": "2.2.1",
+    "version": "2.2.2",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "giveblack",
@@ -18,7 +18,7 @@
       "supportsTablet": false,
       "usesAppleSignIn": true,
       "appleTeamId": "W5NB3UT9SS",
-      "buildNumber": "18",
+      "buildNumber": "25",
       "bundleIdentifier": "com.giveblack.app",
       "associatedDomains": [
         "applinks:giveblackapp.com",
@@ -37,7 +37,7 @@
       }
     },
     "android": {
-      "package": "com.giveblack",
+      "package": "com.giveblack.app",
       "adaptiveIcon": {
         "backgroundColor": "#FFFFFF",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
