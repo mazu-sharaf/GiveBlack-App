@@ -105,7 +105,8 @@ export function buildServer() {
               // Default is img-src 'self' data:; campaign pages embed org-hosted hero/gallery URLs.
               imgSrc: ["'self'", "data:", "https:", "blob:"],
               // Admin Google sign-in requires loading Google Identity Services script + iframe.
-              scriptSrc: ["'self'", "https://accounts.google.com"],
+              // Stripe / payment return pages (`/api/payments/*-success`) use small inline scripts for receipts + deep links.
+              scriptSrc: ["'self'", "'unsafe-inline'", "https://accounts.google.com"],
               frameSrc: ["'self'", "https://accounts.google.com"],
               connectSrc: ["'self'", "https://accounts.google.com", "https://www.googleapis.com"],
             },

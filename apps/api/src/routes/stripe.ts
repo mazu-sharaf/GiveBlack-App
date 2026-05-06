@@ -594,21 +594,8 @@ export const stripeRoutes: FastifyPluginAsync = async (app) => {
         ? env.EXPO_PUBLIC_API_URL.replace(/\/app\/?$/, "").replace(/\/$/, "")
         : `${request.protocol}://${request.hostname}`;
 
-      const successBase = body.returnUrl && body.returnUrl.trim().length > 0
-        ? body.returnUrl.trim()
-        : `${baseUrl}/api/payments/checkout-success`;
-
-      const successUrl = successBase.includes("?")
-        ? `${successBase}&session_id={CHECKOUT_SESSION_ID}`
-        : `${successBase}?session_id={CHECKOUT_SESSION_ID}`;
-
-      // Even if the client provides a returnUrl for success, keep cancel separate so we can show a clear
-      // "return to app" fallback experience.
-      const cancelBase = `${baseUrl}/api/payments/checkout-cancel`;
-
-      const cancelUrl = cancelBase.includes("?")
-        ? `${cancelBase}&cancelled=1`
-        : `${cancelBase}?cancelled=1`;
+      const successUrl = `${baseUrl}/payment/success?session_id={CHECKOUT_SESSION_ID}`;
+      const cancelUrl = `${baseUrl}/payment/cancel`;
 
       const partnerId = await resolveEducationPartnerId(body.educationPartnerCode);
       const reinvestOptIn = body.reinvestOptIn ?? false;
@@ -797,100 +784,161 @@ export const stripeRoutes: FastifyPluginAsync = async (app) => {
       }
     }
 
-    const baseUrl = env.EXPO_PUBLIC_API_URL
-      ? env.EXPO_PUBLIC_API_URL.replace(/\/app\/?$/, "").replace(/\/$/, "")
-      : `${request.protocol}://${request.hostname}`;
-    // Universal Link into the app (same pattern as checkout-cancel). Receipt PDF/share live in-app on checkout-result.
-    const checkoutDeepLink = sessionId
-      ? `${baseUrl}/link/checkout-result?session_id=${encodeURIComponent(sessionId)}`
-      : `${baseUrl}/link/checkout-result`;
+    // Deep link scheme intercepted by ASWebAuthenticationSession (openAuthSessionAsync).
+    // giveblack://payment/success is the redirect URL the mobile app listens for.
+    const deepLink = sessionId
+      ? `giveblack://payment/success?session_id=${encodeURIComponent(sessionId)}`
+      : `giveblack://payment/success`;
 
     return reply
       .header("Content-Type", "text/html; charset=utf-8")
       .header("Cache-Control", "no-store, max-age=0")
       .header("Pragma", "no-cache")
-      .send(`
-      <!DOCTYPE html>
-      <html><head><title>Payment Successful</title>
-      <meta charset="utf-8" />
-      <meta name="viewport" content="width=device-width, initial-scale=1">
-      <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; background: #0a0a0a; color: #fff; }
-        .card { text-align: center; padding: 40px; max-width: 520px; }
-        .icon { font-size: 64px; margin-bottom: 16px; }
-        h1 { font-size: 24px; margin-bottom: 8px; }
-        p { color: #999; font-size: 16px; margin-bottom: 12px; line-height: 1.5; }
-        .btn { background: #059669; color: #fff; border: none; padding: 14px 32px; border-radius: 12px; font-size: 16px; cursor: pointer; text-decoration: none; display: inline-block; }
-        .btn-row { display:flex; gap:10px; justify-content:center; flex-wrap:wrap; margin-top: 20px; }
-        .hint { color: #777; font-size: 13px; line-height: 18px; margin-top: 18px; }
-      </style>
-      </head><body>
-        <div class="card">
-          <div class="icon">&#10003;</div>
-          <h1>Payment Successful</h1>
-          <p>Thank you for your donation. Your generosity helps Black-led organizations and the communities they serve.</p>
-          <p>Returning you to the GiveBlack app now…</p>
-          <div class="btn-row">
-            <a href="${checkoutDeepLink}" class="btn">Open GiveBlack</a>
-          </div>
-          <div class="hint">
-            If the app does not open automatically, tap <strong>Open GiveBlack</strong>.
-          </div>
-        </div>
-        <script>
-          (function(){
-            var url = ${JSON.stringify(checkoutDeepLink)};
-            window.location.href = url;
-            setTimeout(function(){ window.location.href = url; }, 600);
-          })();
-        </script>
-      </body></html>
-    `);
+      .send(`<!DOCTYPE html>
+<html><head><title>Payment Successful</title>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;background:#0a0a0a;color:#fff;}
+  .card{text-align:center;padding:40px;max-width:480px;}
+  .icon{font-size:64px;margin-bottom:16px;}
+  h1{font-size:24px;margin-bottom:8px;}
+  p{color:#999;font-size:16px;margin-bottom:20px;line-height:1.5;}
+  .btn{display:inline-block;background:#059669;color:#fff;padding:14px 32px;border-radius:12px;font-size:16px;text-decoration:none;font-weight:600;}
+  .hint{color:#555;font-size:13px;margin-top:16px;}
+</style>
+<script>window.location.href=${JSON.stringify(deepLink)};</script>
+</head><body>
+  <div class="card">
+    <div class="icon">&#10003;</div>
+    <h1>Payment Successful</h1>
+    <p>Thank you for your donation. Returning you to the GiveBlack app…</p>
+    <a href=${JSON.stringify(deepLink)} class="btn">Open GiveBlack</a>
+    <p class="hint">If the app does not open, tap the button above.</p>
+  </div>
+</body></html>`);
   });
 
   app.get("/api/payments/checkout-cancel", async (request, reply) => {
-    const baseUrl = env.EXPO_PUBLIC_API_URL
-      ? env.EXPO_PUBLIC_API_URL.replace(/\/app\/?$/, "").replace(/\/$/, "")
-      : `${request.protocol}://${request.hostname}`;
-    // Prefer Universal Links for Safari/TestFlight reliability
-    const deepLink = `${baseUrl}/link/checkout-result?cancelled=1`;
+    const deepLink = `giveblack://payment/cancel`;
+
     return reply
       .header("Content-Type", "text/html; charset=utf-8")
       .header("Cache-Control", "no-store, max-age=0")
       .header("Pragma", "no-cache")
-      .send(`
-      <!DOCTYPE html>
-      <html><head><title>Payment Cancelled</title>
-      <meta charset="utf-8" />
-      <meta name="viewport" content="width=device-width, initial-scale=1">
-      <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; background: #0a0a0a; color: #fff; }
-        .card { text-align: center; padding: 40px; max-width: 520px; }
-        .icon { font-size: 64px; margin-bottom: 16px; }
-        h1 { font-size: 24px; margin-bottom: 8px; }
-        p { color: #999; font-size: 16px; margin-bottom: 24px; }
-        .btn { background: #059669; color: #fff; border: none; padding: 14px 32px; border-radius: 12px; font-size: 16px; cursor: pointer; text-decoration: none; display: inline-block; }
-        .hint { color: #777; font-size: 13px; line-height: 18px; margin-top: 14px; }
-      </style>
-      </head><body>
-        <div class="card">
-          <div class="icon">&#10007;</div>
-          <h1>Payment Cancelled</h1>
-          <p>Your donation was not processed. Return to the app to try again.</p>
-          <a href="${deepLink}" class="btn">Return to app</a>
-          <div class="hint">
-            If the app doesn't open automatically, tap "Return to app".
-          </div>
-        </div>
-        <script>
-          (function () {
-            var url = ${JSON.stringify(deepLink)};
-            window.location.href = url;
-            setTimeout(function () { window.location.href = url; }, 600);
-          })();
-        </script>
-      </body></html>
-    `);
+      .send(`<!DOCTYPE html>
+<html><head><title>Payment Cancelled</title>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;background:#0a0a0a;color:#fff;}
+  .card{text-align:center;padding:40px;max-width:480px;}
+  .icon{font-size:64px;margin-bottom:16px;}
+  h1{font-size:24px;margin-bottom:8px;}
+  p{color:#999;font-size:16px;margin-bottom:20px;line-height:1.5;}
+  .btn{display:inline-block;background:#059669;color:#fff;padding:14px 32px;border-radius:12px;font-size:16px;text-decoration:none;font-weight:600;}
+  .hint{color:#555;font-size:13px;margin-top:16px;}
+</style>
+<script>window.location.href=${JSON.stringify(deepLink)};</script>
+</head><body>
+  <div class="card">
+    <div class="icon">&#10007;</div>
+    <h1>Payment Cancelled</h1>
+    <p>Your donation was not processed. Tap below to return to the app.</p>
+    <a href=${JSON.stringify(deepLink)} class="btn">Return to GiveBlack</a>
+    <p class="hint">If the app does not open, tap the button above.</p>
+  </div>
+</body></html>`);
+  });
+
+  // Primary Stripe Checkout return pages — used by all mobile (iOS/Android) checkout flows.
+  // Nginx routes /payment/* to this API (see deploy/nginx-giveblackapp.com.conf).
+  // ASWebAuthenticationSession / Chrome Custom Tab intercepts the giveblack:// redirect below.
+  app.get("/payment/success", async (request, reply) => {
+    const q = request.query as { session_id?: string };
+    const sessionId = q.session_id ? String(q.session_id) : "";
+
+    if (sessionId && env.STRIPE_SECRET_KEY) {
+      try {
+        const stripe = getStripe();
+        const fin = await finalizeDonationFromCheckoutSession(stripe, sessionId);
+        notifyDonationFromPaymentIntent(fin.paymentIntentId).catch((err) => {
+          request.log.error({ err }, "notifyDonationFromPaymentIntent payment/success");
+        });
+      } catch (e: unknown) {
+        request.log.warn({ err: e, sessionId }, "payment/success: finalize skipped or failed");
+      }
+    }
+
+    const deepLink = sessionId
+      ? `giveblack://payment/success?session_id=${encodeURIComponent(sessionId)}`
+      : `giveblack://payment/success`;
+
+    return reply
+      .header("Content-Type", "text/html; charset=utf-8")
+      .header("Cache-Control", "no-store, max-age=0")
+      .header("Pragma", "no-cache")
+      .send(`<!DOCTYPE html>
+<html><head><title>Payment Successful</title>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<meta http-equiv="refresh" content="0; url=${deepLink}"/>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;background:#0a0a0a;color:#fff;}
+  .card{text-align:center;padding:40px;max-width:480px;}
+  .icon{font-size:64px;margin-bottom:16px;}
+  h1{font-size:24px;margin-bottom:8px;}
+  p{color:#999;font-size:16px;margin-bottom:20px;line-height:1.5;}
+  .btn{display:inline-block;background:#2D9E6B;color:#fff;padding:14px 32px;border-radius:12px;font-size:16px;text-decoration:none;font-weight:600;}
+  .hint{color:#555;font-size:13px;margin-top:16px;}
+</style>
+<script>window.location.replace(${JSON.stringify(deepLink)});</script>
+</head><body>
+  <div class="card">
+    <div class="icon">&#10003;</div>
+    <h1>Payment Successful</h1>
+    <p>Thank you for your donation. Returning you to the GiveBlack app…</p>
+    <a href="${deepLink}" class="btn">Open GiveBlack</a>
+    <p class="hint">If the app does not open, tap the button above.</p>
+  </div>
+</body></html>`);
+  });
+
+  app.get("/payment/cancel", async (request, reply) => {
+    const deepLink = `giveblack://payment/cancel`;
+
+    return reply
+      .header("Content-Type", "text/html; charset=utf-8")
+      .header("Cache-Control", "no-store, max-age=0")
+      .header("Pragma", "no-cache")
+      .send(`<!DOCTYPE html>
+<html><head><title>Payment Cancelled</title>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<meta http-equiv="refresh" content="0; url=${deepLink}"/>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;background:#0a0a0a;color:#fff;}
+  .card{text-align:center;padding:40px;max-width:480px;}
+  .icon{font-size:64px;margin-bottom:16px;}
+  h1{font-size:24px;margin-bottom:8px;}
+  p{color:#999;font-size:16px;margin-bottom:20px;line-height:1.5;}
+  .btn{display:inline-block;background:#2D9E6B;color:#fff;padding:14px 32px;border-radius:12px;font-size:16px;text-decoration:none;font-weight:600;}
+  .hint{color:#555;font-size:13px;margin-top:16px;}
+</style>
+<script>window.location.replace(${JSON.stringify(deepLink)});</script>
+</head><body>
+  <div class="card">
+    <div class="icon">&#10007;</div>
+    <h1>Payment Cancelled</h1>
+    <p>Your donation was not processed. Tap below to return to the app.</p>
+    <a href="${deepLink}" class="btn">Return to GiveBlack</a>
+    <p class="hint">If the app does not open, tap the button above.</p>
+  </div>
+</body></html>`);
   });
 
   app.get("/api/payments/guest-checkout-success", async (request, reply) => {
@@ -1125,8 +1173,8 @@ export const stripeRoutes: FastifyPluginAsync = async (app) => {
             type: "wallet_topup",
           },
         },
-        success_url: `${baseUrl}/api/payments/checkout-success?session_id={CHECKOUT_SESSION_ID}`,
-        cancel_url: `${baseUrl}/api/payments/checkout-cancel`,
+        success_url: `${baseUrl}/payment/success?session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${baseUrl}/payment/cancel`,
       });
 
       return { url: session.url, sessionId: session.id };
@@ -2242,17 +2290,8 @@ export const stripeRoutes: FastifyPluginAsync = async (app) => {
       ? env.EXPO_PUBLIC_API_URL.replace(/\/app\/?$/, "").replace(/\/$/, "")
       : `${request.protocol}://${request.hostname}`;
 
-    const defaultGuestSuccess = `${baseUrl}/api/payments/guest-checkout-success?session_id={CHECKOUT_SESSION_ID}`;
-    const ret = body.returnUrl?.trim();
-    const successUrl = ret
-      ? ret.includes("{CHECKOUT_SESSION_ID}")
-        ? ret
-        : ret.includes("?")
-          ? `${ret}&session_id={CHECKOUT_SESSION_ID}`
-          : `${ret}?session_id={CHECKOUT_SESSION_ID}`
-      : defaultGuestSuccess;
-    // Keep cancel separate from success so we can show a clear "return to app" fallback experience.
-    const cancelUrl = `${baseUrl}/api/payments/checkout-cancel`;
+    const successUrl = `${baseUrl}/payment/success?session_id={CHECKOUT_SESSION_ID}`;
+    const cancelUrl = `${baseUrl}/payment/cancel`;
 
     const donationMeta: Record<string, string> = {
       orgId: body.orgId,

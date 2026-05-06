@@ -30,6 +30,7 @@ import { useApp } from "@/context/AppContext";
 import { useAuth } from "@/context/AuthContext";
 import { apiPost } from "@/lib/query-client";
 import * as WebBrowser from "expo-web-browser";
+import * as Linking from "expo-linking";
 
 const PRESET_AMOUNTS = [5, 10, 25, 50, 100, 200];
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
@@ -201,8 +202,19 @@ export default function TopUpScreen() {
         throw new Error("Payment service unavailable.");
       }
 
-      const browserResult = await WebBrowser.openBrowserAsync(checkoutRes.url);
+      const browserResult = await WebBrowser.openAuthSessionAsync(
+        checkoutRes.url,
+        Linking.createURL("payment") // matches giveblack://payment/success and giveblack://payment/cancel
+      );
       if (browserResult.type === "cancel") {
+        return false;
+      }
+      // If cancelled via payment/cancel deep link, treat as cancel too
+      if (
+        browserResult.type === "success" &&
+        browserResult.url &&
+        browserResult.url.includes("payment/cancel")
+      ) {
         return false;
       }
 

@@ -10,6 +10,7 @@ import { useThemeColors } from "@/context/ThemeContext";
 import { apiGet, apiPost, getApiUrl } from "@/lib/query-client";
 import { isNativeStripeAvailable, presentNativePaymentSheet } from "@/lib/stripe-confirm";
 import * as WebBrowser from "expo-web-browser";
+import * as Linking from "expo-linking";
 import * as Print from "expo-print";
 import * as LegacyFileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
@@ -580,8 +581,6 @@ export default function DonateScreen() {
     if (Platform.OS === "ios") {
       setPaymentMethod("safari");
       try {
-        const basePublic = getApiUrl().replace(/\/app\/?$/, "").replace(/\/$/, "");
-        const returnBase = `${basePublic}/api/payments/checkout-success`;
         if (guestMode) {
           const res = await apiPost<{ url?: string; sessionId?: string }>(
             "/api/payments/guest-donate-checkout",
@@ -593,7 +592,6 @@ export default function DonateScreen() {
               reinvestPct: Math.round(educationRate * 1000) / 10,
               ...(resolvedPartner ? { educationPartnerCode: resolvedPartner.code } : {}),
               ...(campaignId ? { campaignId } : {}),
-              returnUrl: returnBase,
             }
           );
           if (!res.url) {
@@ -611,10 +609,17 @@ export default function DonateScreen() {
           const guestSessionId = res.sessionId;
           router.replace("/(tabs)" as Href);
           try {
-            await WebBrowser.openBrowserAsync(res.url);
-            if (guestSessionId) {
+            const result = await WebBrowser.openAuthSessionAsync(
+              res.url,
+              Linking.createURL("payment") // matches giveblack://payment/success and giveblack://payment/cancel
+            );
+            const sid =
+              result.type === "success" && result.url
+                ? (Linking.parse(result.url).queryParams?.session_id as string | undefined) ?? guestSessionId
+                : guestSessionId;
+            if (sid) {
               void refresh();
-              router.push(`/checkout-result?session_id=${encodeURIComponent(guestSessionId)}` as Href);
+              router.push(`/checkout-result?session_id=${encodeURIComponent(sid)}` as Href);
             }
           } finally {
             void clearDonationIntent();
@@ -631,7 +636,6 @@ export default function DonateScreen() {
               reinvestPct: Math.round(educationRate * 1000) / 10,
               ...(resolvedPartner ? { educationPartnerCode: resolvedPartner.code } : {}),
               ...(campaignId ? { campaignId } : {}),
-              returnUrl: returnBase,
             },
             token
           );
@@ -650,11 +654,18 @@ export default function DonateScreen() {
           const authedSessionId = res.sessionId;
           router.replace("/(tabs)" as Href);
           try {
-            await WebBrowser.openBrowserAsync(res.url);
-            if (authedSessionId) {
+            const result = await WebBrowser.openAuthSessionAsync(
+              res.url,
+              Linking.createURL("payment") // matches giveblack://payment/success and giveblack://payment/cancel
+            );
+            const sid =
+              result.type === "success" && result.url
+                ? (Linking.parse(result.url).queryParams?.session_id as string | undefined) ?? authedSessionId
+                : authedSessionId;
+            if (sid) {
               void refreshDonationSummary();
               void refresh();
-              router.push(`/checkout-result?session_id=${encodeURIComponent(authedSessionId)}` as Href);
+              router.push(`/checkout-result?session_id=${encodeURIComponent(sid)}` as Href);
             }
           } finally {
             void clearDonationIntent();

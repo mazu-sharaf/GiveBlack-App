@@ -42,7 +42,9 @@ export const campaignPageRoutes: FastifyPluginAsync = async (app) => {
     const host = (request.headers["x-forwarded-host"] as string) || request.hostname;
     const baseUrl = `${proto}://${host}`;
     const publicBase = env.EXPO_PUBLIC_API_URL?.replace(/\/$/, "") || baseUrl;
-    const defaultOg = `${baseUrl.replace(/\/$/, "")}${DEFAULT_CAMPAIGN_OG_PATH}`;
+    // Strip /app suffix so relative upload URLs resolve under the root domain (e.g. /uploads/...)
+    const uploadsBase = baseUrl.replace(/\/$/, "");
+    const defaultOg = `${uploadsBase}${DEFAULT_CAMPAIGN_OG_PATH}`;
     const shareUrl = `${baseUrl}/link/c/${encodeURIComponent(campaignId)}`;
 
     try {
@@ -62,7 +64,7 @@ export const campaignPageRoutes: FastifyPluginAsync = async (app) => {
       const desc =
         stripHtmlForMeta(row.description || `Support ${row.org_name || "this organization"} on Give Black.`).slice(0, 300);
 
-      const appleUrl = env.APP_STORE_URL || "https://apps.apple.com/app/giveblack";
+      const appleUrl = env.APP_STORE_URL || "https://apps.apple.com/us/app/give-black/id1474463975";
       const playUrl = env.PLAY_STORE_URL || "https://play.google.com/store/apps/details?id=com.giveblack";
       const deepLink = `giveblack://link/c/${encodeURIComponent(campaignId)}`;
       const webFallback = `${baseUrl}/c/${encodeURIComponent(campaignId)}/web`;
@@ -73,7 +75,7 @@ export const campaignPageRoutes: FastifyPluginAsync = async (app) => {
           description: desc,
           ogTitle: `Support ${title} on Give Black`,
           ogDescription: desc,
-          ogImage: resolveCampaignOgImage(row.main_image_url, publicBase, defaultOg),
+          ogImage: resolveCampaignOgImage(row.main_image_url, uploadsBase, defaultOg),
           canonicalUrl: shareUrl,
           deepLink,
           webFallback,
@@ -83,7 +85,7 @@ export const campaignPageRoutes: FastifyPluginAsync = async (app) => {
       );
     } catch (e) {
       app.log.error(e);
-      const appleUrl = env.APP_STORE_URL || "https://apps.apple.com/app/giveblack";
+      const appleUrl = env.APP_STORE_URL || "https://apps.apple.com/us/app/give-black/id1474463975";
       const playUrl = env.PLAY_STORE_URL || "https://play.google.com/store/apps/details?id=com.giveblack";
       const deepLink = `giveblack://link/c/${encodeURIComponent(campaignId)}`;
       const webFallback = `${baseUrl}/c/${encodeURIComponent(campaignId)}/web`;
@@ -102,6 +104,47 @@ export const campaignPageRoutes: FastifyPluginAsync = async (app) => {
         })
       );
     }
+  });
+
+  app.get("/link/checkout-result", async (request, reply) => {
+    const q = request.query as { session_id?: string; cancelled?: string };
+    const proto = (request.headers["x-forwarded-proto"] as string) || request.protocol || "https";
+    const host = (request.headers["x-forwarded-host"] as string) || request.hostname;
+    const baseUrl = `${proto}://${host}`;
+    const defaultOg = `${baseUrl.replace(/\/$/, "")}${DEFAULT_CAMPAIGN_OG_PATH}`;
+
+    const appleUrl = env.APP_STORE_URL || "https://apps.apple.com/us/app/give-black/id1474463975";
+    const playUrl = env.PLAY_STORE_URL || "https://play.google.com/store/apps/details?id=com.giveblack";
+
+    const isCancelled = q.cancelled === "1" || q.cancelled === "true";
+    const sessionId = q.session_id ? String(q.session_id) : "";
+
+    // Custom scheme works from JS; Universal Link tap from <a href> is handled by deepLinkLandingPage.
+    const deepLink = isCancelled
+      ? "giveblack://checkout-result?cancelled=1"
+      : sessionId
+        ? `giveblack://checkout-result?session_id=${encodeURIComponent(sessionId)}`
+        : "giveblack://checkout-result";
+
+    const title = isCancelled ? "Payment Cancelled" : "Payment Successful";
+    const description = isCancelled
+      ? "Your donation was not processed. Open the GiveBlack app to try again."
+      : "Thank you for your donation. Your generosity helps Black-led organizations and the communities they serve.";
+
+    return reply.type("text/html").send(
+      deepLinkLandingPage({
+        title,
+        description,
+        ogTitle: "Give Black",
+        ogDescription: description,
+        ogImage: defaultOg,
+        canonicalUrl: `${baseUrl}/link/checkout-result`,
+        deepLink,
+        webFallback: appleUrl,
+        appleUrl,
+        playUrl,
+      })
+    );
   });
 
   app.get("/c/:campaignId/thank-you", async (request, reply) => {
@@ -425,7 +468,8 @@ export const campaignPageRoutes: FastifyPluginAsync = async (app) => {
   });
 };
 
-const DEFAULT_CAMPAIGN_OG_PATH = "/admin/giveblack-og.png";
+// Served by Fastify at /assets/ → nginx maps /app/assets/* → Fastify /assets/*
+const DEFAULT_CAMPAIGN_OG_PATH = "/app/assets/og-image.png";
 
 function stripHtmlForMeta(s: string): string {
   return s.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
@@ -557,6 +601,8 @@ function deepLinkLandingPage(opts: {
 <meta property="og:type" content="website"/>
 <meta property="og:url" content="${canon}"/>
 <meta property="og:image" content="${img}"/>
+<meta property="og:image:width" content="1200"/>
+<meta property="og:image:height" content="630"/>
 <meta property="og:image:alt" content="${ogT}"/>
 <meta property="og:site_name" content="Give Black"/>
 <meta name="twitter:card" content="summary_large_image"/>

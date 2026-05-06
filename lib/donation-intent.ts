@@ -7,6 +7,11 @@ export interface DonationIntent {
   orgId: string;
   campaignId?: string;
   amount?: number;
+  /**
+   * Set while iOS Safari Stripe Checkout is open. If the OS kills the JS process
+   * during checkout, cold start can read this and reopen the donate flow instead of home.
+   */
+  pendingSafariCheckout?: boolean;
 }
 
 export async function saveDonationIntent(intent: DonationIntent): Promise<void> {
@@ -43,7 +48,8 @@ export async function loadDonationIntent(): Promise<DonationIntent | null> {
     if (amount === null) return null;
     const campaignId =
       typeof parsed.campaignId === "string" && parsed.campaignId ? parsed.campaignId : undefined;
-    return { orgId: parsed.orgId, campaignId, amount } as DonationIntent;
+    const pendingSafariCheckout = Boolean(parsed.pendingSafariCheckout);
+    return { orgId: parsed.orgId, campaignId, amount, pendingSafariCheckout } as DonationIntent;
   } catch {
     return null;
   }

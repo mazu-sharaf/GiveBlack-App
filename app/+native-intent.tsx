@@ -15,7 +15,18 @@ export function redirectSystemPath({
   path: string;
   initial: boolean;
 }) {
-  // /link/checkout-result  →  /checkout-result (Stripe Checkout return)
+  // giveblack://payment/success?session_id=...  →  /checkout-result?session_id=...
+  const paymentSuccess = path.match(/^\/payment\/success(.*)/);
+  if (paymentSuccess) {
+    return `/checkout-result${paymentSuccess[1] ?? ""}`;
+  }
+
+  // giveblack://payment/cancel  →  /checkout-result?cancelled=1
+  if (path.match(/^\/payment\/cancel/)) {
+    return `/checkout-result?cancelled=1`;
+  }
+
+  // /link/checkout-result  →  /checkout-result (Stripe Checkout return, legacy Universal Link)
   const checkoutLink = path.match(/^\/link\/checkout-result(.*)/);
   if (checkoutLink) {
     return `/checkout-result${checkoutLink[1] ?? ""}`;

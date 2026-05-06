@@ -82,26 +82,40 @@ async function fetchPushTokensForUsers(userIds: string[]): Promise<Map<string, s
 }
 
 export async function resolveCharityUserIdsForOrg(orgId: string): Promise<string[]> {
+  /** Match org owners the same way billing/org routes do: contact_email on the org row, then approved charity_requests. */
   const res = await db.query(
     `with org as (
-       select id, name, contact_email from organizations where id = $1
+       select id,
+              nullif(trim(lower(coalesce(contact_email, ''))), '') as contact_email_lc,
+              regexp_replace(lower(coalesce(name, '')), '[^a-z0-9]', '', 'g') as name_key
+       from organizations
+       where id = $1
      )
      select distinct u.id::text as id
      from users u
-     cross join org
-     where nullif(trim(org.contact_email), '') is not null
-       and lower(trim(u.email)) = lower(trim(org.contact_email))
+     cross join org o
+     where o.contact_email_lc is not null
+       and nullif(trim(lower(coalesce(u.email, ''))), '') = o.contact_email_lc
      union
-     select distinct cr.user_id::text as id
-     from charity_requests cr
-     cross join org
-     where cr.status = 'approved'
-       and cr.user_id is not null
-       and (
-         regexp_replace(lower(coalesce(org.name, '')), '[^a-z0-9]', '', 'g') =
-         regexp_replace(lower(coalesce(cr.charity_name, '')), '[^a-z0-9]', '', 'g')
-         or lower(coalesce(org.contact_email, '')) = lower(coalesce(cr.contact_email, ''))
-       )`,
+     select distinct u.id::text as id
+     from users u
+     cross join org o
+     where exists (
+       select 1
+       from charity_requests cr
+       where cr.status = 'approved'
+         and (
+           cr.user_id = u.id
+           or nullif(trim(lower(coalesce(cr.contact_email, ''))), '') = nullif(trim(lower(coalesce(u.email, ''))), '')
+         )
+         and (
+           regexp_replace(lower(coalesce(cr.charity_name, '')), '[^a-z0-9]', '', 'g') = o.name_key
+           or (
+             o.contact_email_lc is not null
+             and nullif(trim(lower(coalesce(cr.contact_email, ''))), '') = o.contact_email_lc
+           )
+         )
+     )`,
     [orgId]
   );
   const ids = res.rows.map((r) => (r as { id: string }).id).filter(Boolean);
@@ -226,9 +240,6 @@ export async function notifyUsers(options: {
 
 /** After a successful donation (Stripe payment intent id). Idempotent per PI. */
 export async function notifyDonationFromPaymentIntent(stripePaymentIntentId: string): Promise<void> {
-  const ok = await tryClaimDedupe(`donation_pi:${stripePaymentIntentId}`);
-  if (!ok) return;
-
   const res = await db.query(
     `select d.id, d.user_id, d.amount::text, d.campaign_id, d.org_id,
             c.title as campaign_title,
@@ -252,6 +263,9 @@ export async function notifyDonationFromPaymentIntent(stripePaymentIntentId: str
       }
     | undefined;
   if (!row?.resolved_org_id) return;
+
+  const ok = await tryClaimDedupe(`donation_pi:${stripePaymentIntentId}`);
+  if (!ok) return;
 
   const amt = Number(row.amount || 0);
   const amtStr = amt.toLocaleString("en-US", { style: "currency", currency: "USD" });

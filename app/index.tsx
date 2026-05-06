@@ -1,10 +1,11 @@
 import React, { useEffect, useLayoutEffect, useState, useRef } from "react";
 import { View, StyleSheet } from "react-native";
-import { Redirect } from "expo-router";
+import { Redirect, type Href } from "expo-router";
 import { useAuth } from "@/context/AuthContext";
 import { useThemeColors } from "@/context/ThemeContext";
 import { hasCompletedOnboarding } from "@/lib/onboarding-storage";
 import { resetNavigationStackThenReplace } from "@/lib/auth-navigation";
+import { loadDonationIntent } from "@/lib/donation-intent";
 
 /** Charity cold start: `<Redirect href="/(org)" />` can leave `/` in the root stack so swipe-back returns here; reset like post-login. */
 function CharityAuthedBootstrap() {
@@ -20,14 +21,42 @@ export default function Index() {
   const c = useThemeColors();
   const [authGateReady, setAuthGateReady] = useState(false);
   const [seenOnboarding, setSeenOnboarding] = useState(false);
+  const [donorHomeHref, setDonorHomeHref] = useState<Href>("/(tabs)");
   const guestStartedRef = useRef(false);
 
   useEffect(() => {
     if (isLoading) return;
-    if (isAuthenticated) {
-      setAuthGateReady(true);
-      return;
+
+    if (isAuthenticated && user) {
+      if (user.type === "charity") {
+        setAuthGateReady(true);
+        return;
+      }
+
+      let active = true;
+      void (async () => {
+        try {
+          const intent = await loadDonationIntent();
+          if (!active) return;
+          if (intent?.pendingSafariCheckout && intent.orgId) {
+            const qp = new URLSearchParams();
+            if (intent.campaignId) qp.set("campaignId", intent.campaignId);
+            if (intent.amount != null) qp.set("amount", String(intent.amount));
+            const qs = qp.toString();
+            setDonorHomeHref(`/donate/${intent.orgId}${qs ? `?${qs}` : ""}` as Href);
+          } else {
+            setDonorHomeHref("/(tabs)");
+          }
+        } finally {
+          if (active) setAuthGateReady(true);
+        }
+      })();
+
+      return () => {
+        active = false;
+      };
     }
+
     if (guestStartedRef.current) return;
     guestStartedRef.current = true;
     hasCompletedOnboarding().then(async (seen) => {
@@ -35,14 +64,15 @@ export default function Index() {
       if (seen) {
         try {
           await guestLogin();
-        } finally {
+        } catch (e) {
+          console.log("Guest bootstrap failed:", e instanceof Error ? e.message : String(e));
           setAuthGateReady(true);
         }
-      } else {
-        setAuthGateReady(true);
+        return;
       }
+      setAuthGateReady(true);
     });
-  }, [isLoading, isAuthenticated, guestLogin]);
+  }, [isLoading, isAuthenticated, user, guestLogin]);
 
   if (isLoading || !authGateReady) {
     return <View style={[styles.centered, { backgroundColor: c.background }]} />;
@@ -56,7 +86,7 @@ export default function Index() {
     return <CharityAuthedBootstrap />;
   }
 
-  return <Redirect href="/(tabs)" />;
+  return <Redirect href={donorHomeHref} />;
 }
 
 const styles = StyleSheet.create({
