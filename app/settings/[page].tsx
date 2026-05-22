@@ -1129,15 +1129,33 @@ function EditProfilePage() {
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [saved, setSaved] = useState(false);
 
-  const handleSave = () => {
-    if (!fullName.trim()) {
+  const handleSave = async () => {
+    const trimmedName = fullName.trim();
+    if (!trimmedName) {
       Alert.alert("Error", "Name is required");
       return;
     }
-    updateProfile({ fullName: fullName.trim(), nickname: nickname.trim(), phone: phone.trim() });
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
-    Alert.alert("Profile Updated", "Your profile has been updated successfully.");
+    try {
+      // Persist name to the server so users.full_name + profiles.name both update.
+      // nickname/phone remain device-local (no DB columns yet).
+      const res = await fetchWithAuth("/api/me/profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: trimmedName }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        Alert.alert("Update Failed", (err as { error?: string }).error || "Could not save your name. Please try again.");
+        return;
+      }
+      updateProfile({ fullName: trimmedName, nickname: nickname.trim(), phone: phone.trim() });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+      Alert.alert("Profile Updated", "Your profile has been updated successfully.");
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Network error";
+      Alert.alert("Update Failed", msg);
+    }
   };
 
   async function pickDonorAvatar() {
