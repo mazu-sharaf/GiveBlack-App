@@ -15,6 +15,9 @@ android/
 *.orig.*
 *.jks
 .android-upload-key/
+
+# Server-side ops configs with secrets (DB passwords, basic-auth creds, etc.)
+deploy/pgweb.config.cjs
 *.p8
 *.p12
 *.key
