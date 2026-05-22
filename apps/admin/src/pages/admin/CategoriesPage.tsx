@@ -93,7 +93,7 @@ export default function CategoriesPage() {
     }
     setUploading(true);
     try {
-      const url = await uploadFile(file);
+      const url = await uploadFile(file, "category-icon");
       if (!url) throw new Error("No URL returned");
       setForm((f) => ({ ...f, image_url: url }));
       toast.success("Image uploaded");

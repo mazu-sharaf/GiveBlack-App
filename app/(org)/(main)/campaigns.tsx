@@ -238,7 +238,7 @@ export default function CampaignsTab() {
         } as any);
       }
 
-      const res = await fetchWithAuth("/api/upload/image", {
+      const res = await fetchWithAuth("/api/upload/image?kind=campaign-cover", {
         method: "POST",
         body: formData,
       });
@@ -293,7 +293,7 @@ export default function CampaignsTab() {
         } as any);
       }
 
-      const uploadRes = await fetchWithAuth("/api/upload/image", {
+      const uploadRes = await fetchWithAuth("/api/upload/image?kind=campaign-gallery", {
         method: "POST",
         body: formData,
       });

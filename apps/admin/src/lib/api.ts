@@ -796,11 +796,23 @@ export async function fetchTopDonorsAdmin(limit = 20) {
   return request<{ donors: AdminTopDonorRow[] }>(`/api/admin/donors/top?limit=${limit}`);
 }
 
-export async function uploadFile(file: File): Promise<string> {
+/**
+ * Upload a file to the API and return its public URL.
+ *
+ * `kind` maps to the upload folder on R2:
+ *   "org-logo"         → profiles/org/
+ *   "org-cover"        → profiles/org-cover/
+ *   "campaign-cover"   → campaigns/cover/
+ *   "campaign-gallery" → campaigns/gallery/
+ *   "category-icon"    → categories/
+ *   "misc"             → misc/ (default)
+ */
+export async function uploadFile(file: File, kind = "misc"): Promise<string> {
   const token = getApiToken();
   const formData = new FormData();
   formData.append("file", file);
-  const res = await fetch(`${getApiBaseUrl()}/api/admin/storage/upload`, {
+  formData.append("folder", kind);
+  const res = await fetch(`${getApiBaseUrl()}/api/admin/storage/upload?kind=${encodeURIComponent(kind)}`, {
     method: "POST",
     headers: token ? { Authorization: `Bearer ${token}` } : {},
     body: formData,

@@ -134,7 +134,7 @@ export default function OrganizationProfilePage() {
         type: asset.mimeType || `image/${ext}`,
       } as any);
 
-      const uploadRes = await fetchWithAuth("/api/upload/image", { method: "POST", body: formData });
+      const uploadRes = await fetchWithAuth("/api/upload/image?kind=org-logo", { method: "POST", body: formData });
       if (!uploadRes.ok) {
         const err = await uploadRes.json().catch(() => ({}));
         Alert.alert("Upload Failed", (err as { error?: string }).error || "Could not upload image");
@@ -181,7 +181,7 @@ export default function OrganizationProfilePage() {
         type: asset.mimeType || `image/${ext}`,
       } as any);
 
-      const uploadRes = await fetchWithAuth("/api/upload/image", { method: "POST", body: formData });
+      const uploadRes = await fetchWithAuth("/api/upload/image?kind=org-cover", { method: "POST", body: formData });
       if (!uploadRes.ok) {
         const err = await uploadRes.json().catch(() => ({}));
         Alert.alert("Upload Failed", (err as { error?: string }).error || "Could not upload cover");

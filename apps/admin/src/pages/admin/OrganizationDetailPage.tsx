@@ -103,7 +103,7 @@ export default function OrganizationDetailPage() {
     }
     setUploading(kind);
     try {
-      const url = await uploadFile(file);
+      const url = await uploadFile(file, kind === "logo" ? "org-logo" : "org-cover");
       if (!url) throw new Error("Upload failed");
       if (kind === "logo") set("image_url", url);
       else set("cover_image_url", url);

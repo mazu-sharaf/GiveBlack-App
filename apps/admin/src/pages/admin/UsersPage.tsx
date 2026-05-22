@@ -210,7 +210,7 @@ export default function UsersPage() {
     if (!file) return;
     try {
       setSavingAvatar(true);
-      const url = await uploadFile(file);
+      const url = await uploadFile(file, "donor-avatar");
       if (!url) throw new Error("Upload did not return a URL");
       setAvatarDraft(url);
       toast.success("Photo uploaded. Click Save to apply.");

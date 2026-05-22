@@ -7,6 +7,39 @@ import { isR2Configured, r2PutObject } from "../lib/storage-r2.js";
 
 const UPLOADS_DIR = path.resolve(process.cwd(), "uploads");
 
+/**
+ * Allowed upload kinds and their R2 folder prefixes.
+ *
+ * Folder layout on R2 / local disk:
+ *
+ *   profiles/donor/       – donor avatar
+ *   profiles/org/         – charity/organization logo
+ *   profiles/org-cover/   – charity cover photo
+ *   campaigns/cover/      – campaign main image
+ *   campaigns/gallery/    – campaign gallery images (up to 5)
+ *   community/post/       – community feed images
+ *   categories/           – category icon images (admin)
+ *   misc/                 – fallback / unclassified
+ */
+const KIND_FOLDER: Record<string, string> = {
+  "donor-avatar":      "profiles/donor",
+  "org-logo":          "profiles/org",
+  "org-cover":         "profiles/org-cover",
+  "campaign-cover":    "campaigns/cover",
+  "campaign-gallery":  "campaigns/gallery",
+  "community-post":    "community/post",
+  "category-icon":     "categories",
+  "misc":              "misc",
+};
+
+const DEFAULT_KIND = "misc";
+
+function folderForKind(raw: string | undefined): string {
+  if (!raw) return KIND_FOLDER[DEFAULT_KIND];
+  const k = raw.trim().toLowerCase();
+  return KIND_FOLDER[k] ?? KIND_FOLDER[DEFAULT_KIND];
+}
+
 export const uploadRoutes: FastifyPluginAsync = async (app) => {
   const useR2 = isR2Configured();
   if (!useR2 && !fs.existsSync(UPLOADS_DIR)) {
@@ -18,6 +51,10 @@ export const uploadRoutes: FastifyPluginAsync = async (app) => {
     "/api/upload/image",
     { preHandler: [app.authenticate] },
     async (request, reply) => {
+      const query = request.query as Record<string, string | undefined>;
+      const kind = (query.kind ?? "").trim().toLowerCase() || DEFAULT_KIND;
+      const folder = folderForKind(kind);
+
       const file = await request.file();
       if (!file) {
         return reply.code(400).send({ error: "No file uploaded" });
@@ -49,14 +86,16 @@ export const uploadRoutes: FastifyPluginAsync = async (app) => {
       }
 
       const name = `${crypto.randomUUID()}${optimized.ext}`;
+      const key = `${folder}/${name}`;
 
       if (useR2) {
         try {
           const { url } = await r2PutObject({
-            key: name,
+            key,
             body: optimized.buffer,
             contentType: "image/jpeg",
           });
+          request.log.info({ key, kind, folder }, "uploaded to r2");
           return { url, filename: name };
         } catch (e) {
           request.log.error({ err: e }, "r2 upload failed");
@@ -64,9 +103,11 @@ export const uploadRoutes: FastifyPluginAsync = async (app) => {
         }
       }
 
-      const dest = path.join(UPLOADS_DIR, name);
-      fs.writeFileSync(dest, optimized.buffer);
-      const url = `/uploads/${name}`;
+      // Fallback: local disk
+      const destDir = path.join(UPLOADS_DIR, folder);
+      if (!fs.existsSync(destDir)) fs.mkdirSync(destDir, { recursive: true });
+      fs.writeFileSync(path.join(destDir, name), optimized.buffer);
+      const url = `/uploads/${key}`;
       return { url, filename: name };
     },
   );

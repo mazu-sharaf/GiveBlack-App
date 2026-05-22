@@ -1181,7 +1181,7 @@ function EditProfilePage() {
         formData.append("file", { uri, name: `avatar.${ext}`, type: mime } as any);
       }
 
-      const uploadRes = await fetchWithAuth("/api/upload/image", { method: "POST", body: formData });
+      const uploadRes = await fetchWithAuth("/api/upload/image?kind=donor-avatar", { method: "POST", body: formData });
       if (!uploadRes.ok) {
         const err = await uploadRes.json().catch(() => ({}));
         Alert.alert("Upload Failed", (err as { error?: string }).error || "Could not upload image");

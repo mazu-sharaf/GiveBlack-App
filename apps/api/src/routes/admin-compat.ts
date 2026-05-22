@@ -2083,27 +2083,29 @@ export const adminCompatRoutes: FastifyPluginAsync = async (app) => {
     async (request, reply) => {
       const file = await request.file();
       if (!file) return reply.code(400).send({ error: { message: "File required" } });
+
+      // Resolve folder from ?kind= query param (preferred) or legacy `folder` form field.
+      const KIND_TO_FOLDER: Record<string, string> = {
+        "donor-avatar":     "profiles/donor",
+        "org-logo":         "profiles/org",
+        "org-cover":        "profiles/org-cover",
+        "campaign-cover":   "campaigns/cover",
+        "campaign-gallery": "campaigns/gallery",
+        "category-icon":    "categories",
+        "misc":             "misc",
+      };
+      const queryKind = ((request.query as Record<string, string>).kind ?? "").trim().toLowerCase();
       const folderField = file.fields.folder;
       const folderValue =
         folderField && !Array.isArray(folderField) && "value" in folderField
           ? (folderField.value as string)
-          : "org-images";
-      const folder = String(folderValue || "org-images");
-      const safeFolder = folder.replace(/[^a-zA-Z0-9-_]/g, "") || "org-images";
-
-      const pathField = file.fields.path;
-      const clientPath =
-        pathField && !Array.isArray(pathField) && "value" in pathField
-          ? String(pathField.value)
           : "";
-      let fileName: string;
-      if (clientPath) {
-        fileName = path.basename(clientPath).replace(/[^a-zA-Z0-9._-]/g, "");
-        if (!fileName) fileName = `${Date.now()}${path.extname(file.filename || "") || ".bin"}`;
-      } else {
-        const ext = path.extname(file.filename || "") || ".bin";
-        fileName = `${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`;
-      }
+      const resolvedKind = queryKind || folderValue || "misc";
+      const folder = KIND_TO_FOLDER[resolvedKind] ?? `admin/${resolvedKind.replace(/[^a-zA-Z0-9-_]/g, "") || "misc"}`;
+      const safeFolder = folder;
+
+      // Always use a UUID filename so R2 keys are unguessable and cache-safe.
+      const fileName = randomUUID();
 
       const targetDir = path.resolve(process.cwd(), "uploads", safeFolder);
       await fs.mkdir(targetDir, { recursive: true });
@@ -2116,11 +2118,24 @@ export const adminCompatRoutes: FastifyPluginAsync = async (app) => {
         return reply.code(400).send({ error: { message: "Unsupported image format. Please upload JPEG or PNG." } });
       }
 
-      // Normalize extension to match actual bytes (JPEG).
-      const normalizedName = `${path.parse(fileName).name}.jpg`;
+      // fileName is a bare UUID; append .jpg to match the JPEG bytes produced by sharp.
+      const normalizedName = `${fileName}.jpg`;
+      const storedPath = `${safeFolder}/${normalizedName}`;
+
+      // Use R2 when configured, otherwise fall back to local disk.
+      const { isR2Configured: checkR2, r2PutObject: putR2 } = await import("../lib/storage-r2.js");
+      if (checkR2()) {
+        try {
+          const { url } = await putR2({ key: storedPath, body: optimized.buffer, contentType: "image/jpeg" });
+          return { data: { path: storedPath, publicUrl: url }, error: null };
+        } catch (e) {
+          request.log.error({ err: e }, "admin r2 upload failed");
+          return reply.code(502).send({ error: { message: "Upload service unavailable." } });
+        }
+      }
+
       const targetFile = path.join(targetDir, normalizedName);
       await fs.writeFile(targetFile, optimized.buffer);
-      const storedPath = `${safeFolder}/${normalizedName}`;
       const publicUrl = `/uploads/${storedPath}`;
       return {
         data: { path: storedPath, publicUrl },

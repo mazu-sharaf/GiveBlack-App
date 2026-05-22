@@ -378,7 +378,7 @@ export default function CampaignDetailPage() {
     }
     setUploadingGallery(true);
     try {
-      const url = await uploadFile(file);
+      const url = await uploadFile(file, "campaign-gallery");
       if (!url) throw new Error("Upload failed");
       const caption = galleryCaptionDraft.trim() || null;
       if (isNew) {
@@ -427,7 +427,7 @@ export default function CampaignDetailPage() {
     }
     setUploadingMain(true);
     try {
-      const url = await uploadFile(file);
+      const url = await uploadFile(file, "campaign-cover");
       if (!url) throw new Error("Upload failed");
       update("main_image_url", url);
       toast.success("Main image uploaded");

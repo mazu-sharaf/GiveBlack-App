@@ -115,7 +115,7 @@ export default function DonorSignupScreen() {
         formData.append("file", { uri, name: filename, type: mime } as any);
       }
 
-      const uploadRes = await fetch(`${base}/api/upload/image`, {
+      const uploadRes = await fetch(`${base}/api/upload/image?kind=donor-avatar`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
         body: formData,
