@@ -250,11 +250,20 @@ export function buildServer() {
     const vpsUrl = new URL(vpsBackendUrl);
     const vpsOrigin = vpsUrl.origin;
     const vpsPathPrefix = vpsUrl.pathname.replace(/\/$/, "");
-    app.log.info(`Proxying /api/* requests to VPS: ${vpsOrigin}${vpsPathPrefix}`);
+    app.log.info(
+      `Proxying /api/* and /payment/* to VPS: ${vpsOrigin}${vpsPathPrefix} (Stripe Checkout success/cancel pages live under /payment/)`
+    );
     app.register(httpProxy, {
       upstream: vpsOrigin,
       prefix: "/api",
       rewritePrefix: `${vpsPathPrefix}/api`,
+      websocket: false,
+    });
+    /** Mobile Checkout uses success_url https://<domain>/payment/success — must reach the full API, not 404 on edge. */
+    app.register(httpProxy, {
+      upstream: vpsOrigin,
+      prefix: "/payment",
+      rewritePrefix: `${vpsPathPrefix}/payment`,
       websocket: false,
     });
     app.register(httpProxy, {

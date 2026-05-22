@@ -15,6 +15,18 @@ import {
 import { stripeId } from "../lib/stripe-ids.js";
 import { TIER_LIMITS } from "../lib/tier-limits.js";
 import { maybeNotifyOrgSubscriptionPlanUpgrade, notifyDonationFromPaymentIntent } from "../services/user-push.js";
+import {
+  checkPaymentRateLimit,
+  createDonationSessionToken,
+  hashPaymentIdentifier,
+  logPaymentSecurityEvent,
+  normalizePaymentEmail,
+  paymentClientIp,
+  recordPaymentFailure,
+  stripeSecurityMetadata,
+  verifyDonationSessionToken,
+  verifyTurnstileToken,
+} from "../lib/payment-security.js";
 
 export { TIER_LIMITS };
 
@@ -281,6 +293,17 @@ const createIntentSchema = z.object({
   reinvestPct: z.coerce.number().min(0).max(100).optional().default(5),
 });
 
+const donationSessionSchema = z.object({
+  orgId: z.string().min(1),
+  campaignId: z.string().optional(),
+  amount: z.coerce.number().positive(),
+  currency: z.string().default("usd"),
+  email: z.string().email().optional(),
+  source: z.string().max(64).optional().default("donation_form"),
+  turnstileToken: z.string().optional(),
+  returnUrl: z.string().optional(),
+});
+
 const donationCheckoutSchema = z.object({
   orgId: z.string().min(1),
   campaignId: z.string().optional(),
@@ -291,6 +314,7 @@ const donationCheckoutSchema = z.object({
   educationPartnerCode: z.string().optional(),
   reinvestOptIn: z.boolean().optional().default(false),
   reinvestPct: z.coerce.number().min(0).max(100).optional().default(5),
+  donationSessionToken: z.string().optional(),
 });
 
 const topupIntentSchema = z.object({
@@ -329,6 +353,7 @@ const guestCreateIntentSchema = z.object({
   educationPartnerCode: z.string().optional(),
   reinvestOptIn: z.boolean().optional().default(false),
   reinvestPct: z.coerce.number().min(0).max(100).optional().default(5),
+  donationSessionToken: z.string().optional(),
 });
 
 const guestSyncDonationSchema = z.object({
@@ -347,6 +372,7 @@ const guestDonateCheckoutSchema = z.object({
   reinvestOptIn: z.boolean().optional().default(false),
   reinvestPct: z.coerce.number().min(0).max(100).optional().default(5),
   returnUrl: z.string().optional(),
+  donationSessionToken: z.string().optional(),
 });
 
 const portalSchema = z.object({
@@ -456,6 +482,194 @@ export const stripeRoutes: FastifyPluginAsync = async (app) => {
     return customer.id;
   }
 
+  function validateDonationSessionForBody(
+    request: typeof app extends never ? never : any,
+    reply: any,
+    token: string | undefined,
+    body: { orgId: string; campaignId?: string; amount: number; currency?: string; email?: string },
+    source: string,
+    opts?: { consume?: boolean; userId?: string | null }
+  ): ReturnType<typeof verifyDonationSessionToken>["payload"] | null {
+    const result = verifyDonationSessionToken(
+      token,
+      {
+        orgId: body.orgId,
+        campaignId: body.campaignId,
+        amount: body.amount,
+        currency: body.currency,
+        email: body.email,
+        userId: opts?.userId || null,
+        source,
+      },
+      { consume: opts?.consume ?? true }
+    );
+    if (!result.ok) {
+      logPaymentSecurityEvent(request.log, "donation_session_rejected", {
+        reason: result.reason,
+        orgId: body.orgId,
+        campaignId: body.campaignId || "",
+        emailHash: hashPaymentIdentifier(body.email),
+        source,
+      });
+      reply.code(403).send({ error: result.reason || "Invalid donation session." });
+      return null;
+    }
+    return result.payload || null;
+  }
+
+  function assertPaymentRateLimit(
+    request: any,
+    reply: any,
+    action: string,
+    input: { email?: string | null; userId?: string | null; sessionId?: string | null; amount?: number | null },
+    opts?: { strict?: boolean }
+  ): boolean {
+    const check = checkPaymentRateLimit({
+      action,
+      ip: paymentClientIp(request),
+      email: input.email,
+      userId: input.userId,
+      sessionId: input.sessionId,
+      amount: input.amount,
+      strict: opts?.strict,
+      logger: request.log,
+    });
+    if (!check.allowed) {
+      logPaymentSecurityEvent(request.log, "payment_rate_limited", {
+        action,
+        emailHash: hashPaymentIdentifier(input.email),
+        userId: input.userId || "",
+        sessionId: input.sessionId || "",
+      });
+      reply.code(429).send({ error: check.reason || "Too many payment attempts. Please try again later." });
+      return false;
+    }
+    return true;
+  }
+
+  async function optionalDonorUserIdFromRequest(request: { headers: { authorization?: string } }): Promise<string | null> {
+    const auth = request.headers.authorization;
+    if (!auth?.startsWith("Bearer ")) return null;
+    try {
+      const decoded = (await app.jwt.verify(auth.slice(7))) as { sub?: string; role?: string };
+      if (decoded.role === "donor" && decoded.sub) return decoded.sub;
+      return null;
+    } catch {
+      return null;
+    }
+  }
+
+  app.post("/api/payments/donation-session", async (request, reply) => {
+    const body = donationSessionSchema.parse(request.body);
+    const ip = paymentClientIp(request);
+    const donorUserId = await optionalDonorUserIdFromRequest(request);
+    if (!assertPaymentRateLimit(request, reply, "donation-session", {
+      email: donorUserId ? null : body.email,
+      userId: donorUserId,
+      amount: body.amount,
+    }, { strict: true })) return;
+
+    const turnstile = await verifyTurnstileToken({ token: body.turnstileToken, ip, logger: request.log });
+    if (!turnstile.ok) {
+      return reply.code(403).send({ error: turnstile.reason || "Bot verification failed." });
+    }
+
+    const session = createDonationSessionToken({
+      orgId: body.orgId,
+      campaignId: body.campaignId,
+      amount: body.amount,
+      currency: body.currency,
+      email: donorUserId ? null : body.email,
+      userId: donorUserId || null,
+      source: body.source,
+    });
+    logPaymentSecurityEvent(request.log, "donation_session_created", {
+      sessionId: session.sessionId,
+      orgId: body.orgId,
+      campaignId: body.campaignId || "",
+      source: body.source,
+      emailHash: hashPaymentIdentifier(body.email),
+      turnstileBypassed: Boolean(turnstile.bypassed),
+    });
+    return session;
+  });
+
+  app.get("/api/payments/donation-session/challenge", async (request, reply) => {
+    const q = donationSessionSchema.parse(request.query);
+    const siteKey = env.CLOUDFLARE_TURNSTILE_SITE_KEY || "";
+    const returnUrl = q.returnUrl || "";
+    const payload = {
+      orgId: q.orgId,
+      campaignId: q.campaignId,
+      amount: q.amount,
+      currency: q.currency,
+      email: q.email,
+      source: q.source || "donation_challenge",
+    };
+    if (!siteKey && !(env.NODE_ENV !== "production" && env.CLOUDFLARE_TURNSTILE_DEV_BYPASS === "1")) {
+      return reply.type("text/html").send("<p>Bot protection is not configured. Please contact support.</p>");
+    }
+    return reply.type("text/html").send(`<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Verify donation</title><style>body{font-family:system-ui,-apple-system,Segoe UI,sans-serif;padding:24px;background:#f8fafc;color:#111827}.card{max-width:420px;margin:40px auto;background:#fff;border-radius:16px;padding:24px;box-shadow:0 10px 30px rgba(15,23,42,.12)}button,.btn{display:inline-block;border:0;border-radius:12px;background:#059669;color:#fff;padding:12px 16px;font-weight:700;text-decoration:none}.muted{color:#64748b;font-size:14px;line-height:1.4}.err{color:#b91c1c;margin-top:12px}.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}#widget{min-height:70px;margin-top:16px}</style></head><body><div class="card"><h1>Security check</h1><p>Please complete this quick check before continuing to payment.</p><div id="widget"></div><p id="loading" class="muted">Loading verification...</p><p id="err" class="err"></p><div id="fallback" style="display:none"><p class="muted">If the verification box does not appear, open this page in Safari and continue there.</p><div class="actions"><a class="btn" href="" id="safariLink" target="_blank" rel="noopener">Open in Safari</a><button id="retryBtn" type="button">Retry</button></div></div>${siteKey ? "" : '<button id="devBtn" type="button">Continue in development</button>'}</div><script>
+const payload=${JSON.stringify(payload)};
+const returnUrl=${JSON.stringify(returnUrl)};
+const siteKey=${JSON.stringify(siteKey)};
+const errEl=document.getElementById('err');
+const loadingEl=document.getElementById('loading');
+const fallbackEl=document.getElementById('fallback');
+let verificationStarted=false;
+let verificationFinished=false;
+document.getElementById('safariLink').href=location.href;
+function showFallback(msg){
+  if(verificationFinished) return;
+  if(loadingEl) loadingEl.textContent='';
+  if(errEl && msg) errEl.textContent=msg;
+  if(fallbackEl) fallbackEl.style.display='block';
+}
+function finish(token){
+  verificationFinished=true;
+  const donationSessionPath=location.pathname.replace(/\/challenge\/?$/,'');
+  if(loadingEl) loadingEl.textContent='Verification complete. Preparing payment...';
+  fetch(donationSessionPath,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({...payload,turnstileToken:token||'dev-bypass'})})
+    .then(r=>r.json().then(d=>({ok:r.ok,data:d}))).then(({ok,data})=>{
+      if(!ok) throw new Error(data.error||'Verification failed');
+      if(returnUrl){ const sep=returnUrl.indexOf('?')>=0?'&':'?'; location.href=returnUrl+sep+'donation_session_token='+encodeURIComponent(data.token); }
+      else { document.body.innerHTML='<p>Verification complete. Return to GiveBlack to continue.</p>'; }
+    }).catch(e=>{showFallback(e.message||'Verification failed');});
+}
+window.onTurnstile=finish;
+window.onTurnstileError=function(){showFallback('Verification could not load. Please open this page in Safari and try again.');};
+window.onTurnstileExpired=function(){if(window.turnstile){window.turnstile.reset();}};
+window.onTurnstileReady=function(){
+  if(!siteKey) return;
+  try {
+    verificationStarted=true;
+    if(loadingEl) loadingEl.textContent='';
+    window.turnstile.render('#widget',{
+      sitekey: siteKey,
+      callback: window.onTurnstile,
+      'error-callback': window.onTurnstileError,
+      'expired-callback': window.onTurnstileExpired,
+      appearance: 'always'
+    });
+  } catch(e) {
+    showFallback('Verification could not start. Please open this page in Safari and try again.');
+  }
+};
+if(siteKey){
+  const s=document.createElement('script');
+  s.src='https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit&onload=onTurnstileReady';
+  s.async=true;
+  s.defer=true;
+  s.onerror=function(){showFallback('Verification script could not load. Please open this page in Safari or disable content blockers for this page.');};
+  document.head.appendChild(s);
+  setTimeout(function(){ if(!verificationFinished && (!window.turnstile || !verificationStarted)){ showFallback('Verification is taking longer than expected. Please open this page in Safari if it does not appear.'); } }, 6000);
+  setTimeout(function(){ if(!verificationFinished){ showFallback('The verification box did not appear in this browser. Tap Open in Safari, or tap the compass icon, then continue from Safari.'); } }, 9000);
+}
+document.getElementById('retryBtn')?.addEventListener('click',()=>location.reload());
+document.getElementById('devBtn')?.addEventListener('click',()=>finish('dev-bypass'));
+</script></body></html>`);
+  });
+
   app.post(
     "/api/payments/create-intent",
     { preHandler: [app.authenticate] },
@@ -464,6 +678,7 @@ export const stripeRoutes: FastifyPluginAsync = async (app) => {
       const user = request.user as { sub: string };
       const stripe = requireStripe(reply);
       if (!stripe) return;
+      if (!assertPaymentRateLimit(request, reply, "create-intent", { userId: user.sub, amount: body.amount })) return;
 
       const customerId = await getOrCreateStripeCustomer(stripe, user.sub);
 
@@ -511,6 +726,15 @@ export const stripeRoutes: FastifyPluginAsync = async (app) => {
           campaignId: body.campaignId || "",
           donorUserId: user.sub,
           type: "donation",
+          ...stripeSecurityMetadata({
+            userId: user.sub,
+            donorEmail,
+            donorName,
+            orgId: body.orgId,
+            campaignId: body.campaignId,
+            source: "native_donation_intent",
+            ip: paymentClientIp(request),
+          }),
           epId: partnerId || "",
           reinvest: reinvestOptIn ? "1" : "0",
           rAmt: String(alloc.reinvest_amount),
@@ -528,11 +752,12 @@ export const stripeRoutes: FastifyPluginAsync = async (app) => {
         { apiVersion: "2024-04-10" }
       );
 
-      await db.query(
+      const donIns = await db.query(
         `insert into donations (
            org_id, campaign_id, user_id, donor_email, donor_name, amount, currency, status, stripe_payment_intent_id,
            education_partner_id, reinvest_opt_in, reinvest_amount, partner_reinvest_amount, general_reinvest_amount
-         ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
+         ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+         returning id`,
         [
           body.orgId,
           body.campaignId || null,
@@ -550,6 +775,24 @@ export const stripeRoutes: FastifyPluginAsync = async (app) => {
           alloc.general_reinvest_amount,
         ]
       );
+      const donationRowId = (donIns.rows[0] as { id: string } | undefined)?.id;
+      if (donationRowId) {
+        await stripe.paymentIntents.update(intent.id, {
+          metadata: {
+            ...(intentParams.metadata as Record<string, string>),
+            ...stripeSecurityMetadata({
+              donationId: donationRowId,
+              userId: user.sub,
+              donorEmail,
+              donorName,
+              orgId: body.orgId,
+              campaignId: body.campaignId,
+              source: "native_donation_intent",
+              ip: paymentClientIp(request),
+            }),
+          },
+        });
+      }
 
       return {
         clientSecret: intent.client_secret,
@@ -568,6 +811,7 @@ export const stripeRoutes: FastifyPluginAsync = async (app) => {
       const user = request.user as { sub: string };
       const stripe = requireStripe(reply);
       if (!stripe) return;
+      if (!assertPaymentRateLimit(request, reply, "donate-checkout", { userId: user.sub, amount: body.amount })) return;
 
       const customerId = await getOrCreateStripeCustomer(stripe, user.sub);
 
@@ -616,6 +860,15 @@ export const stripeRoutes: FastifyPluginAsync = async (app) => {
         campaignId: body.campaignId || "",
         donorUserId: user.sub,
         type: "donation",
+        ...stripeSecurityMetadata({
+          userId: user.sub,
+          donorEmail: checkoutDonorEmail,
+          donorName: checkoutDonorName,
+          orgId: body.orgId,
+          campaignId: body.campaignId,
+          source: "donate_checkout",
+          ip: paymentClientIp(request),
+        }),
         epId: partnerId || "",
         reinvest: reinvestOptIn ? "1" : "0",
         rAmt: String(alloc.reinvest_amount),
@@ -640,7 +893,9 @@ export const stripeRoutes: FastifyPluginAsync = async (app) => {
         ],
         payment_intent_data: {
           metadata: donationMeta,
+          receipt_email: checkoutDonorEmail || undefined,
         },
+        customer_email: customerId ? undefined : checkoutDonorEmail || undefined,
         success_url: successUrl,
         cancel_url: cancelUrl,
         metadata: donationMeta,
@@ -657,11 +912,12 @@ export const stripeRoutes: FastifyPluginAsync = async (app) => {
         });
       }
 
-      await db.query(
+      const donInsCheckout = await db.query(
         `insert into donations (
            org_id, campaign_id, user_id, donor_email, donor_name, amount, currency, status, stripe_payment_intent_id,
            education_partner_id, reinvest_opt_in, reinvest_amount, partner_reinvest_amount, general_reinvest_amount
-         ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
+         ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+         returning id`,
         [
           body.orgId,
           body.campaignId || null,
@@ -679,6 +935,33 @@ export const stripeRoutes: FastifyPluginAsync = async (app) => {
           alloc.general_reinvest_amount,
         ]
       );
+      const donationRowIdCheckout = (donInsCheckout.rows[0] as { id: string } | undefined)?.id;
+      if (donationRowIdCheckout) {
+        const sec = stripeSecurityMetadata({
+          donationId: donationRowIdCheckout,
+          userId: user.sub,
+          donorEmail: checkoutDonorEmail,
+          donorName: checkoutDonorName,
+          orgId: body.orgId,
+          campaignId: body.campaignId,
+          source: "donate_checkout",
+          ip: paymentClientIp(request),
+        });
+        const mergedPi = {
+          ...Object.fromEntries(Object.entries(donationMeta).map(([k, v]) => [k, String(v ?? "")])),
+          ...sec,
+          checkoutSessionId: session.id,
+        };
+        if (piIdAfterCreate) {
+          await stripe.paymentIntents.update(piIdAfterCreate, { metadata: mergedPi });
+        }
+        await stripe.checkout.sessions.update(session.id, {
+          metadata: {
+            ...Object.fromEntries(Object.entries(donationMeta).map(([k, v]) => [k, String(v ?? "")])),
+            donationId: donationRowIdCheckout,
+          },
+        });
+      }
 
       return { url: session.url, sessionId: session.id };
     }
@@ -1109,6 +1392,7 @@ export const stripeRoutes: FastifyPluginAsync = async (app) => {
       const user = request.user as { sub: string };
       const stripe = requireStripe(reply);
       if (!stripe) return;
+      if (!assertPaymentRateLimit(request, reply, "topup-intent", { userId: user.sub, amount: body.amount })) return;
 
       const customerId = await getOrCreateStripeCustomer(stripe, user.sub);
 
@@ -1120,6 +1404,11 @@ export const stripeRoutes: FastifyPluginAsync = async (app) => {
         metadata: {
           userId: user.sub,
           type: "wallet_topup",
+          ...stripeSecurityMetadata({
+            userId: user.sub,
+            source: "wallet_topup_intent",
+            ip: paymentClientIp(request),
+          }),
         },
       });
 
@@ -1171,6 +1460,11 @@ export const stripeRoutes: FastifyPluginAsync = async (app) => {
           metadata: {
             userId: user.sub,
             type: "wallet_topup",
+            ...stripeSecurityMetadata({
+              userId: user.sub,
+              source: "wallet_topup_checkout",
+              ip: paymentClientIp(request),
+            }),
           },
         },
         success_url: `${baseUrl}/payment/success?session_id={CHECKOUT_SESSION_ID}`,
@@ -1246,6 +1540,7 @@ export const stripeRoutes: FastifyPluginAsync = async (app) => {
     const user = request.user as { sub: string };
     const stripe = requireStripe(reply);
     if (!stripe) return;
+    if (!assertPaymentRateLimit(request, reply, "subscription-checkout", { userId: user.sub })) return;
 
     const orgRes = await db.query(
       "select id, name, contact_email, stripe_account_id from organizations where id = $1",
@@ -1294,6 +1589,7 @@ export const stripeRoutes: FastifyPluginAsync = async (app) => {
     const user = request.user as { sub: string };
     const stripe = requireStripe(reply);
     if (!stripe) return;
+    if (!assertPaymentRateLimit(request, reply, "subscription-native-intent", { userId: user.sub })) return;
 
     const orgRes = await db.query(
       "select id, name, contact_email from organizations where id = $1",
@@ -2216,10 +2512,20 @@ export const stripeRoutes: FastifyPluginAsync = async (app) => {
       return reply.code(400).send({ error: e instanceof Error ? e.message : "Invalid request" });
     }
 
-    const rateCheck = applyGuestRateLimit(normalizeEmail(body.email), request.ip);
-    if (!rateCheck.allowed) {
-      return reply.code(429).send({ error: rateCheck.reason ?? "Too many requests. Please try again later." });
-    }
+    const guestEmail = normalizeEmail(body.email);
+    const sessionPayload = validateDonationSessionForBody(
+      request,
+      reply,
+      body.donationSessionToken,
+      { orgId: body.orgId, campaignId: body.campaignId, amount: body.amount, currency: body.currency, email: guestEmail },
+      "guest_donate_checkout"
+    );
+    if (!sessionPayload) return;
+    if (!assertPaymentRateLimit(request, reply, "guest-donate-checkout", {
+      email: guestEmail,
+      sessionId: sessionPayload.sessionId,
+      amount: body.amount,
+    }, { strict: true })) return;
 
     const stripe = requireStripe(reply);
     if (!stripe) return;
@@ -2249,7 +2555,6 @@ export const stripeRoutes: FastifyPluginAsync = async (app) => {
       ? `Donation to ${orgName} - ${campaignTitle}`
       : `Donation to ${orgName}`;
 
-    const guestEmail = normalizeEmail(body.email);
     const guestName = body.name ? String(body.name).trim() : null;
 
     const existingCustomerRes = await db.query(
@@ -2271,7 +2576,18 @@ export const stripeRoutes: FastifyPluginAsync = async (app) => {
       const customer = await stripe.customers.create({
         email: guestEmail,
         name: guestName || undefined,
-        metadata: { guest: "1" },
+        metadata: {
+          guest: "1",
+          ...stripeSecurityMetadata({
+            donationSessionId: sessionPayload.sessionId,
+            donorEmail: guestEmail,
+            donorName: guestName,
+            orgId: body.orgId,
+            campaignId: body.campaignId,
+            source: "guest_customer",
+            ip: paymentClientIp(request),
+          }),
+        },
       });
       customerId = customer.id;
       await db.query(
@@ -2299,6 +2615,15 @@ export const stripeRoutes: FastifyPluginAsync = async (app) => {
       donorEmail: guestEmail,
       guest: "1",
       type: "donation",
+      ...stripeSecurityMetadata({
+        donationSessionId: sessionPayload.sessionId,
+        donorEmail: guestEmail,
+        donorName: guestName,
+        orgId: body.orgId,
+        campaignId: body.campaignId,
+        source: "guest_donate_checkout",
+        ip: paymentClientIp(request),
+      }),
       epId: partnerId || "",
       reinvest: reinvestOptIn ? "1" : "0",
       rAmt: String(alloc.reinvest_amount),
@@ -2319,7 +2644,7 @@ export const stripeRoutes: FastifyPluginAsync = async (app) => {
           quantity: 1,
         },
       ],
-      payment_intent_data: { metadata: donationMeta },
+      payment_intent_data: { metadata: donationMeta, receipt_email: guestEmail },
       success_url: successUrl,
       cancel_url: cancelUrl,
       metadata: donationMeta,
@@ -2336,11 +2661,12 @@ export const stripeRoutes: FastifyPluginAsync = async (app) => {
       });
     }
 
-    await db.query(
+    const donInsGuest = await db.query(
       `insert into donations (
          org_id, campaign_id, user_id, donor_email, donor_name, amount, currency, status, stripe_payment_intent_id,
          education_partner_id, reinvest_opt_in, reinvest_amount, partner_reinvest_amount, general_reinvest_amount
-       ) values ($1, $2, NULL, $3, $4, $5, $6, 'pending', $7, $8, $9, $10, $11, $12)`,
+       ) values ($1, $2, NULL, $3, $4, $5, $6, 'pending', $7, $8, $9, $10, $11, $12)
+       returning id`,
       [
         body.orgId,
         body.campaignId || null,
@@ -2356,6 +2682,33 @@ export const stripeRoutes: FastifyPluginAsync = async (app) => {
         alloc.general_reinvest_amount,
       ]
     );
+    const donationRowIdGuest = (donInsGuest.rows[0] as { id: string } | undefined)?.id;
+    if (donationRowIdGuest) {
+      const secG = stripeSecurityMetadata({
+        donationSessionId: sessionPayload.sessionId,
+        donationId: donationRowIdGuest,
+        donorEmail: guestEmail,
+        donorName: guestName,
+        orgId: body.orgId,
+        campaignId: body.campaignId,
+        source: "guest_donate_checkout",
+        ip: paymentClientIp(request),
+      });
+      const mergedGuestPi = {
+        ...Object.fromEntries(Object.entries(donationMeta).map(([k, v]) => [k, String(v ?? "")])),
+        ...secG,
+        checkoutSessionId: session.id,
+      };
+      if (piIdAfterCreate) {
+        await stripe.paymentIntents.update(piIdAfterCreate, { metadata: mergedGuestPi });
+      }
+      await stripe.checkout.sessions.update(session.id, {
+        metadata: {
+          ...Object.fromEntries(Object.entries(donationMeta).map(([k, v]) => [k, String(v ?? "")])),
+          donationId: donationRowIdGuest,
+        },
+      });
+    }
 
     return { url: session.url, sessionId: session.id };
   });
@@ -2368,10 +2721,20 @@ export const stripeRoutes: FastifyPluginAsync = async (app) => {
       return reply.code(400).send({ error: e instanceof Error ? e.message : "Invalid request" });
     }
 
-    const rateCheck = applyGuestRateLimit(normalizeEmail(body.email), request.ip);
-    if (!rateCheck.allowed) {
-      return reply.code(429).send({ error: rateCheck.reason ?? "Too many requests. Please try again later." });
-    }
+    const guestEmail = normalizeEmail(body.email);
+    const sessionPayload = validateDonationSessionForBody(
+      request,
+      reply,
+      body.donationSessionToken,
+      { orgId: body.orgId, campaignId: body.campaignId, amount: body.amount, currency: body.currency, email: guestEmail },
+      "guest_create_intent"
+    );
+    if (!sessionPayload) return;
+    if (!assertPaymentRateLimit(request, reply, "guest-create-intent", {
+      email: guestEmail,
+      sessionId: sessionPayload.sessionId,
+      amount: body.amount,
+    }, { strict: true })) return;
 
     const stripe = requireStripe(reply);
     if (!stripe) return;
@@ -2390,7 +2753,6 @@ export const stripeRoutes: FastifyPluginAsync = async (app) => {
     const orgRes = await db.query("select id from organizations where id = $1", [body.orgId]);
     if (!orgRes.rowCount) return reply.code(404).send({ error: "Organization not found" });
 
-    const guestEmail = normalizeEmail(body.email);
     const guestName = body.name ? String(body.name).trim() : null;
 
     const existingCustomerRes = await db.query(
@@ -2412,7 +2774,18 @@ export const stripeRoutes: FastifyPluginAsync = async (app) => {
       const customer = await stripe.customers.create({
         email: guestEmail,
         name: guestName || undefined,
-        metadata: { guest: "1" },
+        metadata: {
+          guest: "1",
+          ...stripeSecurityMetadata({
+            donationSessionId: sessionPayload.sessionId,
+            donorEmail: guestEmail,
+            donorName: guestName,
+            orgId: body.orgId,
+            campaignId: body.campaignId,
+            source: "guest_customer",
+            ip: paymentClientIp(request),
+          }),
+        },
       });
       customerId = customer.id;
       await db.query(
@@ -2438,6 +2811,15 @@ export const stripeRoutes: FastifyPluginAsync = async (app) => {
         donorEmail: guestEmail,
         guest: "1",
         type: "donation",
+        ...stripeSecurityMetadata({
+          donationSessionId: sessionPayload.sessionId,
+          donorEmail: guestEmail,
+          donorName: guestName,
+          orgId: body.orgId,
+          campaignId: body.campaignId,
+          source: "guest_create_intent",
+          ip: paymentClientIp(request),
+        }),
         epId: partnerId || "",
         reinvest: reinvestOptIn ? "1" : "0",
         rAmt: String(alloc.reinvest_amount),
@@ -2451,11 +2833,12 @@ export const stripeRoutes: FastifyPluginAsync = async (app) => {
       { apiVersion: "2024-04-10" }
     );
 
-    await db.query(
+    const donInsGuestPi = await db.query(
       `insert into donations (
          org_id, campaign_id, user_id, donor_email, donor_name, amount, currency, status, stripe_payment_intent_id,
          education_partner_id, reinvest_opt_in, reinvest_amount, partner_reinvest_amount, general_reinvest_amount
-       ) values ($1, $2, NULL, $3, $4, $5, $6, 'pending', $7, $8, $9, $10, $11, $12)`,
+       ) values ($1, $2, NULL, $3, $4, $5, $6, 'pending', $7, $8, $9, $10, $11, $12)
+       returning id`,
       [
         body.orgId,
         body.campaignId || null,
@@ -2471,6 +2854,33 @@ export const stripeRoutes: FastifyPluginAsync = async (app) => {
         alloc.general_reinvest_amount,
       ]
     );
+    const donationRowGuestPi = (donInsGuestPi.rows[0] as { id: string } | undefined)?.id;
+    if (donationRowGuestPi) {
+      await stripe.paymentIntents.update(intent.id, {
+        metadata: {
+          orgId: body.orgId,
+          campaignId: body.campaignId || "",
+          donorEmail: guestEmail,
+          guest: "1",
+          type: "donation",
+          ...stripeSecurityMetadata({
+            donationSessionId: sessionPayload.sessionId,
+            donationId: donationRowGuestPi,
+            donorEmail: guestEmail,
+            donorName: guestName,
+            orgId: body.orgId,
+            campaignId: body.campaignId,
+            source: "guest_create_intent",
+            ip: paymentClientIp(request),
+          }),
+          epId: partnerId || "",
+          reinvest: reinvestOptIn ? "1" : "0",
+          rAmt: String(alloc.reinvest_amount),
+          pAmt: String(alloc.partner_reinvest_amount),
+          gAmt: String(alloc.general_reinvest_amount),
+        },
+      });
+    }
 
     return {
       clientSecret: intent.client_secret,
@@ -2609,10 +3019,21 @@ export const stripeRoutes: FastifyPluginAsync = async (app) => {
 
         case "payment_intent.payment_failed": {
           const pi = event.data.object as unknown as Record<string, unknown>;
+          const metadata = (pi.metadata || {}) as Record<string, string>;
           await client.query(
             "update donations set status = 'failed' where stripe_payment_intent_id = $1",
             [pi.id]
           );
+          recordPaymentFailure({
+            email: metadata.donorEmail,
+            userId: metadata.donorUserId || metadata.userId,
+            sessionId: metadata.donationSessionId,
+            logger: app.log,
+            paymentIntentId: String(pi.id || ""),
+            reason: typeof pi.last_payment_error === "object" && pi.last_payment_error
+              ? String((pi.last_payment_error as { code?: string }).code || "")
+              : "",
+          });
           break;
         }
 

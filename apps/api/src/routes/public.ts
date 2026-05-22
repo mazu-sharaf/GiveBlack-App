@@ -4,6 +4,14 @@ import { db } from "../lib/db.js";
 import { env } from "../config/env.js";
 import { getStripe } from "../services/stripe.js";
 import { stripeId } from "../lib/stripe-ids.js";
+import {
+  checkPaymentRateLimit,
+  logPaymentSecurityEvent,
+  normalizePaymentEmail,
+  paymentClientIp,
+  stripeSecurityMetadata,
+  verifyDonationSessionToken,
+} from "../lib/payment-security.js";
 
 const publicDonateSchema = z.object({
   campaignId: z.string().min(1),
@@ -14,7 +22,23 @@ const publicDonateSchema = z.object({
   message: z.string().optional().default(""),
   isAnonymous: z.boolean().optional().default(false),
   currency: z.string().optional().default("usd"),
+  donationSessionToken: z.string().optional(),
 });
+
+async function optionalDonorUserIdPublic(
+  app: { jwt: { verify: (t: string) => Promise<unknown> } },
+  request: { headers: { authorization?: string } }
+): Promise<string | null> {
+  const auth = request.headers.authorization;
+  if (!auth?.startsWith("Bearer ")) return null;
+  try {
+    const decoded = (await app.jwt.verify(auth.slice(7))) as { sub?: string; role?: string };
+    if (decoded.role === "donor" && decoded.sub) return decoded.sub;
+    return null;
+  } catch {
+    return null;
+  }
+}
 
 export const publicRoutes: FastifyPluginAsync = async (app) => {
   app.get("/api/organizations", async (_, reply) => {
@@ -303,6 +327,41 @@ export const publicRoutes: FastifyPluginAsync = async (app) => {
 
   app.post("/api/public/donate-checkout", async (request, reply) => {
     const body = publicDonateSchema.parse(request.body);
+    const donorUserId = body.isAnonymous ? null : await optionalDonorUserIdPublic(app, request);
+    const sessionCheck = verifyDonationSessionToken(
+      body.donationSessionToken,
+      {
+        orgId: body.orgId,
+        campaignId: body.campaignId,
+        amount: body.amount,
+        currency: body.currency,
+        email: body.isAnonymous ? null : normalizePaymentEmail(body.donorEmail),
+        userId: donorUserId,
+        source: "public_api",
+      },
+      { consume: true }
+    );
+    if (!sessionCheck.ok || !sessionCheck.payload) {
+      logPaymentSecurityEvent(request.log, "public_api_donation_session_rejected", {
+        reason: sessionCheck.reason,
+        orgId: body.orgId,
+        campaignId: body.campaignId,
+      });
+      return reply.code(403).send({ error: sessionCheck.reason || "Donation session is required." });
+    }
+    const rateCheck = checkPaymentRateLimit({
+      action: "public-api-donate-checkout",
+      ip: paymentClientIp(request),
+      email: body.isAnonymous ? null : body.donorEmail,
+      userId: donorUserId,
+      sessionId: sessionCheck.payload.sessionId,
+      amount: body.amount,
+      strict: true,
+      logger: request.log,
+    });
+    if (!rateCheck.allowed) {
+      return reply.code(429).send({ error: rateCheck.reason || "Too many payment attempts. Please try again later." });
+    }
 
     if (!env.STRIPE_SECRET_KEY) {
       return reply.code(503).send({ error: "Payments are not configured" });
@@ -363,6 +422,15 @@ export const publicRoutes: FastifyPluginAsync = async (app) => {
           message: body.message,
           isAnonymous: String(body.isAnonymous),
           type: "web_donation",
+          ...stripeSecurityMetadata({
+            donationSessionId: sessionCheck.payload.sessionId,
+            donorEmail: body.donorEmail,
+            donorName: body.donorName,
+            orgId: body.orgId,
+            campaignId: body.campaignId,
+            source: "public_api",
+            ip: paymentClientIp(request),
+          }),
         },
       },
       success_url: successUrl,
@@ -377,27 +445,14 @@ export const publicRoutes: FastifyPluginAsync = async (app) => {
     const donationStripeKey = stripeId(session.payment_intent) ?? session.id;
 
     const pubPiId = stripeId(session.payment_intent);
-    if (pubPiId) {
-      await stripe.paymentIntents.update(pubPiId, {
-        metadata: {
-          orgId: body.orgId,
-          campaignId: body.campaignId,
-          donorName: body.donorName,
-          donorEmail: body.donorEmail,
-          message: body.message || "",
-          isAnonymous: String(body.isAnonymous),
-          type: "web_donation",
-          checkoutSessionId: session.id,
-        },
-      });
-    }
-
-    await db.query(
-      `insert into donations (org_id, campaign_id, amount, currency, status, stripe_payment_intent_id, donor_name, donor_email, message, is_anonymous)
-       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+    const donInsPub = await db.query(
+      `insert into donations (org_id, campaign_id, user_id, amount, currency, status, stripe_payment_intent_id, donor_name, donor_email, message, is_anonymous)
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+       returning id`,
       [
         body.orgId,
         body.campaignId,
+        donorUserId,
         body.amount,
         body.currency,
         "pending",
@@ -408,6 +463,43 @@ export const publicRoutes: FastifyPluginAsync = async (app) => {
         body.isAnonymous,
       ]
     );
+    const donationRowIdPub = (donInsPub.rows[0] as { id: string } | undefined)?.id;
+
+    if (pubPiId && donationRowIdPub) {
+      await stripe.paymentIntents.update(pubPiId, {
+        metadata: {
+          orgId: body.orgId,
+          campaignId: body.campaignId,
+          donorName: body.donorName,
+          donorEmail: body.donorEmail,
+          message: body.message || "",
+          isAnonymous: String(body.isAnonymous),
+          type: "web_donation",
+          checkoutSessionId: session.id,
+          ...stripeSecurityMetadata({
+            donationSessionId: sessionCheck.payload.sessionId,
+            donationId: donationRowIdPub,
+            userId: donorUserId,
+            donorEmail: body.donorEmail,
+            donorName: body.donorName,
+            orgId: body.orgId,
+            campaignId: body.campaignId,
+            source: "public_api",
+            ip: paymentClientIp(request),
+          }),
+        },
+      });
+    }
+    if (donationRowIdPub) {
+      await stripe.checkout.sessions.update(session.id, {
+        metadata: {
+          orgId: body.orgId,
+          campaignId: body.campaignId,
+          donorEmail: body.donorEmail,
+          donationId: donationRowIdPub,
+        },
+      });
+    }
 
     return { url: session.url, sessionId: session.id };
   });

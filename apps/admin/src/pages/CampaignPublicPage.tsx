@@ -16,6 +16,7 @@ import { toast } from "sonner";
 import { resolveImageUrl } from "@/lib/api";
 
 const API_URL = (import.meta.env.VITE_API_URL || "").replace(/\/$/, "");
+const TURNSTILE_SITE_KEY = import.meta.env.VITE_CLOUDFLARE_TURNSTILE_SITE_KEY || "";
 
 /** Default share image when a campaign has no hero or org artwork (matches `index.html` OG). */
 const DEFAULT_SHARE_OG = "https://giveblackapp.com/admin/giveblack-og.png";
@@ -70,6 +71,7 @@ export default function CampaignPublicPage() {
   const [accountPassword, setAccountPassword] = useState("");
   const [signupLoading, setSignupLoading] = useState(false);
   const [accessToken, setAccessToken] = useState<string | null>(null);
+  const [turnstileToken, setTurnstileToken] = useState("");
 
   useEffect(() => {
     const load = async () => {
@@ -86,6 +88,23 @@ export default function CampaignPublicPage() {
     };
     load();
   }, [slug]);
+
+  useEffect(() => {
+    if (!TURNSTILE_SITE_KEY) return;
+    const w = window as typeof window & {
+      onGiveBlackTurnstile?: (token: string) => void;
+      onGiveBlackTurnstileExpired?: () => void;
+    };
+    w.onGiveBlackTurnstile = (token: string) => setTurnstileToken(token || "");
+    w.onGiveBlackTurnstileExpired = () => setTurnstileToken("");
+    if (!document.querySelector('script[src="https://challenges.cloudflare.com/turnstile/v0/api.js"]')) {
+      const script = document.createElement("script");
+      script.src = "https://challenges.cloudflare.com/turnstile/v0/api.js";
+      script.async = true;
+      script.defer = true;
+      document.head.appendChild(script);
+    }
+  }, []);
 
   useEffect(() => {
     const donation = searchParams.get("donation");
@@ -198,6 +217,28 @@ export default function CampaignPublicPage() {
       if (accessToken && !isAnonymous && donorFlow === "account") {
         headers.Authorization = `Bearer ${accessToken}`;
       }
+      const sessionHeaders: Record<string, string> = { "Content-Type": "application/json" };
+      if (accessToken && !isAnonymous && donorFlow === "account") {
+        sessionHeaders.Authorization = `Bearer ${accessToken}`;
+      }
+      const sessionRes = await fetch(`${API_URL}/api/payments/donation-session`, {
+        method: "POST",
+        headers: sessionHeaders,
+        body: JSON.stringify({
+          campaignId: campaign.id,
+          orgId: campaign.organization_id,
+          amount: donateAmount,
+          currency: "usd",
+          email: isAnonymous ? undefined : donorEmail,
+          source: "campaign_public_page",
+          turnstileToken: turnstileToken || undefined,
+        }),
+      });
+      const sessionData = await sessionRes.json();
+      if (!sessionRes.ok || !sessionData.token) {
+        toast.error(sessionData.error || "Security verification failed");
+        return;
+      }
       const res = await fetch(`${API_URL}/api/payments/public-donate-checkout`, {
         method: "POST",
         headers,
@@ -209,6 +250,7 @@ export default function CampaignPublicPage() {
           donorEmail: isAnonymous ? "" : donorEmail,
           message: donorMessage,
           isAnonymous,
+          donationSessionToken: sessionData.token,
         }),
       });
       const result = await res.json();
@@ -599,11 +641,24 @@ export default function CampaignPublicPage() {
                     </div>
                   </div>
 
+                  {TURNSTILE_SITE_KEY ? (
+                    <div
+                      className="cf-turnstile"
+                      data-sitekey={TURNSTILE_SITE_KEY}
+                      data-callback="onGiveBlackTurnstile"
+                      data-expired-callback="onGiveBlackTurnstileExpired"
+                    />
+                  ) : (
+                    <p className="text-xs text-muted-foreground">
+                      Bot verification is not configured in this build. Development bypass must be enabled on the API.
+                    </p>
+                  )}
+
                   <Button
                     className="w-full h-12 text-base font-semibold"
                     size="lg"
                     onClick={handleDonate}
-                    disabled={checkoutLoading}
+                    disabled={checkoutLoading || (Boolean(TURNSTILE_SITE_KEY) && !turnstileToken)}
                   >
                     {checkoutLoading ? (
                       <Loader2 className="h-5 w-5 mr-2 animate-spin" />

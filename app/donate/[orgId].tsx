@@ -17,6 +17,7 @@ import * as Sharing from "expo-sharing";
 import AppHeader from "@/components/AppHeader";
 import Confetti from "@/components/Confetti";
 import RatingModal from "@/components/RatingModal";
+import TurnstileWidget from "../../components/TurnstileWidget";
 
 import { buildReceiptHtml } from "@/lib/receipt-html";
 import { saveDonationIntent, clearDonationIntent } from "@/lib/donation-intent";
@@ -90,6 +91,8 @@ export default function DonateScreen() {
   const [guestEmail, setGuestEmail] = useState("");
   const [guestEmailInput, setGuestEmailInput] = useState("");
   const [showGuestEmailForm, setShowGuestEmailForm] = useState(false);
+  const guestDonationsAvailableInApp = Platform.OS === "web";
+  const [turnstileToken, setTurnstileToken] = useState("");
 
   // Looped guide animation shown while Stripe is processing the donation.
   const [processingGuideStep, setProcessingGuideStep] = useState<0 | 1 | 2>(0);
@@ -120,6 +123,10 @@ export default function DonateScreen() {
   const endowmentContribution = endowmentEnabled ? Math.round(numericAmount * endowmentRate * 100) / 100 : 0;
   const orgAmount = Math.round((numericAmount - platformFee - educationContribution - endowmentContribution) * 100) / 100;
   const totalCharged = numericAmount;
+  const turnstileSiteKey =
+    process.env.EXPO_PUBLIC_CLOUDFLARE_TURNSTILE_SITE_KEY ||
+    process.env.CLOUDFLARE_TURNSTILE_SITE_KEY ||
+    "";
 
   useEffect(() => {
     if (step === "success") {
@@ -322,12 +329,18 @@ export default function DonateScreen() {
                   <Text style={[styles.authGateSecondaryBtnText, { color: c.text }]}>Sign In</Text>
                 </Pressable>
 
-                <Pressable
-                  style={styles.authGateGuestBtn}
-                  onPress={() => setShowGuestEmailForm(true)}
-                >
-                  <Text style={[styles.authGateGuestBtnText, { color: c.textMuted }]}>Continue as guest</Text>
-                </Pressable>
+                {guestDonationsAvailableInApp ? (
+                  <Pressable
+                    style={styles.authGateGuestBtn}
+                    onPress={() => setShowGuestEmailForm(true)}
+                  >
+                    <Text style={[styles.authGateGuestBtnText, { color: c.textMuted }]}>Continue as guest</Text>
+                  </Pressable>
+                ) : (
+                  <Text style={[styles.authGateGuestBtnText, { color: c.textMuted, textAlign: "center", lineHeight: 20 }]}>
+                    To keep donations secure, in-app payments require sign-in. Guest donations remain available on the web.
+                  </Text>
+                )}
 
                 <Pressable style={styles.authGateBackLink} onPress={() => router.back()}>
                   <Ionicons name="arrow-back-outline" size={14} color={c.textMuted} />
@@ -467,12 +480,14 @@ export default function DonateScreen() {
 
   async function attemptGuestWebCheckout(value: number): Promise<"redirecting" | "error"> {
     try {
+      const donationSessionToken = await createGuestDonationSession(value, guestEmail, "guest_web_checkout");
       const res = await apiPost<{ url: string; sessionId: string }>(
         "/api/payments/guest-donate-checkout",
         {
           orgId: org!.id,
           amount: value,
           email: guestEmail,
+          donationSessionToken,
           reinvestOptIn: educationEnabled,
           reinvestPct: Math.round(educationRate * 1000) / 10,
           ...(resolvedPartner ? { educationPartnerCode: resolvedPartner.code } : {}),
@@ -496,6 +511,7 @@ export default function DonateScreen() {
 
   async function attemptGuestNativePayment(value: number): Promise<"success" | "canceled" | "error"> {
     try {
+      const donationSessionToken = await createGuestDonationSession(value, guestEmail, "guest_native_intent");
       const intentRes = await apiPost<{
         clientSecret: string;
         paymentIntentId: string;
@@ -507,6 +523,7 @@ export default function DonateScreen() {
           orgId: org!.id,
           amount: value,
           email: guestEmail,
+          donationSessionToken,
           reinvestOptIn: educationEnabled,
           reinvestPct: Math.round(educationRate * 1000) / 10,
           ...(resolvedPartner ? { educationPartnerCode: resolvedPartner.code } : {}),
@@ -547,6 +564,104 @@ export default function DonateScreen() {
     }
   }
 
+  async function createGuestDonationSession(value: number, email: string, source: string): Promise<string> {
+    const payload = {
+      orgId: org!.id,
+      amount: value,
+      currency: "usd",
+      email,
+      source,
+      ...(campaignId ? { campaignId } : {}),
+    };
+
+    if (Platform.OS === "web") {
+      const res = await apiPost<{ token: string }>(
+        "/api/payments/donation-session",
+        {
+          ...payload,
+          turnstileToken: turnstileToken || undefined,
+        }
+      );
+      setTurnstileToken("");
+      return res.token;
+    }
+
+    const base = getApiUrl().replace(/\/$/, "");
+    const returnUrl = Linking.createURL("donation-session");
+    const params = new URLSearchParams({
+      orgId: payload.orgId,
+      amount: String(payload.amount),
+      currency: payload.currency,
+      email: payload.email,
+      source,
+      returnUrl,
+    });
+    if (campaignId) params.set("campaignId", campaignId);
+    const challengeUrl = `${base}/api/payments/donation-session/challenge?${params.toString()}`;
+
+    /**
+     * `openAuthSessionAsync` uses ASWebAuthenticationSession on iOS. That context often blocks
+     * Cloudflare Turnstile (no widget / no way to proceed). Use the normal in-app browser and
+     * listen for the deep link back with `donation_session_token`.
+     */
+    return await new Promise<string>((resolve, reject) => {
+      let settled = false;
+      let sub: ReturnType<typeof Linking.addEventListener> | null = null;
+      let to: ReturnType<typeof setTimeout> | null = null;
+
+      const finish = () => {
+        if (to) clearTimeout(to);
+        to = null;
+        sub?.remove();
+        sub = null;
+      };
+
+      const fail = (err: Error) => {
+        if (settled) return;
+        settled = true;
+        finish();
+        void WebBrowser.dismissBrowser().catch(() => {});
+        reject(err);
+      };
+
+      const succeed = (token: string) => {
+        if (settled) return;
+        settled = true;
+        finish();
+        void WebBrowser.dismissBrowser().catch(() => {});
+        resolve(token);
+      };
+
+      sub = Linking.addEventListener("url", ({ url }) => {
+        try {
+          const parsed = Linking.parse(url);
+          const token = parsed.queryParams?.donation_session_token;
+          const donationSessionToken = Array.isArray(token) ? token[0] : token;
+          if (donationSessionToken) succeed(String(donationSessionToken));
+        } catch {
+          /* ignore malformed deep links */
+        }
+      });
+
+      to = setTimeout(
+        () => fail(new Error("Security verification timed out. Please try again.")),
+        15 * 60 * 1000
+      );
+
+      WebBrowser.openBrowserAsync(challengeUrl)
+        .then((result) => {
+          if (settled) return;
+          if (result.type === "cancel" || result.type === "dismiss") {
+            // Deep link may arrive slightly after the browser closes; avoid a false "cancel".
+            setTimeout(() => {
+              if (!settled) fail(new Error("Security verification was not completed."));
+            }, 800);
+          }
+        })
+        .catch((e) => fail(e instanceof Error ? e : new Error(String(e))));
+    });
+  }
+
   async function handleDonate() {
     const value = Number(amount);
     if (!value || value <= 0) {
@@ -582,12 +697,14 @@ export default function DonateScreen() {
       setPaymentMethod("safari");
       try {
         if (guestMode) {
+          const donationSessionToken = await createGuestDonationSession(value, guestEmail, "guest_ios_checkout");
           const res = await apiPost<{ url?: string; sessionId?: string }>(
             "/api/payments/guest-donate-checkout",
             {
               orgId: org!.id,
               amount: value,
               email: guestEmail,
+              donationSessionToken,
               reinvestOptIn: educationEnabled,
               reinvestPct: Math.round(educationRate * 1000) / 10,
               ...(resolvedPartner ? { educationPartnerCode: resolvedPartner.code } : {}),
@@ -690,15 +807,8 @@ export default function DonateScreen() {
     setPaymentMethod("native");
 
     if (guestMode) {
-      const guestResult = await attemptGuestNativePayment(value);
-      if (guestResult === "success") {
-        setStep("success");
-        void refresh();
-      } else if (guestResult === "canceled") {
-        setStep("amount");
-      } else {
-        setStep("error");
-      }
+      setErrorMsg("For added payment security, please sign in or create a free account to donate in the app.");
+      setStep("error");
       setLoading(false);
       return;
     }
@@ -1211,10 +1321,25 @@ export default function DonateScreen() {
               </View>
             </View>
 
+            {guestMode && Platform.OS === "web" ? (
+              <View style={[styles.card, { backgroundColor: c.cardBg }]}>
+                <Text style={[styles.feeLabel, { color: c.text, marginBottom: 8 }]}>Security check</Text>
+                <Text style={[styles.guideText, { color: c.textMuted }]}>
+                  Complete this quick bot check before continuing to Stripe.
+                </Text>
+                <TurnstileWidget siteKey={turnstileSiteKey} onTokenChange={setTurnstileToken} />
+                {!turnstileSiteKey ? (
+                  <Text style={[styles.guideText, { color: c.textMuted, marginTop: 8 }]}>
+                    Turnstile is not configured in this build. Development bypass must be enabled on the API.
+                  </Text>
+                ) : null}
+              </View>
+            ) : null}
+
             <Pressable
-              style={[styles.donateBtn, { backgroundColor: c.green, opacity: loading ? 0.7 : 1 }]}
+              style={[styles.donateBtn, { backgroundColor: c.green, opacity: loading || (guestMode && Platform.OS === "web" && turnstileSiteKey && !turnstileToken) ? 0.7 : 1 }]}
               onPress={handleDonate}
-              disabled={loading}
+              disabled={loading || (guestMode && Platform.OS === "web" && Boolean(turnstileSiteKey) && !turnstileToken)}
             >
               {loading ? (
                 <ActivityIndicator color="#fff" />

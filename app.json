@@ -11,14 +11,14 @@
     "newArchEnabled": true,
     "splash": {
       "image": "./assets/images/splash-image.png",
-      "resizeMode": "cover",
+      "resizeMode": "contain",
       "backgroundColor": "#E9EFD6"
     },
     "ios": {
       "supportsTablet": false,
       "usesAppleSignIn": true,
       "appleTeamId": "W5NB3UT9SS",
-      "buildNumber": "25",
+      "buildNumber": "27",
       "bundleIdentifier": "com.giveblack.app",
       "associatedDomains": [
         "applinks:giveblackapp.com",
@@ -38,10 +38,10 @@
     },
     "android": {
       "package": "com.giveblack.app",
+      "versionCode": 31,
       "adaptiveIcon": {
-        "backgroundColor": "#FFFFFF",
+        "backgroundColor": "#E6F2D6",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
-        "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "intentFilters": [
@@ -72,6 +72,20 @@
     },
     "plugins": [
       "expo-dev-client",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#E9EFD6",
+          "image": "./assets/images/splash-icon.png",
+          "imageWidth": 220,
+          "resizeMode": "contain",
+          "dark": {
+            "backgroundColor": "#0d0d0d",
+            "image": "./assets/images/splash-icon.png",
+            "imageWidth": 220
+          }
+        }
+      ],
       [
         "expo-notifications",
         {

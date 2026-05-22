@@ -52,3 +52,15 @@ Push delivery requires two things to be configured:
 2. **EAS project ID** — Already set in `app.json` under `extra.eas.projectId`. The mobile app reads this at runtime to obtain a valid Expo push token. No extra server config needed.
 
 Once `EXPO_ACCESS_TOKEN` is set and the mobile app is built with EAS (not Expo Go on Android), push notifications will be delivered to all registered devices.
+
+## Stripe / card-testing mitigations (Turnstile, sessions, rate limits)
+
+GiveBlack reduces automated card-testing abuse without blocking legitimate small donations (e.g. \$1–\$10) on amount alone.
+
+- **Cloudflare Turnstile** — `POST /api/payments/donation-session` verifies a Turnstile token server-side before issuing a short-lived **signed donation session** (`PAYMENT_SECURITY_TOKEN_SECRET` / `JWT_ACCESS_SECRET`). Public and guest checkout endpoints require that token before creating Stripe Checkout sessions or PaymentIntents. Configure `CLOUDFLARE_TURNSTILE_SITE_KEY` + `CLOUDFLARE_TURNSTILE_SECRET_KEY`; never expose the secret to clients. In non-production, `CLOUDFLARE_TURNSTILE_DEV_BYPASS=1` allows local testing without Turnstile keys.
+- **Session binding** — Donation sessions bind org, campaign, amount, currency, and identity (guest email or logged-in donor id when `Authorization: Bearer` is sent to `donation-session`). Sessions are single-use (`consume: true` at checkout).
+- **Rate limits** — `checkPaymentRateLimit` enforces per-IP and per-identity (email / user / session) windows (`PAYMENT_RATE_LIMIT_*`). **Strict** limits apply to unauthenticated Stripe-creation paths (`PAYMENT_RATE_LIMIT_STRICT_*`). Failed payments (Stripe webhook `payment_intent.payment_failed`) feed `recordPaymentFailure` for temporary identity-based backoff.
+- **Velocity logging** — Optional log-only signal when many attempts from one IP are below `PAYMENT_VELOCITY_LOW_USD_MAX` (`suspicious_low_amount_velocity`); tune or disable via env (set max to `0`).
+- **Stripe metadata** — PaymentIntents and Checkout include hashed IP, app environment, campaign/org ids, donation session id, and (after DB insert) **`donationId`** (internal UUID) for Radar and support correlation. PII is minimized in logs (`logPaymentSecurityEvent` strips risky keys).
+
+**Env summary:** see root `.env.example` under “Payment anti-abuse / Cloudflare Turnstile”. **For Stripe support:** we use Turnstile + server-issued donation sessions, stricter rate limits on public payment creation, webhook-driven failure tracking, and enriched PaymentIntent metadata (no card data logged).

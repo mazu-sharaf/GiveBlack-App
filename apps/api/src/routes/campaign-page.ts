@@ -3,6 +3,14 @@ import { db } from "../lib/db.js";
 import { env } from "../config/env.js";
 import { getStripe } from "../services/stripe.js";
 import { stripeId } from "../lib/stripe-ids.js";
+import {
+  checkPaymentRateLimit,
+  logPaymentSecurityEvent,
+  normalizePaymentEmail,
+  paymentClientIp,
+  stripeSecurityMetadata,
+  verifyDonationSessionToken,
+} from "../lib/payment-security.js";
 import { z } from "zod";
 
 const publicDonateSchema = z.object({
@@ -17,6 +25,7 @@ const publicDonateSchema = z.object({
   donorEmail: z.preprocess((v) => (typeof v === "string" && v.trim() === "" ? undefined : v), z.string().email().optional()),
   message: z.string().max(2000).optional(),
   isAnonymous: z.boolean().default(false),
+  donationSessionToken: z.string().optional(),
 });
 
 async function optionalDonorUserId(
@@ -331,6 +340,42 @@ export const campaignPageRoutes: FastifyPluginAsync = async (app) => {
 
   app.post("/api/payments/public-donate-checkout", async (request, reply) => {
     const body = publicDonateSchema.parse(request.body);
+    const donorUserId = body.isAnonymous ? null : await optionalDonorUserId(app, request);
+    const resolvedEmailForSecurity = body.isAnonymous ? null : normalizePaymentEmail(body.donorEmail);
+    const sessionCheck = verifyDonationSessionToken(
+      body.donationSessionToken,
+      {
+        orgId: body.orgId,
+        campaignId: body.campaignId,
+        amount: body.amount,
+        currency: body.currency,
+        email: resolvedEmailForSecurity,
+        userId: donorUserId,
+        source: "campaign_page",
+      },
+      { consume: true }
+    );
+    if (!sessionCheck.ok || !sessionCheck.payload) {
+      logPaymentSecurityEvent(request.log, "public_donation_session_rejected", {
+        reason: sessionCheck.reason,
+        orgId: body.orgId,
+        campaignId: body.campaignId,
+      });
+      return reply.code(403).send({ error: sessionCheck.reason || "Donation session is required." });
+    }
+    const rateCheck = checkPaymentRateLimit({
+      action: "public-donate-checkout",
+      ip: paymentClientIp(request),
+      email: resolvedEmailForSecurity,
+      userId: donorUserId,
+      sessionId: sessionCheck.payload.sessionId,
+      amount: body.amount,
+      strict: true,
+      logger: request.log,
+    });
+    if (!rateCheck.allowed) {
+      return reply.code(429).send({ error: rateCheck.reason || "Too many payment attempts. Please try again later." });
+    }
     const stripe = getStripe();
     if (!stripe) {
       return reply.code(503).send({ error: "Payments not configured" });
@@ -363,7 +408,6 @@ export const campaignPageRoutes: FastifyPluginAsync = async (app) => {
     const successUrl = `${publicBase}/c/${encodeURIComponent(body.campaignId)}/thank-you?session_id={CHECKOUT_SESSION_ID}`;
     const cancelUrl = `${publicBase}/c/${encodeURIComponent(body.campaignId)}?cancelled=1`;
 
-    const donorUserId = body.isAnonymous ? null : await optionalDonorUserId(app, request);
     if (donorUserId && body.donorEmail) {
       const row = await db.query("select lower(trim(email)) as e from users where id = $1", [donorUserId]);
       const accountEmail = (row.rows[0] as { e?: string } | undefined)?.e;
@@ -406,6 +450,15 @@ export const campaignPageRoutes: FastifyPluginAsync = async (app) => {
           donorName: body.isAnonymous ? "Anonymous" : (resolvedName || ""),
           donorEmail: resolvedEmail || "",
           source: "campaign_page",
+          ...stripeSecurityMetadata({
+            donationSessionId: sessionCheck.payload.sessionId,
+            donorEmail: resolvedEmail,
+            donorName: resolvedName,
+            orgId: body.orgId,
+            campaignId: body.campaignId,
+            source: "campaign_page",
+            ip: paymentClientIp(request),
+          }),
           ...(donorUserId ? { donorUserId } : {}),
         },
       },
@@ -415,6 +468,7 @@ export const campaignPageRoutes: FastifyPluginAsync = async (app) => {
         orgId: body.orgId,
         campaignId: body.campaignId,
         source: "campaign_page",
+        donationSessionId: sessionCheck.payload.sessionId,
         ...(donorUserId ? { donorUserId } : {}),
       },
     };
@@ -427,28 +481,14 @@ export const campaignPageRoutes: FastifyPluginAsync = async (app) => {
 
     /** Prefer Payment Intent id so `payment_intent.succeeded` matches this row immediately (session id alone relies on `checkout.session.completed`). */
     const donationStripeKey = stripeId(session.payment_intent) ?? session.id;
-
     const campPiId = stripeId(session.payment_intent);
-    if (campPiId) {
-      const piMeta: Record<string, string> = {
-        orgId: body.orgId,
-        campaignId: body.campaignId,
-        type: "donation",
-        isAnonymous: body.isAnonymous ? "true" : "false",
-        donorName: body.isAnonymous ? "Anonymous" : (resolvedName || ""),
-        donorEmail: resolvedEmail || "",
-        source: "campaign_page",
-        checkoutSessionId: session.id,
-      };
-      if (donorUserId) piMeta.donorUserId = donorUserId;
-      await stripe.paymentIntents.update(campPiId, { metadata: piMeta });
-    }
 
-    await db.query(
+    const donInsCamp = await db.query(
       `INSERT INTO donations (
          org_id, campaign_id, user_id, amount, currency, status, stripe_payment_intent_id,
          donor_name, donor_email, message, is_anonymous
-       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+       RETURNING id`,
       [
         body.orgId,
         body.campaignId,
@@ -463,6 +503,44 @@ export const campaignPageRoutes: FastifyPluginAsync = async (app) => {
         body.isAnonymous,
       ]
     );
+    const donationRowIdCamp = (donInsCamp.rows[0] as { id: string } | undefined)?.id;
+    if (campPiId && donationRowIdCamp) {
+      const piMeta: Record<string, string> = {
+        orgId: body.orgId,
+        campaignId: body.campaignId,
+        type: "donation",
+        isAnonymous: body.isAnonymous ? "true" : "false",
+        donorName: body.isAnonymous ? "Anonymous" : (resolvedName || ""),
+        donorEmail: resolvedEmail || "",
+        source: "campaign_page",
+        checkoutSessionId: session.id,
+        ...stripeSecurityMetadata({
+          donationSessionId: sessionCheck.payload.sessionId,
+          donationId: donationRowIdCamp,
+          userId: donorUserId,
+          donorEmail: resolvedEmail,
+          donorName: resolvedName,
+          orgId: body.orgId,
+          campaignId: body.campaignId,
+          source: "campaign_page",
+          ip: paymentClientIp(request),
+        }),
+      };
+      if (donorUserId) piMeta.donorUserId = donorUserId;
+      await stripe.paymentIntents.update(campPiId, { metadata: piMeta });
+    }
+    if (donationRowIdCamp) {
+      await stripe.checkout.sessions.update(session.id, {
+        metadata: {
+          orgId: body.orgId,
+          campaignId: body.campaignId,
+          source: "campaign_page",
+          donationSessionId: sessionCheck.payload.sessionId,
+          donationId: donationRowIdCamp,
+          ...(donorUserId ? { donorUserId } : {}),
+        },
+      });
+    }
 
     return { url: session.url, sessionId: session.id };
   });
@@ -680,12 +758,15 @@ function webDonatePage(opts: {
   const campaignId = escHtml(opts.campaignId);
   const orgId = escHtml(opts.orgId);
   const apiCheckout = `${opts.baseUrl.replace(/\/$/, "")}/api/payments/public-donate-checkout`;
+  const apiDonationSession = `${opts.baseUrl.replace(/\/$/, "")}/api/payments/donation-session`;
+  const turnstileSiteKey = env.CLOUDFLARE_TURNSTILE_SITE_KEY || "";
 
   return `<!DOCTYPE html>
 <html lang="en"><head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>Donate to ${title} | GiveBlack</title>
+${turnstileSiteKey ? '<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>' : ""}
 <style>${baseStyles()}
 .page{max-width:720px;margin:0 auto;padding:24px 16px 48px;}
 .hero{background:#fff;border-radius:16px;box-shadow:0 2px 12px rgba(0,0,0,0.08);padding:18px 18px 16px;margin-bottom:16px;}
@@ -732,6 +813,7 @@ function webDonatePage(opts: {
     <div class="row" style="margin-top:12px;">
       <label class="note"><input type="checkbox" name="isAnonymous" /> Donate anonymously</label>
     </div>
+    ${turnstileSiteKey ? `<div class="cf-turnstile" data-sitekey="${escHtml(turnstileSiteKey)}" data-callback="onTurnstileDonation" data-expired-callback="onTurnstileDonationExpired" style="margin-top:12px;"></div>` : '<p class="note" style="margin-top:12px;">Bot verification is enabled in production.</p>'}
     <div class="actions">
       <button class="btn-primary" id="submitBtn" type="submit">Continue to secure checkout</button>
       <div class="err" id="err"></div>
@@ -746,6 +828,9 @@ function webDonatePage(opts: {
   var form=document.getElementById('donateForm');
   var btn=document.getElementById('submitBtn');
   var err=document.getElementById('err');
+  var turnstileToken='';
+  window.onTurnstileDonation=function(token){ turnstileToken = token || ''; };
+  window.onTurnstileDonationExpired=function(){ turnstileToken = ''; };
   function setError(msg){ err.textContent = msg || ''; }
   form.addEventListener('submit', async function(e){
     e.preventDefault();
@@ -764,6 +849,28 @@ function webDonatePage(opts: {
         message: (fd.get('message') || '').toString().trim() || undefined,
         isAnonymous: !!fd.get('isAnonymous'),
       };
+      var sessionRes = await fetch(${JSON.stringify(apiDonationSession)}, {
+        method:'POST',
+        headers:{'content-type':'application/json'},
+        body: JSON.stringify({
+          orgId: payload.orgId,
+          campaignId: payload.campaignId,
+          amount: payload.amount,
+          currency: payload.currency,
+          email: payload.isAnonymous ? undefined : payload.donorEmail,
+          source: 'campaign_page',
+          turnstileToken: turnstileToken || undefined
+        }),
+      });
+      var sessionData = await sessionRes.json().catch(function(){ return {}; });
+      if(!sessionRes.ok){
+        setError((sessionData && sessionData.error) ? sessionData.error : 'Security verification failed');
+        btn.disabled = false;
+        btn.textContent = 'Continue to secure checkout';
+        if(window.turnstile){ window.turnstile.reset(); turnstileToken=''; }
+        return;
+      }
+      payload.donationSessionToken = sessionData.token;
       var res = await fetch(${JSON.stringify(apiCheckout)}, {
         method:'POST',
         headers:{'content-type':'application/json'},

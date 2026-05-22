@@ -16,6 +16,24 @@ const schema = z.object({
   STRIPE_PRICE_INSTITUTIONAL: z.string().default("price_1TA2DnBk2z7Pp8h0GFcDMfQ3"),
   STRIPE_PRODUCT_GROWTH: z.string().default("prod_U8Iotu17CesgKO"),
   STRIPE_PRODUCT_INSTITUTIONAL: z.string().default("prod_U8IpZXR2R0SNHb"),
+  CLOUDFLARE_TURNSTILE_SITE_KEY: z.string().optional(),
+  CLOUDFLARE_TURNSTILE_SECRET_KEY: z.string().optional(),
+  CLOUDFLARE_TURNSTILE_DEV_BYPASS: z.string().optional(),
+  PAYMENT_SECURITY_TOKEN_SECRET: z.string().min(32).optional(),
+  PAYMENT_DONATION_SESSION_TTL_SECONDS: z.coerce.number().optional(),
+  PAYMENT_RATE_LIMIT_WINDOW_MS: z.coerce.number().optional(),
+  PAYMENT_RATE_LIMIT_IP_LIMIT: z.coerce.number().optional(),
+  PAYMENT_RATE_LIMIT_IDENTITY_LIMIT: z.coerce.number().optional(),
+  /** Tighter caps for unauthenticated / Stripe-create endpoints (guest checkout, public checkout, donation-session). */
+  PAYMENT_RATE_LIMIT_STRICT_IP_LIMIT: z.coerce.number().optional(),
+  PAYMENT_RATE_LIMIT_STRICT_IDENTITY_LIMIT: z.coerce.number().optional(),
+  PAYMENT_FAILED_ATTEMPT_LIMIT: z.coerce.number().optional(),
+  /** Log-only: max donation amount (USD) counted as “low” for velocity heuristics. Set 0 to disable. */
+  PAYMENT_VELOCITY_LOW_USD_MAX: z.coerce.number().optional(),
+  /** Log-only: min number of low-$ attempts from same IP in the window to emit suspicious_low_amount_velocity. */
+  PAYMENT_VELOCITY_LOW_IP_LOW_COUNT_MIN: z.coerce.number().optional(),
+  /** Log-only: min total attempts from same IP in the window before low-$ alert can fire. */
+  PAYMENT_VELOCITY_LOW_IP_TOTAL_MIN: z.coerce.number().optional(),
   BREVO_API_KEY: z.string().optional(),
   /** Legacy/alternate env name sometimes used for Brevo/Sendinblue */
   SENDINBLUE_API_KEY: z.string().optional(),
