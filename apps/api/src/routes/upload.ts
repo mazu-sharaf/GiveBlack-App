@@ -3,13 +3,16 @@ import path from "node:path";
 import fs from "node:fs";
 import crypto from "node:crypto";
 import { optimizeUploadImage } from "../services/image-optimize.js";
+import { isR2Configured, r2PutObject } from "../lib/storage-r2.js";
 
 const UPLOADS_DIR = path.resolve(process.cwd(), "uploads");
 
 export const uploadRoutes: FastifyPluginAsync = async (app) => {
-  if (!fs.existsSync(UPLOADS_DIR)) {
+  const useR2 = isR2Configured();
+  if (!useR2 && !fs.existsSync(UPLOADS_DIR)) {
     fs.mkdirSync(UPLOADS_DIR, { recursive: true });
   }
+  app.log.info({ storage: useR2 ? "cloudflare-r2" : "local-disk" }, "upload storage initialized");
 
   app.post(
     "/api/upload/image",
@@ -46,11 +49,25 @@ export const uploadRoutes: FastifyPluginAsync = async (app) => {
       }
 
       const name = `${crypto.randomUUID()}${optimized.ext}`;
+
+      if (useR2) {
+        try {
+          const { url } = await r2PutObject({
+            key: name,
+            body: optimized.buffer,
+            contentType: "image/jpeg",
+          });
+          return { url, filename: name };
+        } catch (e) {
+          request.log.error({ err: e }, "r2 upload failed");
+          return reply.code(502).send({ error: "Image upload service is temporarily unavailable." });
+        }
+      }
+
       const dest = path.join(UPLOADS_DIR, name);
       fs.writeFileSync(dest, optimized.buffer);
-
       const url = `/uploads/${name}`;
       return { url, filename: name };
-    }
+    },
   );
 };

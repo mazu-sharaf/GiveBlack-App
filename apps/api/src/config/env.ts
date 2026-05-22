@@ -76,6 +76,20 @@ const schema = z.object({
    * Example: "AA:BB:...:FF,11:22:...:99"
    */
   ANDROID_APP_LINK_SHA256_FINGERPRINTS: z.string().optional(),
+
+  /**
+   * Cloudflare R2 object storage for user uploads (charity logos, campaign images, profile photos).
+   * Falls back to local disk under apps/api/uploads/ when any value is missing.
+   * R2 dashboard → bucket → Settings → S3 API + API token page.
+   */
+  R2_ACCOUNT_ID: z.string().optional(),
+  R2_ACCESS_KEY_ID: z.string().optional(),
+  R2_SECRET_ACCESS_KEY: z.string().optional(),
+  R2_BUCKET: z.string().optional(),
+  /** Public URL prefix for objects (custom domain, e.g. https://images.giveblackapp.com). No trailing slash. */
+  R2_PUBLIC_URL: z.string().optional(),
+  /** Explicit S3-compatible endpoint. Derived from R2_ACCOUNT_ID when omitted. */
+  R2_ENDPOINT: z.string().optional(),
 });
 
 const parsed = schema.safeParse(process.env);
