@@ -3,6 +3,7 @@ import { z } from "zod";
 import { db } from "../lib/db.js";
 import { getStripe } from "../services/stripe.js";
 import { resolveDonorAvatarUrl } from "../lib/donor-portrait.js";
+import { scheduleR2Delete } from "../lib/storage-r2.js";
 
 function splitNameParts(display: string): { first_name: string; last_name: string } {
   const t = display.trim();
@@ -231,11 +232,18 @@ export const donorsRoutes: FastifyPluginAsync = async (app) => {
       const body = request.body as { avatar_url?: string };
       if (!body.avatar_url) return reply.code(400).send({ error: "avatar_url required" });
 
+      const prev = await db.query<{ avatar_url: string | null }>(
+        "select avatar_url from users where id = $1",
+        [user.sub]
+      );
+      const oldUrl = prev.rows[0]?.avatar_url ?? null;
+
       await db.query(
         "update users set avatar_url = $1, avatar_source = 'manual' where id = $2",
         [body.avatar_url, user.sub]
       );
 
+      if (oldUrl && oldUrl !== body.avatar_url) scheduleR2Delete(oldUrl);
       return { avatar_url: body.avatar_url };
     }
   );
@@ -245,7 +253,14 @@ export const donorsRoutes: FastifyPluginAsync = async (app) => {
     { preHandler: [app.authenticate] },
     async (request) => {
       const user = request.user as { sub: string };
+      const prev = await db.query<{ avatar_url: string | null }>(
+        "select avatar_url from users where id = $1",
+        [user.sub]
+      );
+      const oldUrl = prev.rows[0]?.avatar_url ?? null;
+
       await db.query("update users set avatar_url = null, avatar_source = null where id = $1", [user.sub]);
+      if (oldUrl) scheduleR2Delete(oldUrl);
       return { success: true };
     }
   );

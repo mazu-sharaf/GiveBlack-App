@@ -4,6 +4,7 @@ import { db } from "../lib/db.js";
 import { resolveOrgForCharityUser } from "../lib/charity-org.js";
 import { TIER_LIMITS } from "../lib/tier-limits.js";
 import { notifyAdminsNewCampaign } from "../services/admin-notify.js";
+import { scheduleR2Delete, scheduleR2DeleteMany } from "../lib/storage-r2.js";
 
 const MAX_TEXT = 20000;
 
@@ -188,7 +189,13 @@ export const orgCampaignRoutes: FastifyPluginAsync = async (app) => {
       if (!resolved.ok) return reply.code(resolved.status).send({ error: resolved.error });
 
       const body = orgCoverImageSchema.parse(request.body ?? {});
+      const prev = await db.query<{ cover_image_url: string | null }>(
+        "select cover_image_url from organizations where id = $1",
+        [resolved.orgId]
+      );
+      const oldUrl = prev.rows[0]?.cover_image_url ?? null;
       await db.query("update organizations set cover_image_url = $1 where id = $2", [body.cover_image_url, resolved.orgId]);
+      if (oldUrl && oldUrl !== body.cover_image_url) scheduleR2Delete(oldUrl);
       return { cover_image_url: body.cover_image_url, org_id: resolved.orgId };
     }
   );
@@ -201,7 +208,13 @@ export const orgCampaignRoutes: FastifyPluginAsync = async (app) => {
       const resolved = await resolveOrgIdForUserOr403({ userId: user.sub });
       if (!resolved.ok) return { success: false, error: resolved.error };
 
+      const prev = await db.query<{ cover_image_url: string | null }>(
+        "select cover_image_url from organizations where id = $1",
+        [resolved.orgId]
+      );
+      const oldUrl = prev.rows[0]?.cover_image_url ?? null;
       await db.query("update organizations set cover_image_url = null where id = $1", [resolved.orgId]);
+      if (oldUrl) scheduleR2Delete(oldUrl);
       return { success: true, org_id: resolved.orgId };
     }
   );
@@ -339,20 +352,23 @@ export const orgCampaignRoutes: FastifyPluginAsync = async (app) => {
       const orgId = org.id;
 
       const campRes = await db.query(
-        "select id, status from campaigns where id = $1 and organization_id = $2",
+        "select id, status, main_image_url from campaigns where id = $1 and organization_id = $2",
         [campaignId, orgId]
       );
       if (!campRes.rows.length) return reply.code(404).send({ error: "Campaign not found" });
       const currentStatus = (campRes.rows[0] as { status: string }).status;
+      const oldMainImage = (campRes.rows[0] as { main_image_url: string | null }).main_image_url;
 
       const body = request.body as Record<string, unknown>;
       const sets: string[] = [];
       const values: unknown[] = [];
       const allowed = ["title", "description", "story", "about", "goal", "location", "image_url"];
+      let newMainImage: string | undefined;
       for (const key of allowed) {
         if (body[key] !== undefined) {
           values.push(body[key]);
           const column = key === "image_url" ? "main_image_url" : key;
+          if (column === "main_image_url") newMainImage = String(body[key] ?? "") || "";
           sets.push(`${column} = $${values.length}`);
         }
       }
@@ -371,6 +387,9 @@ export const orgCampaignRoutes: FastifyPluginAsync = async (app) => {
 
       values.push(campaignId);
       await db.query(`update campaigns set ${sets.join(", ")} where id = $${values.length}`, values);
+      if (newMainImage !== undefined && oldMainImage && oldMainImage !== newMainImage) {
+        scheduleR2Delete(oldMainImage);
+      }
       return { success: true };
     }
   );
@@ -390,13 +409,22 @@ export const orgCampaignRoutes: FastifyPluginAsync = async (app) => {
       if (!org) return reply.code(403).send({ error: "No organization linked" });
       const orgId = org.id;
 
-      const campRes = await db.query(
-        "select id from campaigns where id = $1 and organization_id = $2",
+      const campRes = await db.query<{ main_image_url: string | null }>(
+        "select main_image_url from campaigns where id = $1 and organization_id = $2",
         [campaignId, orgId]
       );
       if (!campRes.rows.length) return reply.code(404).send({ error: "Campaign not found" });
+      const oldMain = campRes.rows[0]?.main_image_url ?? null;
+
+      const galleryRes = await db.query<{ image_url: string | null }>(
+        "select image_url from campaign_images where campaign_id = $1",
+        [campaignId]
+      );
+      const galleryUrls = galleryRes.rows.map((r) => r.image_url);
 
       await db.query("delete from campaigns where id = $1", [campaignId]);
+      scheduleR2Delete(oldMain);
+      scheduleR2DeleteMany(galleryUrls);
       return { success: true };
     }
   );
@@ -476,10 +504,15 @@ export const orgCampaignRoutes: FastifyPluginAsync = async (app) => {
       if (!org) return reply.code(403).send({ error: "No organization linked" });
       const orgId = org.id;
 
-      const imgRes = await db.query("select id from campaign_images where id = $1 and org_id = $2", [imageId, orgId]);
+      const imgRes = await db.query<{ image_url: string | null }>(
+        "select image_url from campaign_images where id = $1 and org_id = $2",
+        [imageId, orgId]
+      );
       if (!imgRes.rows.length) return reply.code(404).send({ error: "Image not found" });
+      const oldUrl = imgRes.rows[0]?.image_url ?? null;
 
       await db.query("delete from campaign_images where id = $1", [imageId]);
+      if (oldUrl) scheduleR2Delete(oldUrl);
       return { success: true };
     }
   );
@@ -781,8 +814,15 @@ export const orgCampaignRoutes: FastifyPluginAsync = async (app) => {
       const body = request.body as { image_url?: string };
       if (!body.image_url) return reply.code(400).send({ error: "image_url is required" });
 
+      const prev = await db.query<{ image_url: string | null }>(
+        "select image_url from organizations where id = $1",
+        [orgId]
+      );
+      const oldUrl = prev.rows[0]?.image_url ?? null;
+
       await db.query("update organizations set image_url = $1 where id = $2", [body.image_url, orgId]);
 
+      if (oldUrl && oldUrl !== body.image_url) scheduleR2Delete(oldUrl);
       return { image_url: body.image_url, org_id: orgId };
     }
   );

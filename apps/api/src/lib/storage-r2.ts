@@ -109,3 +109,42 @@ export function r2KeyFromUrl(url: string): string | null {
   if (!url.startsWith(prefix)) return null;
   return url.slice(prefix.length);
 }
+
+/**
+ * Best-effort delete of an R2 object given a URL string.
+ *
+ * Safely handles:
+ *  - null/empty/whitespace input → no-op
+ *  - URLs that aren't ours (legacy /uploads/, OAuth provider avatars, external CDNs) → no-op
+ *  - R2 errors → swallowed (logged via console.warn), never thrown
+ *
+ * Use this when a DB row's image URL is being replaced, so the old object
+ * doesn't linger in R2 forever and bloat storage cost.
+ */
+export async function deleteR2ByUrl(url: string | null | undefined): Promise<void> {
+  if (!url) return;
+  const trimmed = String(url).trim();
+  if (!trimmed) return;
+  const key = r2KeyFromUrl(trimmed);
+  if (!key) return; // URL is not on our R2 bucket; leave it alone.
+  try {
+    await r2DeleteObject(key);
+  } catch (e) {
+    console.warn(`[r2] failed to delete ${key}:`, (e as Error).message);
+  }
+}
+
+/**
+ * Schedule deletion without blocking the request: fire-and-forget.
+ * Use this in route handlers so a slow R2 call never delays the response.
+ */
+export function scheduleR2Delete(url: string | null | undefined): void {
+  void deleteR2ByUrl(url);
+}
+
+/**
+ * Schedule deletion of multiple old URLs (e.g. when removing a campaign and its gallery).
+ */
+export function scheduleR2DeleteMany(urls: Array<string | null | undefined>): void {
+  for (const u of urls) scheduleR2Delete(u);
+}

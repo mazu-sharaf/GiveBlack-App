@@ -21,23 +21,30 @@ const UPLOADS_DIR = path.resolve(process.cwd(), "uploads");
  *   categories/           – category icon images (admin)
  *   misc/                 – fallback / unclassified
  */
-const KIND_FOLDER: Record<string, string> = {
-  "donor-avatar":      "profiles/donor",
-  "org-logo":          "profiles/org",
-  "org-cover":         "profiles/org-cover",
-  "campaign-cover":    "campaigns/cover",
-  "campaign-gallery":  "campaigns/gallery",
-  "community-post":    "community/post",
-  "category-icon":     "categories",
-  "misc":              "misc",
+type KindConfig = { folder: string; maxSidePx: number; jpegQuality: number };
+
+/**
+ * Per-kind upload tuning. Smaller targets (avatars, icons) get a smaller maxSidePx
+ * and slightly tighter JPEG quality so they take very little R2 space and load fast.
+ * Larger banner / hero images keep more detail.
+ */
+const KIND_CONFIG: Record<string, KindConfig> = {
+  "donor-avatar":     { folder: "profiles/donor",      maxSidePx: 512,  jpegQuality: 82 },
+  "org-logo":         { folder: "profiles/org",        maxSidePx: 512,  jpegQuality: 82 },
+  "category-icon":    { folder: "categories",          maxSidePx: 256,  jpegQuality: 80 },
+  "org-cover":        { folder: "profiles/org-cover",  maxSidePx: 1600, jpegQuality: 84 },
+  "campaign-cover":   { folder: "campaigns/cover",     maxSidePx: 1600, jpegQuality: 84 },
+  "campaign-gallery": { folder: "campaigns/gallery",   maxSidePx: 1280, jpegQuality: 82 },
+  "community-post":   { folder: "community/post",      maxSidePx: 1280, jpegQuality: 82 },
+  "misc":             { folder: "misc",                maxSidePx: 1280, jpegQuality: 82 },
 };
 
 const DEFAULT_KIND = "misc";
 
-function folderForKind(raw: string | undefined): string {
-  if (!raw) return KIND_FOLDER[DEFAULT_KIND];
+function configForKind(raw: string | undefined): KindConfig {
+  if (!raw) return KIND_CONFIG[DEFAULT_KIND];
   const k = raw.trim().toLowerCase();
-  return KIND_FOLDER[k] ?? KIND_FOLDER[DEFAULT_KIND];
+  return KIND_CONFIG[k] ?? KIND_CONFIG[DEFAULT_KIND];
 }
 
 export const uploadRoutes: FastifyPluginAsync = async (app) => {
@@ -53,7 +60,8 @@ export const uploadRoutes: FastifyPluginAsync = async (app) => {
     async (request, reply) => {
       const query = request.query as Record<string, string | undefined>;
       const kind = (query.kind ?? "").trim().toLowerCase() || DEFAULT_KIND;
-      const folder = folderForKind(kind);
+      const cfg = configForKind(kind);
+      const folder = cfg.folder;
 
       const file = await request.file();
       if (!file) {
@@ -79,7 +87,7 @@ export const uploadRoutes: FastifyPluginAsync = async (app) => {
       }
       let optimized: { buffer: Buffer; ext: ".jpg" };
       try {
-        optimized = await optimizeUploadImage(buffer, { maxSidePx: 1600, jpegQuality: 86 });
+        optimized = await optimizeUploadImage(buffer, { maxSidePx: cfg.maxSidePx, jpegQuality: cfg.jpegQuality });
       } catch (e) {
         request.log.error({ err: e }, "image optimize failed");
         return reply.code(400).send({ error: "Unsupported image format. Please upload JPEG or PNG." });
@@ -95,7 +103,10 @@ export const uploadRoutes: FastifyPluginAsync = async (app) => {
             body: optimized.buffer,
             contentType: "image/jpeg",
           });
-          request.log.info({ key, kind, folder }, "uploaded to r2");
+          request.log.info(
+            { key, kind, folder, originalBytes: buffer.length, optimizedBytes: optimized.buffer.length },
+            "uploaded to r2",
+          );
           return { url, filename: name };
         } catch (e) {
           request.log.error({ err: e }, "r2 upload failed");

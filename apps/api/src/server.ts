@@ -8,6 +8,7 @@ import multipart from "@fastify/multipart";
 import fastifyStatic from "@fastify/static";
 import httpProxy from "@fastify/http-proxy";
 import path from "node:path";
+import { existsSync } from "node:fs";
 import { env, getCorsOrigins } from "./config/env.js";
 import { isBrevoConfigured } from "./services/brevo.js";
 import { healthRoutes } from "./routes/health.js";
@@ -123,14 +124,27 @@ export function buildServer() {
   app.register(jwt, {
     secret: env.JWT_ACCESS_SECRET
   });
+  // Legacy local /uploads/ served when (a) we're not behind another VPS backend and
+  // (b) the directory still exists. After the R2 migration the directory is gone on
+  // production, so this block becomes a no-op and avoids the "root must exist" warning.
+  // Legacy local /uploads/ served when (a) we're not behind another VPS backend and
+  // (b) the directory still exists. After the R2 migration the directory is gone on
+  // production, so this block becomes a no-op and avoids the "root must exist" warning.
   if (!process.env.VPS_BACKEND_URL) {
-    app.register(fastifyStatic, {
-      root: path.resolve(process.cwd(), "uploads"),
-      prefix: "/uploads/",
-      setHeaders(res) {
-        res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
-      },
-    });
+    const uploadsRoot = path.resolve(process.cwd(), "uploads");
+    try {
+      if (existsSync(uploadsRoot)) {
+        app.register(fastifyStatic, {
+          root: uploadsRoot,
+          prefix: "/uploads/",
+          setHeaders(res) {
+            res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+          },
+        });
+      }
+    } catch {
+      // ignore: R2 is canonical storage now
+    }
   }
 
   // Static assets served by the API (shared by admin + mobile).

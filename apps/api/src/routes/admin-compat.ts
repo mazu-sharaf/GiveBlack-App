@@ -10,6 +10,7 @@ import { stripeId } from "../lib/stripe-ids.js";
 import { maybeNotifyOrgSubscriptionPlanUpgrade } from "../services/user-push.js";
 import { sendBrevoEmail } from "../services/brevo.js";
 import { optimizeUploadImage } from "../services/image-optimize.js";
+import { scheduleR2Delete, scheduleR2DeleteMany } from "../lib/storage-r2.js";
 
 const TABLES = new Set([
   "organizations",
@@ -575,6 +576,17 @@ export const adminCompatRoutes: FastifyPluginAsync = async (app) => {
         }
 
         let prevCampaign: { id: string; status: string; organization_id: string; title: string } | null = null;
+        // Map of image columns to capture per table, used for delete-old-on-replace cleanup on R2.
+        const IMAGE_COLS_BY_TABLE: Record<string, string[]> = {
+          campaigns:                 ["main_image_url"],
+          organizations:             ["image_url", "cover_image_url"],
+          categories:                ["image_url"],
+          campaign_images:           ["image_url"],
+          community_campaigns:       ["main_image_url"],
+          community_campaign_images: ["image_url"],
+        };
+        const imageCols = IMAGE_COLS_BY_TABLE[table] ?? [];
+        let oldImageUrls: string[] = [];
         if (table === "campaigns" && body.operation === "update") {
           const idFilter = filters.find((f) => f.column === "id" && f.op === "eq");
           if (idFilter?.value != null && String(idFilter.value).length > 0) {
@@ -586,6 +598,24 @@ export const adminCompatRoutes: FastifyPluginAsync = async (app) => {
               | { id: string; status: string; organization_id: string; title: string }
               | undefined;
             if (pr) prevCampaign = pr;
+          }
+        }
+        // Capture old image URLs for update/delete so we can clean R2 afterwards.
+        if (imageCols.length && (body.operation === "update" || body.operation === "delete") && filterParts.length) {
+          try {
+            const selectCols = imageCols.join(", ");
+            const prevImgRes = await db.query(
+              `select ${selectCols} from ${table} where ${filterParts.join(" and ")}`,
+              values.slice(0, filterParts.length),
+            );
+            for (const row of prevImgRes.rows as Record<string, string | null>[]) {
+              for (const col of imageCols) {
+                const v = row[col];
+                if (v) oldImageUrls.push(v);
+              }
+            }
+          } catch (e) {
+            request.log.warn({ err: e, table }, "could not capture old image URLs for cleanup");
           }
         }
 
@@ -619,6 +649,55 @@ export const adminCompatRoutes: FastifyPluginAsync = async (app) => {
             table,
             operation: body.operation
           });
+        }
+
+        // R2 cleanup: delete old image objects when they were replaced or the row was deleted.
+        if (oldImageUrls.length) {
+          if (body.operation === "delete") {
+            scheduleR2DeleteMany(oldImageUrls);
+            // On row delete, also clear gallery rows attached to the deleted row.
+            if (table === "campaigns") {
+              const idFilter = filters.find((f) => f.column === "id" && f.op === "eq");
+              if (idFilter?.value != null) {
+                try {
+                  const galleryRes = await db.query<{ image_url: string | null }>(
+                    "select image_url from campaign_images where campaign_id = $1",
+                    [idFilter.value],
+                  );
+                  scheduleR2DeleteMany(galleryRes.rows.map((r) => r.image_url));
+                  await db.query("delete from campaign_images where campaign_id = $1", [idFilter.value]);
+                } catch (e) {
+                  request.log.warn({ err: e }, "campaign gallery cleanup failed");
+                }
+              }
+            }
+          } else if (body.operation === "update") {
+            const rowData = (Array.isArray(body.data) ? body.data[0] : body.data) as Record<string, unknown> | undefined;
+            if (rowData) {
+              const newByCol: Record<string, string | null> = {};
+              for (const c of imageCols) {
+                if (rowData[c] !== undefined) newByCol[c] = (rowData[c] as string | null) ?? null;
+              }
+              // For each old URL, schedule deletion only if the corresponding column is changing
+              // to a different value. We don't have per-row precision here (filters could match >1 row),
+              // but in admin UI mutations the filter is always a single id.
+              try {
+                const selectCols = imageCols.join(", ");
+                const stillRes = await db.query(
+                  `select ${selectCols} from ${table} where ${filterParts.join(" and ")}`,
+                  values.slice(0, filterParts.length),
+                );
+                const stillUrls = new Set<string>();
+                for (const row of stillRes.rows as Record<string, string | null>[]) {
+                  for (const c of imageCols) if (row[c]) stillUrls.add(row[c] as string);
+                }
+                const toDelete = oldImageUrls.filter((u) => !stillUrls.has(u));
+                scheduleR2DeleteMany(toDelete);
+              } catch (e) {
+                request.log.warn({ err: e }, "post-update image diff failed");
+              }
+            }
+          }
         }
 
         return {
@@ -1428,8 +1507,17 @@ export const adminCompatRoutes: FastifyPluginAsync = async (app) => {
       if (body.icon_bg_color !== undefined) { values.push(body.icon_bg_color); sets.push(`icon_bg_color = $${values.length}`); }
       if (body.icon_border_color !== undefined) { values.push(body.icon_border_color); sets.push(`icon_border_color = $${values.length}`); }
       if (sets.length) {
+        let oldImage: string | null = null;
+        if (body.image_url !== undefined) {
+          const prev = await db.query<{ image_url: string | null }>(
+            "select image_url from categories where id = $1",
+            [id]
+          );
+          oldImage = prev.rows[0]?.image_url ?? null;
+        }
         values.push(id);
         await db.query(`update categories set ${sets.join(", ")} where id = $${values.length}`, values);
+        if (oldImage && oldImage !== (body.image_url ?? null)) scheduleR2Delete(oldImage);
       }
       return { success: true };
     }
@@ -1440,10 +1528,16 @@ export const adminCompatRoutes: FastifyPluginAsync = async (app) => {
     { preHandler: [app.authenticate, app.requireRole("admin", "super_admin")] },
     async (request) => {
       const { id } = request.params as { id: string };
+      const prev = await db.query<{ image_url: string | null }>(
+        "select image_url from categories where id = $1",
+        [id]
+      );
+      const oldImage = prev.rows[0]?.image_url ?? null;
       // Keep the UI promise: organizations using this category become uncategorized.
       // Without this, Postgres rejects the delete due to the FK constraint.
       await db.query(`update organizations set category_id = null where category_id = $1`, [id]);
       await db.query(`delete from categories where id = $1`, [id]);
+      if (oldImage) scheduleR2Delete(oldImage);
       return { success: true };
     }
   );
@@ -2084,15 +2178,15 @@ export const adminCompatRoutes: FastifyPluginAsync = async (app) => {
       const file = await request.file();
       if (!file) return reply.code(400).send({ error: { message: "File required" } });
 
-      // Resolve folder from ?kind= query param (preferred) or legacy `folder` form field.
-      const KIND_TO_FOLDER: Record<string, string> = {
-        "donor-avatar":     "profiles/donor",
-        "org-logo":         "profiles/org",
-        "org-cover":        "profiles/org-cover",
-        "campaign-cover":   "campaigns/cover",
-        "campaign-gallery": "campaigns/gallery",
-        "category-icon":    "categories",
-        "misc":             "misc",
+      // Resolve folder + optimisation profile from ?kind= query param (preferred) or legacy `folder` form field.
+      const KIND_CFG: Record<string, { folder: string; maxSidePx: number; jpegQuality: number }> = {
+        "donor-avatar":     { folder: "profiles/donor",      maxSidePx: 512,  jpegQuality: 82 },
+        "org-logo":         { folder: "profiles/org",        maxSidePx: 512,  jpegQuality: 82 },
+        "category-icon":    { folder: "categories",          maxSidePx: 256,  jpegQuality: 80 },
+        "org-cover":        { folder: "profiles/org-cover",  maxSidePx: 1600, jpegQuality: 84 },
+        "campaign-cover":   { folder: "campaigns/cover",     maxSidePx: 1600, jpegQuality: 84 },
+        "campaign-gallery": { folder: "campaigns/gallery",   maxSidePx: 1280, jpegQuality: 82 },
+        "misc":             { folder: "misc",                maxSidePx: 1280, jpegQuality: 82 },
       };
       const queryKind = ((request.query as Record<string, string>).kind ?? "").trim().toLowerCase();
       const folderField = file.fields.folder;
@@ -2101,7 +2195,8 @@ export const adminCompatRoutes: FastifyPluginAsync = async (app) => {
           ? (folderField.value as string)
           : "";
       const resolvedKind = queryKind || folderValue || "misc";
-      const folder = KIND_TO_FOLDER[resolvedKind] ?? `admin/${resolvedKind.replace(/[^a-zA-Z0-9-_]/g, "") || "misc"}`;
+      const cfg = KIND_CFG[resolvedKind] ?? { folder: `admin/${resolvedKind.replace(/[^a-zA-Z0-9-_]/g, "") || "misc"}`, maxSidePx: 1280, jpegQuality: 82 };
+      const folder = cfg.folder;
       const safeFolder = folder;
 
       // Always use a UUID filename so R2 keys are unguessable and cache-safe.
@@ -2112,7 +2207,7 @@ export const adminCompatRoutes: FastifyPluginAsync = async (app) => {
       const buffer = await file.toBuffer();
       let optimized: { buffer: Buffer; ext: ".jpg" };
       try {
-        optimized = await optimizeUploadImage(buffer, { maxSidePx: 1600, jpegQuality: 86 });
+        optimized = await optimizeUploadImage(buffer, { maxSidePx: cfg.maxSidePx, jpegQuality: cfg.jpegQuality });
       } catch (e) {
         request.log.error({ err: e }, "admin storage image optimize failed");
         return reply.code(400).send({ error: { message: "Unsupported image format. Please upload JPEG or PNG." } });
