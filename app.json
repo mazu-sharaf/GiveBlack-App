@@ -10,7 +10,7 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
-      "backgroundColor": "#FFFFFF"
+      "backgroundColor": "#E8F4DC"
     },
     "ios": {
       "supportsTablet": false,
@@ -73,7 +73,7 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#FFFFFF"
+          "backgroundColor": "#E8F4DC"
         }
       ],
       [

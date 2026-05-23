@@ -2,8 +2,9 @@ import React, { useEffect, useRef } from "react";
 import { Animated, StyleSheet, View, Dimensions } from "react-native";
 
 const LOGO = require("@/assets/images/splash-logo-vector.png");
-const BG_COLOR = "#FFFFFF";
-const LOGO_SIZE = Math.round(Dimensions.get("window").width * 0.58);
+// Background matches the outer edge of the splash logo watercolor.
+const BG_COLOR = "#E8F4DC";
+const LOGO_SIZE = Math.round(Dimensions.get("window").width * 0.72);
 
 // Total visible time breakdown:
 //   ~300ms  spring scale-in
