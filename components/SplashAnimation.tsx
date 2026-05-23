@@ -7,23 +7,24 @@ import { Animated, StyleSheet, View, Dimensions } from "react-native";
 const LOGO = require("@/assets/images/splash-logo-opt.png");
 // Background matches the outer edge of the splash logo watercolor.
 const BG_COLOR = "#E8F4DC";
-const LOGO_SIZE = Math.round(Dimensions.get("window").width * 0.72);
+// Smaller, more refined logo size (~half the screen width).
+const LOGO_SIZE = Math.round(Dimensions.get("window").width * 0.5);
 
-// Total visible time breakdown (premium preloader pacing):
-//   ~350ms   spring scale-in + fade-in
-//   ~2600ms  hold (logo gently pulses for life)
-//   ~550ms   fade out
-// = ~3500ms total before onComplete fires → home page revealed
-const SCALE_IN_MS = 350;
-const HOLD_MS = 2600;
-const FADE_OUT_MS = 550;
+// Snappy preloader pacing:
+//   ~220ms   spring scale-in + fade-in (logo appears almost instantly)
+//   ~1600ms  hold with subtle pulse
+//   ~380ms   fade out
+// = ~2200ms total before onComplete fires → home page revealed
+const SCALE_IN_MS = 220;
+const HOLD_MS = 1600;
+const FADE_OUT_MS = 380;
 
 type Props = {
   onComplete: () => void;
 };
 
 export function SplashAnimation({ onComplete }: Props) {
-  const scale = useRef(new Animated.Value(0.4)).current;
+  const scale = useRef(new Animated.Value(0.7)).current;
   const opacity = useRef(new Animated.Value(1)).current;
   const logoOpacity = useRef(new Animated.Value(0)).current;
   const pulse = useRef(new Animated.Value(1)).current;
@@ -34,12 +35,12 @@ export function SplashAnimation({ onComplete }: Props) {
       if (!cancelled) onComplete();
     };
 
-    // Phase 1: spring scale-in + logo fade-in
+    // Phase 1: snappy spring scale-in + logo fade-in
     Animated.parallel([
       Animated.spring(scale, {
         toValue: 1,
-        friction: 7,
-        tension: 80,
+        friction: 6,
+        tension: 140,
         useNativeDriver: true,
       }),
       Animated.timing(logoOpacity, {
