@@ -1,7 +1,10 @@
 import React, { useEffect, useRef } from "react";
 import { Animated, StyleSheet, View, Dimensions } from "react-native";
 
-const LOGO = require("@/assets/images/splash-logo-vector.png");
+// Metro automatically serves splash-logo-opt@2x.png / @3x.png
+// on the matching display density, so the image is always crisp
+// without loading an oversized file on low-density screens.
+const LOGO = require("@/assets/images/splash-logo-opt.png");
 // Background matches the outer edge of the splash logo watercolor.
 const BG_COLOR = "#E8F4DC";
 const LOGO_SIZE = Math.round(Dimensions.get("window").width * 0.72);
