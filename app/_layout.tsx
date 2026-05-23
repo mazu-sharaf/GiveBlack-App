@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useEffect } from "react";
 import { View, Platform } from "react-native";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
@@ -17,8 +17,10 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import StripeProviderWrapper from "@/components/StripeProviderWrapper";
 import { NotificationNavigationHandler } from "@/components/NotificationNavigationHandler";
-import { SplashLogoAnimation } from "@/components/SplashLogoAnimation";
 
+// Hold the native splash until fonts are ready, then dismiss instantly.
+// No JS overlay - the OS hides the native splash in a single frame and
+// the app appears underneath, so users never see a "loading" stage.
 void SplashScreen.preventAutoHideAsync().catch(() => {});
 
 function InnerLayout() {
@@ -54,9 +56,6 @@ function InnerLayout() {
 }
 
 export default function RootLayout() {
-  const [splashDone, setSplashDone] = useState(false);
-  const onSplashComplete = useCallback(() => setSplashDone(true), []);
-
   const [fontsLoaded] = useFonts({
     SpaceGrotesk_400Regular,
     SpaceGrotesk_500Medium,
@@ -65,19 +64,20 @@ export default function RootLayout() {
     ...Ionicons.font,
   });
 
+  useEffect(() => {
+    if (!fontsLoaded) return;
+    void SplashScreen.hideAsync().catch(() => {});
+  }, [fontsLoaded]);
+
+  if (!fontsLoaded) return null;
+
   return (
     <ThemeProvider>
       <AuthProvider>
         <AppProvider>
           <StripeProviderWrapper>
             <SafeAreaProvider>
-              {fontsLoaded && <InnerLayout />}
-              {!splashDone && (
-                <SplashLogoAnimation
-                  onComplete={onSplashComplete}
-                  ready={fontsLoaded}
-                />
-              )}
+              <InnerLayout />
             </SafeAreaProvider>
           </StripeProviderWrapper>
         </AppProvider>
