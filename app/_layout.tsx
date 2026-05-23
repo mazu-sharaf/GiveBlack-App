@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import { View, Platform } from "react-native";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
@@ -17,10 +17,9 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import StripeProviderWrapper from "@/components/StripeProviderWrapper";
 import { NotificationNavigationHandler } from "@/components/NotificationNavigationHandler";
+import { SplashAnimation } from "@/components/SplashAnimation";
 
-// Hold the native splash until fonts are ready, then dismiss instantly.
-// No JS overlay - the OS hides the native splash in a single frame and
-// the app appears underneath, so users never see a "loading" stage.
+// Hold the native splash until the JS bundle is ready.
 void SplashScreen.preventAutoHideAsync().catch(() => {});
 
 function InnerLayout() {
@@ -31,12 +30,10 @@ function InnerLayout() {
       <Stack
         screenOptions={{
           headerShown: false,
-          /** Match theme so iOS home-indicator / safe area never shows default white behind screens */
           contentStyle: { backgroundColor: c.background },
         }}
       />
       <NotificationNavigationHandler />
-      {/* Dev-only overlay to catch bottom safe-area, kept transparent so it doesn't show a bar */}
       {__DEV__ && Platform.OS !== "web" && (
         <View
           style={{
@@ -64,11 +61,18 @@ export default function RootLayout() {
     ...Ionicons.font,
   });
 
+  const [splashDone, setSplashDone] = useState(false);
+  const onSplashComplete = useCallback(() => setSplashDone(true), []);
+
   useEffect(() => {
     if (!fontsLoaded) return;
+    // Dismiss the native splash instantly so our JS animation is the
+    // only thing shown. This prevents the Android double-logo issue
+    // where the native splash icon overlaps our animated overlay.
     void SplashScreen.hideAsync().catch(() => {});
   }, [fontsLoaded]);
 
+  // Render nothing until fonts are ready — native splash covers this gap.
   if (!fontsLoaded) return null;
 
   return (
@@ -78,6 +82,9 @@ export default function RootLayout() {
           <StripeProviderWrapper>
             <SafeAreaProvider>
               <InnerLayout />
+              {!splashDone && (
+                <SplashAnimation onComplete={onSplashComplete} />
+              )}
             </SafeAreaProvider>
           </StripeProviderWrapper>
         </AppProvider>

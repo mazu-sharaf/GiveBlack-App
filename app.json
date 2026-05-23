@@ -10,15 +10,13 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/images/splash-bg.png",
-      "resizeMode": "cover",
-      "backgroundColor": "#3FA825"
+      "backgroundColor": "#FFFFFF"
     },
     "ios": {
       "supportsTablet": false,
       "usesAppleSignIn": true,
       "appleTeamId": "W5NB3UT9SS",
-      "buildNumber": "31",
+      "buildNumber": "32",
       "bundleIdentifier": "com.giveblack.app",
       "associatedDomains": [
         "applinks:giveblackapp.com",
@@ -75,19 +73,7 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#3FA825",
-          "image": "./assets/images/splash-bg.png",
-          "resizeMode": "cover",
-          "ios": {
-            "backgroundColor": "#3FA825",
-            "image": "./assets/images/splash-bg.png",
-            "resizeMode": "cover"
-          },
-          "android": {
-            "backgroundColor": "#3FA825",
-            "image": "./assets/images/splash-bg.png",
-            "resizeMode": "cover"
-          }
+          "backgroundColor": "#FFFFFF"
         }
       ],
       [
