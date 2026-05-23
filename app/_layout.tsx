@@ -22,18 +22,22 @@ import { SplashAnimation } from "@/components/SplashAnimation";
 // Hold the native splash until the JS bundle is ready.
 void SplashScreen.preventAutoHideAsync().catch(() => {});
 
-function InnerLayout() {
+function InnerLayout({ ready }: { ready: boolean }) {
   const { isDark, colors: c } = useTheme();
   return (
     <View style={{ flex: 1, backgroundColor: c.background }}>
       <StatusBar style={isDark ? "light" : "dark"} />
-      <Stack
-        screenOptions={{
-          headerShown: false,
-          contentStyle: { backgroundColor: c.background },
-        }}
-      />
-      <NotificationNavigationHandler />
+      {ready ? (
+        <>
+          <Stack
+            screenOptions={{
+              headerShown: false,
+              contentStyle: { backgroundColor: c.background },
+            }}
+          />
+          <NotificationNavigationHandler />
+        </>
+      ) : null}
       {__DEV__ && Platform.OS !== "web" && (
         <View
           style={{
@@ -81,7 +85,10 @@ export default function RootLayout() {
         <AppProvider>
           <StripeProviderWrapper>
             <SafeAreaProvider>
-              <InnerLayout />
+              {/* InnerLayout only renders the Stack once splash is done.
+                  Contexts above mount immediately so auth/session/data
+                  preload in the background while the splash plays. */}
+              <InnerLayout ready={splashDone} />
               {!splashDone && (
                 <SplashAnimation onComplete={onSplashComplete} />
               )}
