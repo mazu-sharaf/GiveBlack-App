@@ -1,5 +1,7 @@
 # GiveBlack — Disaster Recovery Runbook
 
+> 🚀 **Prefer the Cursor-driven version?** If you have Cursor installed on your laptop, see [**RECOVERY-WITH-CURSOR.md**](RECOVERY-WITH-CURSOR.md) — uses plain-English prompts to walk you through recovery without memorizing commands. Same outcome, much less typing.
+
 **When to use this:** Your VPS is gone (deleted, corrupted, hacked, billing issue, etc.) and you need to bring GiveBlack back online on a brand-new server.
 
 **Realistic recovery time:** 1.5 – 2 hours if you have everything below ready.
