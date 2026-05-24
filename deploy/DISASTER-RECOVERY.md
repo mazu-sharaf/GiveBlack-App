@@ -10,19 +10,27 @@
 
 ## 0) Before disaster — what you must already have
 
-Save this list in your **password manager** (Bitwarden / 1Password). Without these, recovery is impossible.
+Save this list in a **private Google Doc** titled `GiveBlack — Recovery Kit` (or password-protected PDF). Without these, recovery is impossible.
+
+> **Security rules for the recovery doc:**
+> 1. Enable **2FA on your Google account** (authenticator app, not SMS)
+> 2. Set the doc to **Restricted — only you** in sharing settings
+> 3. Don't put it in any shared folder
+> 4. Don't email the doc as backup
+> 5. If exporting as PDF, password-protect the PDF
+> 6. Store Google account recovery codes offline (printed paper / safe)
 
 | Item | Where it lives | How to get it back if lost |
 |------|----------------|----------------------------|
-| **`.env` contents** (production) | Bitwarden Secure Note "GiveBlack — .env (production)" | Some values can be recovered from EAS env vars; others (DB password, JWT secrets) **must be saved or recreated and you lose all sessions** |
+| **`.env` contents** (production) | Google Doc "GiveBlack — Recovery Kit" → `.env` section | Some values can be recovered from EAS env vars; others (DB password, JWT secrets) **must be saved or recreated and you lose all sessions** |
 | **Cloudflare account** | `Mawatrixtechnologies@gmail.com` + password | Cloudflare account recovery |
-| **R2 backup credentials** | Bitwarden + `.env` | Can recreate in Cloudflare dashboard |
-| **Hostinger account** (or new VPS provider) | Bitwarden | Login at hostinger.com |
-| **GitHub account** | Bitwarden | Use GitHub recovery codes |
-| **Apple Developer account** | Bitwarden | appleid.apple.com |
-| **Google Play Console account** | Bitwarden | play.google.com/console |
+| **R2 backup credentials** | Recovery Kit doc + `.env` | Can recreate in Cloudflare dashboard |
+| **Hostinger account** (or new VPS provider) | Recovery Kit doc | Login at hostinger.com |
+| **GitHub account** | Recovery Kit doc | Use GitHub recovery codes |
+| **Apple Developer account** | Recovery Kit doc | appleid.apple.com |
+| **Google Play Console account** | Recovery Kit doc | play.google.com/console |
 | **Domain DNS access** (`giveblackapp.com`) | Hostinger registrar or Cloudflare | Whoever holds the registrar account |
-| **Expo / EAS account** (`mawamedia`) | Bitwarden | expo.dev |
+| **Expo / EAS account** (`mawamedia`) | Recovery Kit doc | expo.dev |
 
 ---
 
@@ -91,10 +99,10 @@ npm install --workspaces=apps/api --workspaces=apps/admin
 
 ---
 
-## 4) Restore `.env` from Bitwarden (5 min)
+## 4) Restore `.env` from your Recovery Kit (5 min)
 
-1. Open your Bitwarden vault → find the note **"GiveBlack — .env (production)"**.
-2. Copy the entire contents.
+1. Open your **Google Doc "GiveBlack — Recovery Kit"** (or the password-protected PDF).
+2. Copy the entire `.env` section.
 3. Paste into `/var/www/giveblack/.env`:
    ```bash
    nano /var/www/giveblack/.env
@@ -134,7 +142,7 @@ SQL
 ```bash
 mkdir -p /root/.aws
 
-# Use the R2 backup credentials saved in Bitwarden
+# Use the R2 backup credentials saved in your Recovery Kit doc
 cat > /root/.aws/credentials <<EOF
 [r2-backup]
 aws_access_key_id = <YOUR_R2_BACKUP_ACCESS_KEY>
@@ -344,7 +352,7 @@ Both depend on certificate fingerprints / bundle IDs registered with Apple and G
 | 1. New VPS | 15 min | Hostinger ~ $5–10/mo |
 | 2. Dependencies | 15 min | one-time |
 | 3. Code from GitHub | 5 min | |
-| 4. `.env` from Bitwarden | 5 min | |
+| 4. `.env` from Recovery Kit doc | 5 min | |
 | 5. DB from R2 | 10 min | up to 24h data loss |
 | 6. nginx + SSL prep | 15 min | SSL deferred until DNS |
 | 7. Start API | 10 min | |
@@ -377,6 +385,135 @@ If something in the cloud is broken and you can't recover:
 - **Stripe support:** support.stripe.com (urgent for payment issues)
 - **Expo support:** expo.dev/support (email; not 24/7)
 - **Apple Developer:** developer.apple.com/support (slow but works)
+
+---
+
+## Appendix A — Recovery Kit Google Doc template
+
+Create a Google Doc called **"GiveBlack — Recovery Kit"** and paste this template. Fill in the angle-bracket placeholders. Update it whenever any value changes.
+
+```text
+================ GIVEBLACK — RECOVERY KIT ================
+Last reviewed: <YYYY-MM-DD>
+Doc owner: <your email>
+
+WARNING — DO NOT SHARE THIS DOC WITH ANYONE.
+- Sharing setting: Restricted (only you)
+- 2FA must be enabled on this Google account
+
+--------- VPS (current) ---------
+Provider: Hostinger
+Plan: KVM2
+Hostname: srv1373325.hstgr.cloud
+IP: <fill in>
+Root password: <fill in>
+SSH private key path (Windows): C:\Users\mashu\.ssh\giveblack_vps
+
+--------- DOMAIN ---------
+Registrar: Hostinger
+Domain: giveblackapp.com
+DNS managed via: <Hostinger or Cloudflare>
+
+--------- DATABASE ---------
+Engine: PostgreSQL 16
+Connection URL: postgresql://giveblack_user:<password>@localhost:5432/giveblack_db
+User: giveblack_user
+Password: <fill in>
+DB name: giveblack_db
+
+--------- CLOUDFLARE ---------
+Account email: Mawatrixtechnologies@gmail.com
+Account password: <fill in>
+Account ID: f68f9b2895ba3bfc647f839874021a62
+Dashboard: https://dash.cloudflare.com
+
+R2 — uploads bucket
+  Bucket: giveblack-uploads
+  Endpoint: https://f68f9b2895ba3bfc647f839874021a62.r2.cloudflarestorage.com
+  Public URL: https://images.giveblackapp.com
+  Access Key: <fill in>
+  Secret: <fill in>
+
+R2 — backups bucket
+  Bucket: giveblack-backups
+  Access Key: <fill in>
+  Secret: <fill in>
+  Lifecycle: delete daily/* after 30 days
+
+--------- STRIPE ---------
+Dashboard: https://dashboard.stripe.com
+Account email: <fill in>
+Live secret key: sk_live_<fill in>
+Live publishable key: pk_live_<fill in>
+Webhook signing secret: whsec_<fill in>
+Webhook endpoint URL: https://giveblackapp.com/api/webhooks/stripe
+
+--------- AUTH / SECRETS ---------
+JWT access secret: <fill in>
+JWT refresh secret: <fill in>
+Admin 2FA encryption key: <fill in>
+Admin bootstrap password: <fill in>
+
+--------- EMAIL (BREVO) ---------
+Brevo API key: xkeysib-<fill in>
+Sender email: support@giveblackapp.com
+
+--------- TURNSTILE ---------
+Site key: <fill in>
+Secret key: <fill in>
+
+--------- EXPO / EAS ---------
+Account: mawamedia
+Login email: mawamediaglobal@gmail.com
+Login password: <fill in>
+Project ID: aac9a673-6322-424e-b349-dfcf7f9331d2
+EAS token: <fill in>
+
+--------- APPLE ---------
+Apple ID: <fill in>
+Apple ID password: <fill in>
+Team ID: W5NB3UT9SS
+App Store Connect API key (stored on EAS, key ID): 2GNFRVP4GM
+Bundle ID: com.giveblack.app
+
+--------- GOOGLE PLAY ---------
+Console login: <fill in>
+Console password: <fill in>
+Package name: com.giveblack.app
+Service account JSON file (if set up): <where stored>
+
+--------- OAUTH / SOCIAL SIGN-IN ---------
+Apple Sign-In client ID: com.giveblack.app
+Google iOS client ID: 686496134866-k5a914jeu1b3si5gl4ratimoaphll6f3...
+Google Web client ID: 686496134866-<...>
+Admin Google client ID: 686496134866-4t9jvtvmhd70jgjfa9b43fen26863ats...
+
+--------- HEARTBEAT MONITORING ---------
+Provider: healthchecks.io
+Backup heartbeat URL: https://hc-ping.com/f662b490-3552-4cb4-b0b3-236d3602b7f0
+
+--------- GIT REMOTES ---------
+Primary GitHub: github.com/mazu-sharaf/GiveBlackMain
+Secondary GitHub: github.com/mazu-sharaf/GiveBlack-App
+GitLab mirror: gitlab.com/mawatrix/giveblack
+
+--------- KEY PEOPLE / VENDORS ---------
+Hostinger support: 24/7 chat at hpanel.hostinger.com
+Cloudflare support: dash.cloudflare.com (paid plans = faster)
+Stripe support: support.stripe.com
+Expo support: expo.dev/support
+
+============== FULL .env FILE FOLLOWS ==============
+(paste entire /var/www/giveblack/.env contents below this line)
+
+# Last synced from VPS: <YYYY-MM-DD>
+
+<paste .env here>
+
+================ END OF RECOVERY KIT ================
+```
+
+When you change anything in `.env`, also update this doc and bump the "Last reviewed" date.
 
 ---
 
