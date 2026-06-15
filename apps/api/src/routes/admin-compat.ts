@@ -8,7 +8,7 @@ import { env } from "../config/env.js";
 import { getStripe } from "../services/stripe.js";
 import { stripeId } from "../lib/stripe-ids.js";
 import { maybeNotifyOrgSubscriptionPlanUpgrade } from "../services/user-push.js";
-import { sendBrevoEmail } from "../services/brevo.js";
+import { sendEmail, isEmailConfigured, getEmailConfigError } from "../services/email.js";
 import { optimizeUploadImage } from "../services/image-optimize.js";
 import { scheduleR2Delete, scheduleR2DeleteMany } from "../lib/storage-r2.js";
 
@@ -274,7 +274,7 @@ export const adminCompatRoutes: FastifyPluginAsync = async (app) => {
     // send email
     try {
       const { emailLayout } = await import("../services/email-template.js");
-      await sendBrevoEmail({
+      await sendEmail({
         to: email,
         subject: "Your GiveBlack admin login code",
         html: emailLayout(
@@ -1747,13 +1747,15 @@ export const adminCompatRoutes: FastifyPluginAsync = async (app) => {
                 coalesce(d.donor_email, u.email) as user_email,
                 o.name as org_name,
                 ep.name as education_partner_name,
-                coalesce(ds.platform_fee, 0) as platform_fee,
-                coalesce(ds.net_to_org, 0) as net_to_org
+                fo.name as fund_code_org_name,
+                coalesce(d.platform_fee_amount, ds.platform_fee, 0) as platform_fee,
+                coalesce(d.net_amount_cents / 100.0, ds.net_to_org, 0) as net_to_org
          from donations d
          left join users u on u.id = d.user_id
          left join campaigns c on c.id = d.campaign_id
          left join organizations o on o.id = coalesce(d.org_id, c.organization_id)
          left join education_partners ep on ep.id = d.education_partner_id
+         left join organizations fo on fo.id = d.fund_code_org_id
          left join donation_splits ds on ds.donation_id = d.id
          ${w} order by d.created_at desc
          limit $${values.length + 1} offset $${values.length + 2}`,
@@ -1802,7 +1804,7 @@ export const adminCompatRoutes: FastifyPluginAsync = async (app) => {
         const charityName = req.charity_name as string || "your organization";
         if (contactEmail) {
           try {
-            const { sendBrevoEmail } = await import("../services/brevo.js");
+            const { sendEmail } = await import("../services/email.js");
             const { emailLayout, ctaButton } = await import("../services/email-template.js");
             const appUrl = env.APP_URL || "https://giveblackapp.com";
             const content = `
@@ -1820,7 +1822,7 @@ export const adminCompatRoutes: FastifyPluginAsync = async (app) => {
               <div style="text-align:center;margin-bottom:24px;">${ctaButton(appUrl, "Log In Now")}</div>
             `;
             const bccList = await getAdminBccEmails();
-            await sendBrevoEmail({
+            await sendEmail({
               to: contactEmail,
               subject: "Your GiveBlack Application Has Been Approved",
               bcc: bccList.length ? bccList : undefined,
@@ -1869,7 +1871,7 @@ export const adminCompatRoutes: FastifyPluginAsync = async (app) => {
       const charityName = charityReq?.charity_name as string || "your organization";
       if (contactEmail) {
         try {
-          const { sendBrevoEmail } = await import("../services/brevo.js");
+          const { sendEmail } = await import("../services/email.js");
           const { emailLayout } = await import("../services/email-template.js");
           const supportEmail = env.SUPPORT_EMAIL || "info@giveblackapp.com";
           const content = `
@@ -1882,7 +1884,7 @@ export const adminCompatRoutes: FastifyPluginAsync = async (app) => {
             <p style="color:#999999;font-size:14px;">If you believe this was an error or have additional information, please contact us at <a href="mailto:${supportEmail}" style="color:#059669;text-decoration:none;">${supportEmail}</a>.</p>
           `;
           const bccList = await getAdminBccEmails();
-          await sendBrevoEmail({
+          await sendEmail({
             to: contactEmail,
             subject: "Update on Your GiveBlack Application",
             bcc: bccList.length ? bccList : undefined,
@@ -1955,16 +1957,16 @@ export const adminCompatRoutes: FastifyPluginAsync = async (app) => {
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (!emailRegex.test(email)) return reply.code(400).send({ error: "Invalid email address" });
       try {
-        const { sendBrevoEmail, getBrevoConfigError } = await import("../services/brevo.js");
-        const brevoMissing = getBrevoConfigError();
-        if (brevoMissing) return reply.code(503).send({ error: brevoMissing });
+        const { sendEmail, getEmailConfigError } = await import("../services/email.js");
+        const emailMissing = getEmailConfigError();
+        if (emailMissing) return reply.code(503).send({ error: emailMissing });
         const { emailLayout } = await import("../services/email-template.js");
         const content = `
           <h2 style="color:#ffffff;margin:0 0 8px 0;font-size:22px;">Test email</h2>
           <p style="color:#cccccc;margin:0 0 16px 0;font-size:16px;">This is a test from the GiveBlack admin panel. If you received this, outbound email from GiveBlack is working.</p>
           <p style="color:#999999;font-size:14px;">Sent at ${new Date().toISOString()}</p>
         `;
-        await sendBrevoEmail({
+        await sendEmail({
           to: email,
           subject: "GiveBlack – Test email",
           html: emailLayout(content),
@@ -1991,9 +1993,9 @@ export const adminCompatRoutes: FastifyPluginAsync = async (app) => {
         if (e && !toSend.includes(e.toLowerCase())) toSend.push(e.toLowerCase());
       }
       if (toSend.length === 0) return reply.code(400).send({ error: "No admin emails to send to. Add at least one admin email first." });
-      const { sendBrevoEmail, getBrevoConfigError } = await import("../services/brevo.js");
-      const brevoMissing = getBrevoConfigError();
-      if (brevoMissing) return reply.code(503).send({ error: brevoMissing });
+      const { sendEmail, getEmailConfigError } = await import("../services/email.js");
+      const emailMissing = getEmailConfigError();
+      if (emailMissing) return reply.code(503).send({ error: emailMissing });
       const { emailLayout } = await import("../services/email-template.js");
       const content = `
         <h2 style="color:#ffffff;margin:0 0 8px 0;font-size:22px;">Test email (all)</h2>
@@ -2006,7 +2008,7 @@ export const adminCompatRoutes: FastifyPluginAsync = async (app) => {
       let firstError: string | undefined;
       for (const email of toSend) {
         try {
-          await sendBrevoEmail({
+          await sendEmail({
             to: email,
             subject: "GiveBlack – Test email",
             html: emailLayout(content),
@@ -2025,7 +2027,7 @@ export const adminCompatRoutes: FastifyPluginAsync = async (app) => {
           error:
             firstError ||
             lastFailureMessage ||
-            "Failed to send to any recipient. Check BREVO_API_KEY and BREVO_SENDER_EMAIL on the server.",
+            "Failed to send to any recipient. Check AWS SES credentials and SES_FROM_EMAIL on the server.",
         });
       }
       return { success: true, sent, failed, total: toSend.length };

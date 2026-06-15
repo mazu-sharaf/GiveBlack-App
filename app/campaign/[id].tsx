@@ -37,7 +37,7 @@ function resolveImgUrl(base: string, url?: string | null): string | undefined {
 }
 
 export default function CampaignDetailScreen() {
-  const { id, quick_amount } = useLocalSearchParams<{ id: string; quick_amount?: string }>();
+  const { id, quick_amount, seller } = useLocalSearchParams<{ id: string; quick_amount?: string; seller?: string }>();
 
   const prefilledAmount = (() => {
     const raw = Array.isArray(quick_amount) ? quick_amount[0] : quick_amount;
@@ -53,6 +53,7 @@ export default function CampaignDetailScreen() {
   const contextCampaign = campaigns.find((cp) => cp.id === id);
   const [campaign, setCampaign] = useState<CampaignDetail | null>(null);
   const [loading, setLoading] = useState(true);
+  const [participant, setParticipant] = useState<{ display_name: string; code: string } | null>(null);
 
   const fetchDetail = useCallback(async () => {
     try {
@@ -92,7 +93,36 @@ export default function CampaignDetailScreen() {
     }
   }, [id]);
 
-  // Refetch when the screen is shown again (e.g. after donating) so raised/donor totals stay in sync with the API.
+  useFocusEffect(
+    useCallback(() => {
+      const rawSeller = Array.isArray(seller) ? seller[0] : seller;
+      if (!rawSeller || !id) {
+        setParticipant(null);
+        return;
+      }
+      let cancelled = false;
+      void (async () => {
+        try {
+          const base = getApiUrl().replace(/\/$/, "");
+          const res = await fetch(
+            `${base}/api/campaigns/${encodeURIComponent(id)}/participant/${encodeURIComponent(String(rawSeller).trim())}`
+          );
+          if (!res.ok) throw new Error("not found");
+          const data = await res.json();
+          if (!cancelled && data.participant) {
+            setParticipant({ display_name: data.participant.display_name, code: data.participant.code });
+          }
+        } catch {
+          if (!cancelled) setParticipant(null);
+        }
+      })();
+      return () => {
+        cancelled = true;
+      };
+    }, [id, seller])
+  );
+
+  // Refetch when the screen is shown again
   useFocusEffect(
     useCallback(() => {
       fetchDetail();
@@ -223,6 +253,15 @@ export default function CampaignDetailScreen() {
               <Text style={[styles.completedText, { color: c.green }]}>Campaign Goal Reached</Text>
             </View>
           )}
+
+          {participant ? (
+            <View style={[styles.completedBanner, { backgroundColor: c.green + "15", marginBottom: 8 }]}>
+              <Ionicons name="heart-outline" size={20} color={c.green} />
+              <Text style={[styles.completedText, { color: c.green }]}>
+                Supporting {participant.display_name}&apos;s fundraiser
+              </Text>
+            </View>
+          ) : null}
 
           <View style={styles.progressSection}>
             <View style={[styles.progressBar, { backgroundColor: c.border }]}>
@@ -369,6 +408,7 @@ export default function CampaignDetailScreen() {
                     orgId: camp.organizationId,
                     campaignId: id,
                     ...(prefilledAmount ? { amount: String(prefilledAmount) } : {}),
+                    ...(participant ? { seller: participant.code } : seller ? { seller: Array.isArray(seller) ? seller[0] : seller } : {}),
                   },
                 })
               }

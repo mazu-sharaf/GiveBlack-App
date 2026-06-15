@@ -25,7 +25,7 @@ export default function Login() {
       toast.error("Google login is not configured");
       return;
     }
-    const redirectUri = `${window.location.origin}/backoffice/oauth2redirect`;
+    const redirectUri = `${window.location.origin}/oauth2redirect`;
     const nonce = Math.random().toString(36).slice(2) + Date.now().toString(36);
     const state = Math.random().toString(36).slice(2);
     const params = new URLSearchParams({

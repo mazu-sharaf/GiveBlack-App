@@ -175,6 +175,26 @@ export const publicRoutes: FastifyPluginAsync = async (app) => {
     }
   });
 
+  app.get("/api/campaigns/:id/participant/:code", async (request, reply) => {
+    const { id, code } = request.params as { id: string; code: string };
+    const normalized = (code || "").trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
+    if (!normalized) {
+      return reply.code(400).send({ error: "Invalid participant code" });
+    }
+    const res = await db.query(
+      `select cp.id::text, cp.display_name, cp.code, cp.campaign_id, c.title as campaign_title
+       from campaign_participants cp
+       join campaigns c on c.id = cp.campaign_id
+       where cp.campaign_id = $1 and upper(cp.code) = $2 and cp.active = true
+       limit 1`,
+      [id, normalized]
+    );
+    if (!res.rowCount) {
+      return reply.code(404).send({ error: "Participant not found" });
+    }
+    return { participant: res.rows[0] };
+  });
+
   app.get("/api/organizations/search", async (request, reply) => {
     const query = (request.query as Record<string, unknown>)?.q;
     if (!query || typeof query !== "string" || query.trim().length < 2) {

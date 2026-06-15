@@ -2,21 +2,24 @@
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { config } from "dotenv";
+import { SESv2Client, SendEmailCommand } from "@aws-sdk/client-sesv2";
 
 const currentDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(currentDir, "../../..");
 config({ path: path.join(repoRoot, ".env") });
 
-const BREVO_API_KEY = process.env.BREVO_API_KEY;
-const BREVO_SENDER_EMAIL = process.env.BREVO_SENDER_EMAIL || "support@giveblackapp.com";
-const BREVO_SENDER_NAME = process.env.BREVO_SENDER_NAME || "GiveBlack";
+const AWS_REGION = process.env.AWS_REGION || "us-east-1";
+const AWS_ACCESS_KEY_ID = process.env.AWS_ACCESS_KEY_ID?.trim();
+const AWS_SECRET_ACCESS_KEY = process.env.AWS_SECRET_ACCESS_KEY?.trim();
+const SES_FROM_EMAIL = process.env.SES_FROM_EMAIL || "support@giveblackapp.com";
+const SES_FROM_NAME = process.env.SES_FROM_NAME || "GiveBlack";
 const toEmail = process.env.ADMIN_EMAIL || "mazu@mawamedia.com";
 const APP_URL = process.env.APP_URL || "https://giveblackapp.com";
 const SUPPORT_EMAIL = process.env.SUPPORT_EMAIL || "info@giveblackapp.com";
 const LOGO_URL = process.env.EMAIL_LOGO_URL || "";
 
-if (!BREVO_API_KEY) {
-  console.error("BREVO_API_KEY is not set in .env");
+if (!AWS_ACCESS_KEY_ID || !AWS_SECRET_ACCESS_KEY) {
+  console.error("AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY must be set in .env");
   process.exit(1);
 }
 
@@ -78,24 +81,27 @@ const html = `
 </html>
 `.trim();
 
-const res = await fetch("https://api.brevo.com/v3/smtp/email", {
-  method: "POST",
-  headers: {
-    "Content-Type": "application/json",
-    "api-key": BREVO_API_KEY,
-  },
-  body: JSON.stringify({
-    sender: { email: BREVO_SENDER_EMAIL, name: BREVO_SENDER_NAME },
-    to: [{ email: toEmail }],
-    subject: "GiveBlack – Test email (branding & contact)",
-    htmlContent: html,
-    tags: ["giveblack", "test-admin"],
-  }),
+const from = SES_FROM_NAME ? `${SES_FROM_NAME} <${SES_FROM_EMAIL}>` : SES_FROM_EMAIL;
+const client = new SESv2Client({
+  region: AWS_REGION,
+  credentials: { accessKeyId: AWS_ACCESS_KEY_ID, secretAccessKey: AWS_SECRET_ACCESS_KEY },
 });
 
-if (!res.ok) {
-  const body = await res.text();
-  console.error("Brevo send failed:", res.status, body);
+try {
+  await client.send(
+    new SendEmailCommand({
+      FromEmailAddress: from,
+      Destination: { ToAddresses: [toEmail] },
+      Content: {
+        Simple: {
+          Subject: { Data: "GiveBlack – Test email (branding & contact)", Charset: "UTF-8" },
+          Body: { Html: { Data: html, Charset: "UTF-8" } },
+        },
+      },
+    })
+  );
+} catch (err) {
+  console.error("SES send failed:", err instanceof Error ? err.message : err);
   process.exit(1);
 }
 

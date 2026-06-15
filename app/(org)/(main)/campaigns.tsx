@@ -85,11 +85,79 @@ export default function CampaignsTab() {
   const [galleryImages, setGalleryImages] = useState<{ id: string; image_url: string; caption: string | null; sort_order: number }[]>([]);
   const [galleryUploading, setGalleryUploading] = useState(false);
   const [firstCampaignRatingOrgId, setFirstCampaignRatingOrgId] = useState<string | null>(null);
+  const [fundraiserCamp, setFundraiserCamp] = useState<Campaign | null>(null);
+  const [participants, setParticipants] = useState<
+    { id: string; display_name: string; code: string; raised: number; donor_count: number; shareUrl?: string }[]
+  >([]);
+  const [participantsLoading, setParticipantsLoading] = useState(false);
+  const [newFundraiserName, setNewFundraiserName] = useState("");
+  const [newFundraiserCode, setNewFundraiserCode] = useState("");
+  const [addingFundraiser, setAddingFundraiser] = useState(false);
 
   const base = getApiUrl().replace(/\/$/, "");
   const publicHost = process.env.EXPO_PUBLIC_DOMAIN || "giveblackapp.com";
 
-  const campaignShareUrl = (campaignId: string) => `https://${publicHost}/link/c/${encodeURIComponent(campaignId)}`;
+  const campaignShareUrl = (campaignId: string, sellerCode?: string) => {
+    const base = `https://${publicHost}/link/c/${encodeURIComponent(campaignId)}`;
+    return sellerCode ? `${base}?seller=${encodeURIComponent(sellerCode)}` : base;
+  };
+
+  async function openFundraisers(camp: Campaign) {
+    setFundraiserCamp(camp);
+    setNewFundraiserName("");
+    setNewFundraiserCode("");
+    setParticipantsLoading(true);
+    try {
+      const res = await fetchWithAuth(`/api/org/campaigns/${camp.id}/participants`, { method: "GET" });
+      if (res.ok) {
+        const data = await res.json();
+        setParticipants(Array.isArray(data.participants) ? data.participants : []);
+      } else {
+        setParticipants([]);
+      }
+    } catch {
+      setParticipants([]);
+    } finally {
+      setParticipantsLoading(false);
+    }
+  }
+
+  async function addFundraiser() {
+    if (!fundraiserCamp || !newFundraiserName.trim()) {
+      Alert.alert("Name required", "Enter a display name for this fundraiser.");
+      return;
+    }
+    setAddingFundraiser(true);
+    try {
+      const res = await fetchWithAuth(`/api/org/campaigns/${fundraiserCamp.id}/participants`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          display_name: newFundraiserName.trim(),
+          ...(newFundraiserCode.trim() ? { code: newFundraiserCode.trim() } : {}),
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        Alert.alert("Could not add fundraiser", data.error || "Please try again.");
+        return;
+      }
+      setNewFundraiserName("");
+      setNewFundraiserCode("");
+      await openFundraisers(fundraiserCamp);
+    } finally {
+      setAddingFundraiser(false);
+    }
+  }
+
+  async function copyFundraiserLink(shareUrl: string) {
+    try {
+      await Clipboard.setStringAsync(shareUrl);
+      Alert.alert("Copied", "Personal fundraiser link copied.");
+    } catch {
+      Alert.alert("Copy failed", "Could not copy the link.");
+    }
+  }
 
   async function shareCampaignLink(e: any, camp: Campaign) {
     try {
@@ -617,6 +685,16 @@ export default function CampaignsTab() {
                       </Pressable>
                       <Pressable
                         style={[styles.actionChip, { borderColor: c.border }]}
+                        onPress={(e) => {
+                          e?.stopPropagation?.();
+                          void openFundraisers(camp);
+                        }}
+                      >
+                        <Ionicons name="people-outline" size={14} color={c.textMuted} />
+                        <Text style={[styles.actionChipText, { color: c.textMuted }]}>Fundraisers</Text>
+                      </Pressable>
+                      <Pressable
+                        style={[styles.actionChip, { borderColor: c.border }]}
                         onPress={(e) => void copyCampaignLink(e, camp)}
                       >
                         <Ionicons name="link-outline" size={14} color={c.textMuted} />
@@ -650,6 +728,84 @@ export default function CampaignsTab() {
           })
         )}
       </ScrollView>
+
+      <Modal visible={!!fundraiserCamp} animationType="slide" presentationStyle="pageSheet">
+        <View style={[{ flex: 1, backgroundColor: c.background, paddingTop: insets.top }]}>
+          <View style={[styles.modalHeader, { borderBottomColor: c.border }]}>
+            <Pressable onPress={() => setFundraiserCamp(null)}>
+              <Text style={[styles.modalCancel, { color: c.textMuted }]}>Close</Text>
+            </Pressable>
+            <Text style={[styles.modalTitle, { color: c.text }]} numberOfLines={1}>
+              Fundraisers
+            </Text>
+            <View style={{ width: 48 }} />
+          </View>
+          {fundraiserCamp ? (
+            <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: insets.bottom + 24 }}>
+              <Text style={[styles.campTitle, { color: c.text, marginBottom: 4 }]}>{fundraiserCamp.title}</Text>
+              <Text style={{ color: c.textMuted, fontFamily: "SpaceGrotesk_400Regular", fontSize: 13, marginBottom: 16 }}>
+                Add participants with personal share links. Donations are tracked on the leaderboard.
+              </Text>
+
+              <Text style={[styles.formLabel, { color: c.text }]}>Add fundraiser</Text>
+              <TextInput
+                value={newFundraiserName}
+                onChangeText={setNewFundraiserName}
+                placeholder="Display name"
+                placeholderTextColor={c.textMuted}
+                style={[styles.formInput, { color: c.text, borderColor: c.border, backgroundColor: c.cardBg }]}
+              />
+              <TextInput
+                value={newFundraiserCode}
+                onChangeText={setNewFundraiserCode}
+                placeholder="Custom code (optional)"
+                placeholderTextColor={c.textMuted}
+                autoCapitalize="characters"
+                style={[styles.formInput, { color: c.text, borderColor: c.border, backgroundColor: c.cardBg, marginTop: 8 }]}
+              />
+              <Pressable
+                style={[styles.createBtn, { backgroundColor: c.green, alignSelf: "flex-start", marginTop: 12, marginBottom: 20 }]}
+                onPress={() => void addFundraiser()}
+                disabled={addingFundraiser}
+              >
+                <Text style={styles.createBtnText}>{addingFundraiser ? "Adding..." : "Add fundraiser"}</Text>
+              </Pressable>
+
+              <Text style={[styles.formLabel, { color: c.text }]}>Leaderboard</Text>
+              {participantsLoading ? (
+                <ActivityIndicator color={c.green} style={{ marginTop: 16 }} />
+              ) : participants.length === 0 ? (
+                <Text style={{ color: c.textMuted, fontFamily: "SpaceGrotesk_400Regular", fontSize: 14, marginTop: 8 }}>
+                  No fundraisers yet.
+                </Text>
+              ) : (
+                participants.map((p, idx) => (
+                  <View
+                    key={p.id}
+                    style={[styles.campCard, { backgroundColor: c.cardBg, marginTop: 10, padding: 14 }]}
+                  >
+                    <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ color: c.text, fontFamily: "SpaceGrotesk_600SemiBold", fontSize: 15 }}>
+                          #{idx + 1} {p.display_name}
+                        </Text>
+                        <Text style={{ color: c.textMuted, fontSize: 12, fontFamily: "SpaceGrotesk_400Regular", marginTop: 2 }}>
+                          ${Number(p.raised || 0).toLocaleString()} raised · {p.donor_count || 0} donors · {p.code}
+                        </Text>
+                      </View>
+                      {p.shareUrl ? (
+                        <Pressable onPress={() => void copyFundraiserLink(p.shareUrl!)}>
+                          <Ionicons name="link-outline" size={20} color={c.green} />
+                        </Pressable>
+                      ) : null}
+                    </View>
+                  </View>
+                ))
+              )}
+            </ScrollView>
+          ) : null}
+        </View>
+      </Modal>
 
       <Modal visible={showForm} animationType="slide" presentationStyle="pageSheet">
         <KeyboardAvoidingView

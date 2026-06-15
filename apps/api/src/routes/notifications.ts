@@ -1,7 +1,7 @@
 import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
 import { db } from "../lib/db.js";
-import { sendBrevoEmail } from "../services/brevo.js";
+import { sendEmail } from "../services/email.js";
 import { sendExpoPush } from "../services/push.js";
 import { broadcastChannel } from "../realtime/hub.js";
 import {
@@ -88,7 +88,7 @@ async function deliverAdminBulkNotifications(
     const brandedHtml = emailLayout(body.emailHtml);
     for (const row of rows) {
       try {
-        await sendBrevoEmail({
+        await sendEmail({
           to: row.email as string,
           subject: body.emailSubject,
           html: brandedHtml,
@@ -214,7 +214,7 @@ export const notificationRoutes: FastifyPluginAsync = async (app) => {
 
     const { emailLayout } = await import("../services/email-template.js");
     try {
-      await sendBrevoEmail({
+      await sendEmail({
         to: targetEmail,
         subject: body.emailSubject,
         html: emailLayout(body.emailHtml),

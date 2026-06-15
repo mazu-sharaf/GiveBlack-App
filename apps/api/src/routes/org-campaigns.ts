@@ -826,4 +826,130 @@ export const orgCampaignRoutes: FastifyPluginAsync = async (app) => {
       return { image_url: body.image_url, org_id: orgId };
     }
   );
+
+  const participantCreateSchema = z.object({
+    display_name: z.string().trim().min(1).max(120),
+    code: z.string().trim().min(2).max(32).optional(),
+  });
+
+  function normalizeParticipantCode(value: string): string {
+    return value.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
+  }
+
+  async function assertCampaignOwnedByOrg(campaignId: string, orgId: string) {
+    const res = await db.query(
+      `select id from campaigns where id = $1 and organization_id = $2 limit 1`,
+      [campaignId, orgId]
+    );
+    return Boolean(res.rowCount);
+  }
+
+  app.post(
+    "/api/org/campaigns/:id/participants",
+    { preHandler: [app.authenticate] },
+    async (request, reply) => {
+      const user = request.user as { sub: string };
+      const resolved = await resolveOrgIdForUserOr403({ userId: user.sub });
+      if (!resolved.ok) return reply.code(resolved.status).send({ error: resolved.error });
+      const orgId = resolved.orgId;
+      const { id: campaignId } = request.params as { id: string };
+
+      if (!(await assertCampaignOwnedByOrg(campaignId, orgId))) {
+        return reply.code(404).send({ error: "Campaign not found" });
+      }
+
+      const body = participantCreateSchema.parse(request.body);
+      const code = body.code ? normalizeParticipantCode(body.code) : normalizeParticipantCode(body.display_name);
+      if (code.length < 2) {
+        return reply.code(400).send({ error: "Participant code must be at least 2 characters" });
+      }
+
+      try {
+        const ins = await db.query(
+          `insert into campaign_participants (campaign_id, display_name, code, active)
+           values ($1, $2, $3, true)
+           returning id::text, campaign_id, display_name, code, active, created_at`,
+          [campaignId, body.display_name.trim(), code]
+        );
+        const row = ins.rows[0];
+        const publicHost = process.env.EXPO_PUBLIC_DOMAIN || "giveblackapp.com";
+        return {
+          participant: row,
+          shareUrl: `https://${publicHost}/link/c/${encodeURIComponent(campaignId)}?seller=${encodeURIComponent(code)}`,
+        };
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e);
+        if (msg.includes("unique") || msg.includes("duplicate")) {
+          return reply.code(409).send({ error: "That participant code is already in use" });
+        }
+        throw e;
+      }
+    }
+  );
+
+  app.get(
+    "/api/org/campaigns/:id/participants",
+    { preHandler: [app.authenticate] },
+    async (request, reply) => {
+      const user = request.user as { sub: string };
+      const resolved = await resolveOrgIdForUserOr403({ userId: user.sub });
+      if (!resolved.ok) return reply.code(resolved.status).send({ error: resolved.error });
+      const orgId = resolved.orgId;
+      const { id: campaignId } = request.params as { id: string };
+
+      if (!(await assertCampaignOwnedByOrg(campaignId, orgId))) {
+        return reply.code(404).send({ error: "Campaign not found" });
+      }
+
+      const res = await db.query(
+        `select cp.id::text, cp.campaign_id, cp.display_name, cp.code, cp.active, cp.created_at,
+                coalesce(sum(d.amount), 0)::numeric as raised,
+                count(d.id)::int as donor_count
+         from campaign_participants cp
+         left join donations d on d.participant_id = cp.id
+           and lower(trim(coalesce(d.status::text, ''))) = 'succeeded'
+         where cp.campaign_id = $1
+         group by cp.id
+         order by raised desc, cp.created_at desc`,
+        [campaignId]
+      );
+      const publicHost = process.env.EXPO_PUBLIC_DOMAIN || "giveblackapp.com";
+      const participants = (res.rows as Array<Record<string, unknown>>).map((p) => ({
+        ...p,
+        shareUrl: `https://${publicHost}/link/c/${encodeURIComponent(campaignId)}?seller=${encodeURIComponent(String(p.code))}`,
+      }));
+      return { participants };
+    }
+  );
+
+  app.get(
+    "/api/org/campaigns/:id/leaderboard",
+    { preHandler: [app.authenticate] },
+    async (request, reply) => {
+      const user = request.user as { sub: string };
+      const resolved = await resolveOrgIdForUserOr403({ userId: user.sub });
+      if (!resolved.ok) return reply.code(resolved.status).send({ error: resolved.error });
+      const orgId = resolved.orgId;
+      const { id: campaignId } = request.params as { id: string };
+
+      if (!(await assertCampaignOwnedByOrg(campaignId, orgId))) {
+        return reply.code(404).send({ error: "Campaign not found" });
+      }
+
+      const res = await db.query(
+        `select cp.id::text, cp.display_name, cp.code,
+                coalesce(sum(d.amount), 0)::numeric as raised,
+                count(d.id)::int as donor_count
+         from campaign_participants cp
+         left join donations d on d.participant_id = cp.id
+           and lower(trim(coalesce(d.status::text, ''))) = 'succeeded'
+         where cp.campaign_id = $1 and cp.active = true
+         group by cp.id
+         order by raised desc, donor_count desc
+         limit 100`,
+        [campaignId]
+      );
+      return { leaderboard: res.rows };
+    }
+  );
 };

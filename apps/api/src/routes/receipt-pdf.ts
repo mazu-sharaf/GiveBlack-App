@@ -24,6 +24,7 @@ export const receiptPdfRoutes: FastifyPluginAsync = async (app) => {
       const res = await db.query(
         `select d.id, d.amount, d.currency, d.paid_at, d.created_at,
                 d.donor_name, d.donor_email, d.is_anonymous, d.stripe_payment_intent_id,
+                d.platform_fee_amount, d.reinvest_amount, d.endowment_amount, d.net_amount_cents,
                 o.name as org_name, o.absorb_fees
          from donations d
          left join organizations o on o.id = d.org_id
@@ -43,10 +44,22 @@ export const receiptPdfRoutes: FastifyPluginAsync = async (app) => {
       date = paidDate.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
       reference = (row.stripe_payment_intent_id as string || row.id as string).slice(-12).toUpperCase();
       amount = Number(row.amount);
-      platformFee = parseFloat((amount * 0.03).toFixed(2));
-      educationAmount = parseFloat((amount * 0.05).toFixed(2));
-      endowmentAmount = parseFloat((amount * 0.01).toFixed(2));
-      netToOrg = parseFloat((amount - platformFee - educationAmount - endowmentAmount).toFixed(2));
+      platformFee =
+        row.platform_fee_amount != null
+          ? Number(row.platform_fee_amount)
+          : parseFloat((amount * 0.03).toFixed(2));
+      educationAmount =
+        row.reinvest_amount != null
+          ? Number(row.reinvest_amount)
+          : parseFloat((amount * 0.05).toFixed(2));
+      endowmentAmount =
+        row.endowment_amount != null
+          ? Number(row.endowment_amount)
+          : parseFloat((amount * 0.01).toFixed(2));
+      netToOrg =
+        row.net_amount_cents != null && Number(row.net_amount_cents) >= 0
+          ? Number(row.net_amount_cents) / 100
+          : parseFloat((amount - platformFee - educationAmount - endowmentAmount).toFixed(2));
     } else {
       isAnonymous = q.isAnonymous === "true";
       orgName = q.orgName || "Organization";
@@ -120,8 +133,12 @@ export const receiptPdfRoutes: FastifyPluginAsync = async (app) => {
 
     amountRow("Total Charged", amount);
     amountRow("Platform Fee (3%)", platformFee);
-    amountRow("Education Investment (5%)", educationAmount);
-    amountRow("Endowment Contribution (1%)", endowmentAmount);
+    if (educationAmount > 0) {
+      amountRow("Education Reinvestment", educationAmount);
+    }
+    if (endowmentAmount > 0) {
+      amountRow("Endowment Contribution", endowmentAmount);
+    }
 
     // Divider before net line
     y += 4;

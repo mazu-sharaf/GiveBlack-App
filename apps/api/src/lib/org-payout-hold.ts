@@ -1,7 +1,7 @@
 import type { PoolClient } from "pg";
 import { db } from "./db.js";
 
-/** Stripe-like platform fee: 2.9% + $0.30 per charge (cents). */
+/** Stripe-like platform fee: 2.9% + $0.30 per charge (cents). Fallback when slices not stored. */
 export function platformFeeCents(grossCents: number): number {
   return Math.round(grossCents * 0.029 + 30);
 }
@@ -25,19 +25,44 @@ export async function getOrgHoldDays(orgId: string): Promise<number> {
 
 /**
  * Mark donation paid and attach platform-hold payout metadata (Connect transfer is manual later).
+ * Uses precomputed net_amount_cents from checkout when present (UI fee breakdown model).
  */
 export async function markDonationSucceededWithPayout(
   client: PoolClient,
   stripePaymentIntentId: string,
   grossCents: number
 ) {
-  const net = netToOrgCentsFromGrossCents(grossCents);
+  const existing = await client.query(
+    `select net_amount_cents, fund_slice_net_cents, fund_code_org_id, org_id, campaign_id
+     from donations where stripe_payment_intent_id = $1`,
+    [stripePaymentIntentId]
+  );
+  const row = existing.rows[0] as
+    | {
+        net_amount_cents: string | number | null;
+        fund_slice_net_cents: string | number | null;
+        fund_code_org_id: string | null;
+        org_id: string | null;
+        campaign_id: string | null;
+      }
+    | undefined;
+
+  const net =
+    row?.net_amount_cents != null && Number(row.net_amount_cents) >= 0
+      ? Number(row.net_amount_cents)
+      : netToOrgCentsFromGrossCents(grossCents);
+
+  const fundSliceCents =
+    row?.fund_slice_net_cents != null && Number(row.fund_slice_net_cents) > 0
+      ? Number(row.fund_slice_net_cents)
+      : 0;
+
   return client.query(
     `update donations d
      set
        status = 'succeeded',
        paid_at = now(),
-       net_amount_cents = $2,
+       net_amount_cents = coalesce(d.net_amount_cents, $2),
        org_id = coalesce(
          d.org_id,
          (select c.organization_id from campaigns c where c.id = d.campaign_id limit 1)
@@ -46,14 +71,33 @@ export async function markDonationSucceededWithPayout(
          when coalesce(
            d.org_id,
            (select c2.organization_id from campaigns c2 where c2.id = d.campaign_id limit 1)
-         ) is not null then 'in_hold'
+         ) is not null
+         and coalesce(d.net_amount_cents, $2) > 0
+         then 'in_hold'
          else d.payout_transfer_status
+       end,
+       fund_slice_transfer_status = case
+         when d.fund_code_org_id is not null
+           and coalesce(d.fund_slice_net_cents, 0) > 0
+           and d.fund_code_org_id is distinct from coalesce(
+             d.org_id,
+             (select c5.organization_id from campaigns c5 where c5.id = d.campaign_id limit 1)
+           )
+         then 'in_hold'
+         when coalesce(d.fund_slice_net_cents, 0) > 0
+           and d.fund_code_org_id is not distinct from coalesce(
+             d.org_id,
+             (select c6.organization_id from campaigns c6 where c6.id = d.campaign_id limit 1)
+           )
+         then 'released'
+         else coalesce(nullif(d.fund_slice_transfer_status, 'pending'), d.fund_slice_transfer_status, 'legacy')
        end,
        payout_release_at = case
          when coalesce(
            d.org_id,
            (select c3.organization_id from campaigns c3 where c3.id = d.campaign_id limit 1)
          ) is not null
+         and (coalesce(d.net_amount_cents, $2) > 0 or coalesce(d.fund_slice_net_cents, 0) > 0)
          then now() + make_interval(days => coalesce((
            select case when lower(coalesce(os.tier, 'free')) = 'free' then 14 else 7 end
            from org_subscriptions os
@@ -68,14 +112,13 @@ export async function markDonationSucceededWithPayout(
          else d.payout_release_at
        end
      where d.stripe_payment_intent_id = $1 and d.status != 'succeeded'
-     returning d.id, d.campaign_id, d.amount, d.org_id`,
+     returning d.id, d.campaign_id, d.amount, d.org_id, d.fund_code_org_id, d.fund_slice_net_cents`,
     [stripePaymentIntentId, net]
   );
 }
 
 /**
  * Fix succeeded donations that never got Connect hold metadata (e.g. org_id was null before payout logic).
- * Idempotent for rows already in_hold/released with a transfer.
  */
 export async function repairSucceededDonationsLegacyHold(client: PoolClient): Promise<number> {
   const res = await client.query(

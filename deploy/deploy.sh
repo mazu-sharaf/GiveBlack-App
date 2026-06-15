@@ -66,7 +66,11 @@ if command -v nginx &>/dev/null; then
     DOMAIN_CONF="giveblack.mawa.pro"
   fi
 
-  if [ -n "$DOMAIN_CONF" ]; then
+  if [ -f /etc/nginx/sites-enabled/giveblackapp.com ]; then
+    echo "[deploy] Syncing Nginx configs..."
+    sudo cp "$REPO_ROOT/deploy/nginx-giveblackapp.com.conf" /etc/nginx/sites-available/giveblackapp.com
+    sudo cp "$REPO_ROOT/deploy/nginx-admin.giveblackapp.com.conf" /etc/nginx/sites-available/admin.giveblackapp.com
+    sudo ln -sf /etc/nginx/sites-available/admin.giveblackapp.com /etc/nginx/sites-enabled/admin.giveblackapp.com
     echo "[deploy] Reloading Nginx..."
     sudo nginx -t && sudo systemctl reload nginx
   fi
@@ -78,7 +82,7 @@ echo " Deploy Complete!"
 echo "============================================"
 echo ""
 echo "  API:   http://localhost:${PORT:-5001}/health"
-echo "  Admin: http://localhost:${PORT:-5001}/admin/"
+  echo "  Admin: https://admin.giveblackapp.com/"
 echo ""
 echo "  Test:  curl http://localhost:${PORT:-5001}/api/organizations"
 echo ""

@@ -34,13 +34,13 @@ const schema = z.object({
   PAYMENT_VELOCITY_LOW_IP_LOW_COUNT_MIN: z.coerce.number().optional(),
   /** Log-only: min total attempts from same IP in the window before low-$ alert can fire. */
   PAYMENT_VELOCITY_LOW_IP_TOTAL_MIN: z.coerce.number().optional(),
-  BREVO_API_KEY: z.string().optional(),
-  /** Legacy/alternate env name sometimes used for Brevo/Sendinblue */
-  SENDINBLUE_API_KEY: z.string().optional(),
-  BREVO_SENDER_EMAIL: z.string().email().optional(),
-  /** Legacy/alternate env name for from-address */
-  BREVO_FROM_EMAIL: z.string().email().optional(),
-  BREVO_SENDER_NAME: z.string().default("GiveBlack"),
+  /** AWS SES transactional email */
+  AWS_REGION: z.string().default("us-east-1"),
+  AWS_ACCESS_KEY_ID: z.string().optional(),
+  AWS_SECRET_ACCESS_KEY: z.string().optional(),
+  SES_FROM_EMAIL: z.string().email().optional(),
+  SES_FROM_NAME: z.string().default("GiveBlack"),
+  SES_CONFIGURATION_SET: z.string().optional(),
   ADMIN_EMAIL: z.string().email().optional(),
   APP_URL: z.string().url().optional(),
   /** Site origin for admin deep links in emails (paths are under /admin/...). Optional; falls back to APP_URL. */

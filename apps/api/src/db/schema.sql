@@ -137,11 +137,28 @@ create table if not exists education_partners (
   id uuid primary key default gen_random_uuid(),
   code text not null unique,
   name text not null,
+  organization_id text null references organizations(id) on delete set null,
+  receives_education_fund boolean not null default true,
+  receives_endowment_fund boolean not null default true,
   active boolean not null default true,
   created_at timestamptz not null default now()
 );
 
 create index if not exists education_partners_code_lower_idx on education_partners (lower(code));
+
+create table if not exists campaign_participants (
+  id uuid primary key default gen_random_uuid(),
+  campaign_id text not null references campaigns(id) on delete cascade,
+  user_id uuid null references users(id) on delete set null,
+  display_name text not null,
+  code text not null,
+  active boolean not null default true,
+  created_at timestamptz not null default now(),
+  unique (campaign_id, code)
+);
+
+create unique index if not exists campaign_participants_code_lower_idx on campaign_participants (lower(code));
+create index if not exists campaign_participants_campaign_id_idx on campaign_participants (campaign_id);
 
 create table if not exists donations (
   id uuid primary key default gen_random_uuid(),
@@ -163,11 +180,22 @@ create table if not exists donations (
   reinvest_amount numeric(12,2) not null default 0,
   partner_reinvest_amount numeric(12,2) not null default 0,
   general_reinvest_amount numeric(12,2) not null default 0,
+  endowment_opt_in boolean not null default false,
+  endowment_pct numeric(5,2) not null default 0,
+  endowment_amount numeric(12,2) not null default 0,
+  partner_endowment_amount numeric(12,2) not null default 0,
+  general_endowment_amount numeric(12,2) not null default 0,
+  fund_code_org_id text null references organizations(id) on delete set null,
+  platform_fee_amount numeric(12,2) not null default 0,
+  participant_id uuid null references campaign_participants(id) on delete set null,
   paid_at timestamptz null,
   payout_release_at timestamptz null,
   payout_transfer_status text not null default 'legacy',
   net_amount_cents bigint null,
   stripe_transfer_id text null,
+  fund_slice_net_cents bigint null,
+  fund_slice_transfer_status text not null default 'legacy',
+  fund_slice_stripe_transfer_id text null,
   created_at timestamptz not null default now()
 );
 
@@ -415,6 +443,25 @@ alter table donations add column if not exists payout_release_at timestamptz nul
 alter table donations add column if not exists payout_transfer_status text not null default 'legacy';
 alter table donations add column if not exists net_amount_cents bigint null;
 alter table donations add column if not exists stripe_transfer_id text null;
+
+alter table education_partners add column if not exists organization_id text null references organizations(id) on delete set null;
+alter table education_partners add column if not exists receives_education_fund boolean not null default true;
+alter table education_partners add column if not exists receives_endowment_fund boolean not null default true;
+create index if not exists education_partners_organization_id_idx on education_partners (organization_id);
+
+alter table donations add column if not exists endowment_opt_in boolean not null default false;
+alter table donations add column if not exists endowment_pct numeric(5,2) not null default 0;
+alter table donations add column if not exists endowment_amount numeric(12,2) not null default 0;
+alter table donations add column if not exists partner_endowment_amount numeric(12,2) not null default 0;
+alter table donations add column if not exists general_endowment_amount numeric(12,2) not null default 0;
+alter table donations add column if not exists fund_code_org_id text null references organizations(id) on delete set null;
+alter table donations add column if not exists platform_fee_amount numeric(12,2) not null default 0;
+alter table donations add column if not exists fund_slice_net_cents bigint null;
+alter table donations add column if not exists fund_slice_transfer_status text not null default 'legacy';
+alter table donations add column if not exists fund_slice_stripe_transfer_id text null;
+alter table donations add column if not exists participant_id uuid null;
+create index if not exists donations_fund_code_org_id_idx on donations (fund_code_org_id);
+create index if not exists donations_participant_id_idx on donations (participant_id);
 
 update donations
 set payout_transfer_status = 'released'

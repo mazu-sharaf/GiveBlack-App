@@ -47,9 +47,7 @@ export function canAccessNav(role: AdminRole, url: string): boolean {
   return navSetFor(role).has(url);
 }
 
-/**
- * Strip a leading /backoffice *segment* only (e.g. /backoffice/users → /users).
- */
+/** Normalize pathname for route guards (legacy /backoffice bookmarks → root paths). */
 export function normalizeAdminPathname(pathname: string): string {
   if (pathname === "/backoffice" || pathname === "/backoffice/") return "/";
   if (pathname.startsWith("/backoffice/")) {

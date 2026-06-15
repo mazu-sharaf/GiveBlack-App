@@ -2,7 +2,7 @@
   "name": "Give Black Admin",
   "short_name": "Give Black",
   "description": "Secure operations hub for Give Black—manage organizations, campaigns, donations, and community impact.",
-  "start_url": "/admin/",
+  "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#004010",

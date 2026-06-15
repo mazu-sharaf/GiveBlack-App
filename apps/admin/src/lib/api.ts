@@ -4,7 +4,7 @@ const TOKEN_KEY = "gb_admin_api_token";
  * Browser base for paths like `/api/admin/...`.
  * Production often uses `https://domain/app` so requests are `/app/api/...` (nginx strips `/app` before Node).
  * Local Node serves `/api` at the origin root — `http://localhost:5000/app/api/...` returns 404. In dev,
- * strip a trailing `/app` from `VITE_API_URL`. In production builds with no env, same-host `/backoffice` uses `/app`.
+ * strip a trailing `/app` from `VITE_API_URL`. On admin.giveblackapp.com, same-origin `/app` is used when unset.
  */
 /** Base URL for `/api/...` (e.g. `https://giveblackapp.com/app` or `http://localhost:5001`). */
 export function getApiBaseUrl(): string {
@@ -21,7 +21,7 @@ export function getApiBaseUrl(): string {
     !base &&
     import.meta.env.PROD &&
     typeof window !== "undefined" &&
-    window.location.pathname.startsWith("/backoffice")
+    window.location.hostname === "admin.giveblackapp.com"
   ) {
     return `${window.location.origin}/app`.replace(/\/$/, "");
   }
@@ -106,7 +106,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   if (res.status === 401) {
     setApiToken(null);
     localStorage.removeItem("gb_admin_auth");
-    window.location.href = "/backoffice/login";
+    window.location.href = "/login";
     throw new Error("Session expired. Please log in again.");
   }
   if (!res.ok) {

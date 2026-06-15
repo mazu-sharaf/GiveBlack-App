@@ -233,6 +233,9 @@ export default function DonationsPage() {
             const reinvestAmount = Number(feeDetail.reinvest_amount ?? 0);
             const partnerReinvest = Number(feeDetail.partner_reinvest_amount ?? 0);
             const generalReinvest = Number(feeDetail.general_reinvest_amount ?? 0);
+            const endowmentAmount = Number(feeDetail.endowment_amount ?? 0);
+            const partnerEndowment = Number(feeDetail.partner_endowment_amount ?? 0);
+            const fundSliceCents = Number(feeDetail.fund_slice_net_cents ?? 0);
             const netToOrg = Number(feeDetail.net_to_org || (amount - platformFee));
             return (
               <div className="space-y-3 text-sm">
@@ -266,6 +269,26 @@ export default function DonationsPage() {
                       </div>
                     </>
                   )}
+                  {endowmentAmount > 0 && (
+                    <>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Endowment (total)</span>
+                        <span className="text-purple-400">${endowmentAmount.toFixed(2)}</span>
+                      </div>
+                      {partnerEndowment > 0 && (
+                        <div className="flex justify-between text-xs">
+                          <span className="text-muted-foreground">To fund-code org</span>
+                          <span className="text-purple-300">${partnerEndowment.toFixed(2)}</span>
+                        </div>
+                      )}
+                    </>
+                  )}
+                  {fundSliceCents > 0 && (
+                    <div className="flex justify-between text-xs">
+                      <span className="text-muted-foreground">Fund slice transfer</span>
+                      <span>${(fundSliceCents / 100).toFixed(2)} ({String(feeDetail.fund_slice_transfer_status || "pending")})</span>
+                    </div>
+                  )}
                 </div>
                 <div className="border-t border-border pt-2">
                   <div className="flex justify-between">
@@ -286,6 +309,12 @@ export default function DonationsPage() {
                     <div className="flex justify-between text-xs">
                       <span className="text-muted-foreground">Education partner</span>
                       <span>{String(feeDetail.education_partner_name)}</span>
+                    </div>
+                  )}
+                  {feeDetail.fund_code_org_name && (
+                    <div className="flex justify-between text-xs">
+                      <span className="text-muted-foreground">Fund code org</span>
+                      <span>{String(feeDetail.fund_code_org_name)}</span>
                     </div>
                   )}
                   <div className="flex justify-between text-xs">

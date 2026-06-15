@@ -10,14 +10,14 @@ import httpProxy from "@fastify/http-proxy";
 import path from "node:path";
 import { existsSync } from "node:fs";
 import { env, getCorsOrigins } from "./config/env.js";
-import { isBrevoConfigured } from "./services/brevo.js";
+import { isEmailConfigured, emailProvider } from "./services/email.js";
 import { healthRoutes } from "./routes/health.js";
 import { supportPageRoutes } from "./routes/support-page.js";
 import { adminGuidePageRoutes } from "./routes/admin-guide-page.js";
 import { authRoutes } from "./routes/auth.js";
 import { oauthRoutes } from "./routes/oauth.js";
 import { publicRoutes } from "./routes/public.js";
-import { educationPartnersRoutes } from "./routes/education-partners.js";
+import { fundCodesRoutes } from "./routes/fund-codes.js";
 import { stripeRoutes } from "./routes/stripe.js";
 import { donorsRoutes } from "./routes/donors.js";
 import { notificationRoutes } from "./routes/notifications.js";
@@ -288,7 +288,7 @@ export function buildServer() {
     });
   } else {
     app.register(stripeRoutes);
-    app.register(educationPartnersRoutes);
+    app.register(fundCodesRoutes);
     app.register(publicRoutes);
     app.register(authRoutes);
     app.register(oauthRoutes);
@@ -299,34 +299,8 @@ export function buildServer() {
     app.register(receiptPdfRoutes);
   }
 
-  const adminPort = parseInt(process.env.ADMIN_DEV_PORT || "8080", 10);
-  /** Production admin SPA root (for static files + index.html fallback). */
-  let adminSpaRoot: string | undefined;
-  if (env.NODE_ENV === "development") {
-    app.register(httpProxy, {
-      upstream: `http://127.0.0.1:${adminPort}`,
-      prefix: "/backoffice",
-      rewritePrefix: "/backoffice",
-      websocket: false,
-    });
-  } else {
-    adminSpaRoot = path.resolve(
-      new URL(".", import.meta.url).pathname,
-      "../../..",
-      "apps/admin/dist"
-    );
-    // wildcard: true registers all files under dist (e.g. /admin/assets/*.js). Do NOT use a catch-all
-    // route for /admin/*: it would return index.html for JS/CSS and break the app (blank white page).
-    app.register(fastifyStatic, {
-      root: adminSpaRoot,
-      prefix: "/backoffice/",
-      decorateReply: false,
-      wildcard: true,
-    });
-    app.get("/backoffice", async (_req, reply) => {
-      return reply.redirect("/backoffice/");
-    });
-    // Hide legacy /admin path.
+  // Admin SPA: dev via `npm run dev:admin` (port 8080); production via nginx on admin.giveblackapp.com.
+  if (env.NODE_ENV !== "development") {
     app.get("/admin", async (_req, reply) => reply.code(404).send({ error: "Not Found" }));
   }
 
@@ -336,7 +310,8 @@ export function buildServer() {
       auth: true,
       realtime: true,
       stripe: Boolean(env.STRIPE_SECRET_KEY),
-      brevo: isBrevoConfigured(),
+      email: isEmailConfigured(),
+      emailProvider: emailProvider(),
       expoPush: expoPushEnabled
     };
   });
@@ -369,15 +344,6 @@ export function buildServer() {
       } catch {
         return reply.code(502).send({ error: "Expo dev server not ready" });
       }
-    }
-    // React Router: serve index.html for non-asset paths under /backoffice/ (production only).
-    if (
-      adminSpaRoot &&
-      (request.method === "GET" || request.method === "HEAD") &&
-      request.url.startsWith("/backoffice/") &&
-      !request.url.startsWith("/backoffice/assets/")
-    ) {
-      return reply.sendFile("index.html", adminSpaRoot);
     }
     return reply.code(404).send({ error: "Not Found" });
   });

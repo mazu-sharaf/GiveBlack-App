@@ -116,8 +116,8 @@ if [ ! -f "$REPO_ROOT/.env" ]; then
   JWT_REFRESH=$(node -e "console.log(require('crypto').randomBytes(48).toString('hex'))")
 
   if [ "$DOMAIN" = "giveblackapp.com" ]; then
-    CORS_ORIGINS_VALUE="https://giveblackapp.com,https://www.giveblackapp.com"
-    ADMIN_PANEL_URL_VALUE="https://giveblackapp.com"
+    CORS_ORIGINS_VALUE="https://giveblackapp.com,https://www.giveblackapp.com,https://admin.giveblackapp.com"
+    ADMIN_PANEL_URL_VALUE="https://admin.giveblackapp.com"
   else
     CORS_ORIGINS_VALUE="https://$DOMAIN"
     ADMIN_PANEL_URL_VALUE="https://$DOMAIN"
@@ -146,9 +146,11 @@ ADMIN_PANEL_URL=$ADMIN_PANEL_URL_VALUE
 # STRIPE_SECRET_KEY=sk_live_...
 # STRIPE_WEBHOOK_SECRET=whsec_...
 
-# Brevo email (optional)
-# BREVO_API_KEY=xkeysib-...
-# BREVO_SENDER_EMAIL=no-reply@giveblackapp.com
+# AWS SES email (optional)
+# AWS_REGION=us-east-1
+# AWS_ACCESS_KEY_ID=AKIA...
+# AWS_SECRET_ACCESS_KEY=...
+# SES_FROM_EMAIL=support@giveblackapp.com
 
 # Expo push notifications (optional)
 # EXPO_ACCESS_TOKEN=expo-token-here
@@ -216,6 +218,8 @@ NGINX_CONF="/etc/nginx/sites-available/$DOMAIN"
 
 if [ "$DOMAIN" = "giveblackapp.com" ]; then
   sudo cp "$REPO_ROOT/deploy/nginx-giveblackapp.com.conf" "$NGINX_CONF"
+  sudo cp "$REPO_ROOT/deploy/nginx-admin.giveblackapp.com.conf" /etc/nginx/sites-available/admin.giveblackapp.com
+  sudo ln -sf /etc/nginx/sites-available/admin.giveblackapp.com /etc/nginx/sites-enabled/admin.giveblackapp.com
 elif [ "$DOMAIN" = "giveblack.mawa.pro" ]; then
   sudo cp "$REPO_ROOT/deploy/nginx-giveblack-mawa-pro.conf" "$NGINX_CONF"
 else
@@ -275,10 +279,10 @@ else
   sudo systemctl stop nginx 2>/dev/null || true
   if [ "$DOMAIN" = "giveblackapp.com" ]; then
     sudo certbot certonly --standalone \
-      -d "$DOMAIN" -d "www.$DOMAIN" \
+      -d "$DOMAIN" -d "www.$DOMAIN" -d "admin.$DOMAIN" \
       --agree-tos --non-interactive -m "$ADMIN_EMAIL" || {
       echo "WARNING: SSL certificate failed. You may need to run certbot manually."
-      echo "  sudo certbot certonly --standalone -d $DOMAIN -d www.$DOMAIN"
+      echo "  sudo certbot certonly --standalone -d $DOMAIN -d www.$DOMAIN -d admin.$DOMAIN"
     }
   else
     sudo certbot certonly --standalone -d "$DOMAIN" --agree-tos --non-interactive -m "$ADMIN_EMAIL" || {

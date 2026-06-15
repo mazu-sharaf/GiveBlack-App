@@ -1,6 +1,6 @@
 import { db } from "../lib/db.js";
 import { env } from "../config/env.js";
-import { isBrevoConfigured, sendBrevoEmail } from "./brevo.js";
+import { isEmailConfigured, sendEmail } from "./email.js";
 import { emailLayout, ctaButton } from "./email-template.js";
 
 /** Origin for the admin panel (no trailing slash). Strips a trailing `/admin` or `/backoffice` if present. */
@@ -31,11 +31,11 @@ function stripTrailingAdminPath(originOrUrl: string): string {
   }
 }
 
-/** Absolute URL into the mounted admin SPA (`/backoffice/...` routes). */
+/** Absolute URL into the admin SPA at admin.giveblackapp.com (root-mounted). */
 function adminSpaUrl(pathname: string): string {
   const base = getAdminAppBase();
   const path = pathname.startsWith("/") ? pathname : `/${pathname}`;
-  return `${base}/backoffice${path}`;
+  return `${base}${path}`;
 }
 
 async function getAdminRecipientEmails(): Promise<string[]> {
@@ -50,8 +50,8 @@ async function getAdminRecipientEmails(): Promise<string[]> {
 }
 
 async function notifyAdmins(subject: string, html: string, tags: string[]): Promise<void> {
-  if (!isBrevoConfigured()) {
-    console.warn("[admin-notify] Brevo not configured; skipping admin email:", subject);
+  if (!isEmailConfigured()) {
+    console.warn("[admin-notify] Email not configured; skipping admin email:", subject);
     return;
   }
   const emails = await getAdminRecipientEmails();
@@ -60,7 +60,7 @@ async function notifyAdmins(subject: string, html: string, tags: string[]): Prom
     return;
   }
   const [first, ...rest] = emails;
-  await sendBrevoEmail({
+  await sendEmail({
     to: first,
     subject,
     html: emailLayout(html),
@@ -115,8 +115,8 @@ export async function notifyVolunteerApproved(input: {
   volunteerName: string;
   orgName: string;
 }): Promise<void> {
-  if (!isBrevoConfigured()) {
-    console.warn("[volunteer-notify] Brevo not configured; skipping volunteer approval email");
+  if (!isEmailConfigured()) {
+    console.warn("[volunteer-notify] Email not configured; skipping volunteer approval email");
     return;
   }
   const content = `
@@ -131,7 +131,7 @@ export async function notifyVolunteerApproved(input: {
       </p>
     </div>
   `;
-  await sendBrevoEmail({
+  await sendEmail({
     to: input.volunteerEmail.trim(),
     subject: `${input.orgName} approved your volunteer request`,
     html: emailLayout(content),

@@ -4,12 +4,12 @@
 - JWT auth with refresh-token rotation and session revocation
 - Realtime WebSocket channels
 - Stripe payment intent + webhook flow
-- Brevo transactional email notifications
+- AWS SES transactional email notifications
 - Expo push notification delivery
 
-## Email (Brevo)
+## Email (AWS SES)
 
-Set **`BREVO_API_KEY`** (v3 key from Brevo **SMTP & API** → **API keys**) and **`BREVO_SENDER_EMAIL`** (must be a **verified sender** in Brevo). Restart the API after changes. If Brevo returns `401` / *API Key is not enabled*, enable that key in Brevo or create a new one; avoid duplicate `BREVO_API_KEY` lines in `.env` (the last one wins). Strip quotes/BOM if you pasted from a doc.
+Set **`AWS_ACCESS_KEY_ID`**, **`AWS_SECRET_ACCESS_KEY`**, **`AWS_REGION`**, and **`SES_FROM_EMAIL`** (verified identity in SES). Restart the API after changes (`pm2 restart giveblack-api`). Request SES production access if still in the sandbox.
 
 ## Quick start
 1. Copy root `.env.example` into `.env` and set API variables.

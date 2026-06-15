@@ -253,16 +253,16 @@
           </ul>
         </div>
 
-        <h2 id="backoffice">Admin backoffice</h2>
+        <h2 id="backoffice">Admin dashboard</h2>
         <p>
-          Operators use the web <strong>backoffice</strong> to manage users, organizations, campaigns, money movement, and platform settings.
-          Your deployment should expose it at a path like <code>/backoffice/</code> on the same host as the public site.
+          Operators use the web <strong>admin dashboard</strong> at
+          <strong>admin.giveblackapp.com</strong> to manage users, organizations, campaigns, money movement, and platform settings.
         </p>
 
         <h3 id="bo-access">URL &amp; sign-in</h3>
         <div class="card">
           <p>
-            <strong>Open the backoffice:</strong>
+            <strong>Open the admin dashboard:</strong>
             <a href="BACKOFFICE_URL_PLACEHOLDER">BACKOFFICE_URL_PLACEHOLDER</a>
           </p>
           <p><strong>Sign-in methods:</strong></p>
@@ -438,7 +438,7 @@
         <h3 id="bo-public">Public &amp; shareable links</h3>
         <div class="card">
           <p>
-            <strong>Campaign microsite (backoffice-hosted):</strong> path pattern <code>/backoffice/c/:slug</code> — use for shareable campaign
+            <strong>Campaign microsite (admin-hosted):</strong> path pattern <code>/c/:slug</code> on admin.giveblackapp.com — use for shareable campaign
             pages that load inside the admin web bundle (useful for previews or short links depending on deployment).
           </p>
           <p>Payment return and short links may also use host routes such as <code>/c/</code> on the API host — align with your nginx map.</p>

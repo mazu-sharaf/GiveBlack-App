@@ -1,5 +1,5 @@
 import type { PoolClient } from "pg";
-import type Stripe from "stripe";
+import { db } from "./db.js";
 
 export type ConnectReleaseMode = "all_in_hold" | "eligible_only";
 
@@ -9,12 +9,11 @@ export type ConnectReleaseResult =
 
 /**
  * Transfer platform-held net amounts to a Connect destination for one org.
- * - `all_in_hold`: admin early release (any in-hold donation).
- * - `eligible_only`: auto job after payout_release_at (7/14 day hold).
+ * Includes primary org net_amount_cents and fund_slice_net_cents owed to this org.
  */
 export async function transferInHoldDonationsForOrg(
   client: PoolClient,
-  stripe: Stripe,
+  stripe: import("stripe").default,
   orgId: string,
   mode: ConnectReleaseMode
 ): Promise<ConnectReleaseResult> {
@@ -40,7 +39,7 @@ export async function transferInHoldDonationsForOrg(
       ? "and d.payout_release_at is not null and now() >= d.payout_release_at"
       : "";
 
-  const donRes = await client.query(
+  const primaryRes = await client.query(
     `select d.id, d.net_amount_cents from donations d
      left join campaigns camp on camp.id = d.campaign_id
      where d.status = 'succeeded'
@@ -52,18 +51,33 @@ export async function transferInHoldDonationsForOrg(
     [orgId]
   );
 
-  const donations = donRes.rows as Array<{ id: string; net_amount_cents: string | number | null }>;
+  const fundRes = await client.query(
+    `select d.id, d.fund_slice_net_cents from donations d
+     where d.status = 'succeeded'
+       and d.fund_slice_transfer_status = 'in_hold'
+       and coalesce(d.fund_slice_net_cents, 0) > 0
+       and d.fund_code_org_id = $1
+       ${eligibleClause.replace(/payout_release_at/g, "payout_release_at")}
+     for update`,
+    [orgId]
+  );
+
+  const primaryIds = (primaryRes.rows as Array<{ id: string; net_amount_cents: string | number | null }>).map(
+    (d) => d.id
+  );
+  const fundIds = (fundRes.rows as Array<{ id: string; fund_slice_net_cents: string | number | null }>).map(
+    (d) => d.id
+  );
+
   let totalCents = 0;
-  const ids: string[] = [];
-  for (const d of donations) {
-    const cents = Number(d.net_amount_cents ?? 0);
-    if (cents > 0) {
-      totalCents += cents;
-      ids.push(d.id);
-    }
+  for (const d of primaryRes.rows as Array<{ net_amount_cents: string | number | null }>) {
+    totalCents += Number(d.net_amount_cents ?? 0);
+  }
+  for (const d of fundRes.rows as Array<{ fund_slice_net_cents: string | number | null }>) {
+    totalCents += Number(d.fund_slice_net_cents ?? 0);
   }
 
-  if (totalCents <= 0 || ids.length === 0) {
+  if (totalCents <= 0 || (primaryIds.length === 0 && fundIds.length === 0)) {
     return {
       ok: false,
       error: "No funds on hold to release for this organization",
@@ -77,23 +91,36 @@ export async function transferInHoldDonationsForOrg(
     destination: org.stripe_account_id,
     metadata: {
       org_id: orgId,
-      donation_count: String(ids.length),
+      primary_donation_count: String(primaryIds.length),
+      fund_slice_donation_count: String(fundIds.length),
       release_mode: mode,
     },
   });
 
-  await client.query(
-    `update donations
-     set payout_transfer_status = 'released',
-         stripe_transfer_id = $2
-     where id = any($1::uuid[])`,
-    [ids, transfer.id]
-  );
+  if (primaryIds.length > 0) {
+    await client.query(
+      `update donations
+       set payout_transfer_status = 'released',
+           stripe_transfer_id = $2
+       where id = any($1::uuid[])`,
+      [primaryIds, transfer.id]
+    );
+  }
+
+  if (fundIds.length > 0) {
+    await client.query(
+      `update donations
+       set fund_slice_transfer_status = 'released',
+           fund_slice_stripe_transfer_id = $2
+       where id = any($1::uuid[])`,
+      [fundIds, transfer.id]
+    );
+  }
 
   return {
     ok: true,
     transfer_id: transfer.id,
     amount_cents: totalCents,
-    donation_count: ids.length,
+    donation_count: primaryIds.length + fundIds.length,
   };
 }

@@ -74,13 +74,12 @@ const start = async () => {
       );
     }
 
-    const brevoKey = (env.BREVO_API_KEY || "").trim();
-    const brevoFrom = (env.BREVO_SENDER_EMAIL || "").trim();
-    if (brevoKey && brevoFrom) {
-      app.log.info(`[email] Brevo transactional email enabled (sender=${brevoFrom})`);
+    const { isEmailConfigured } = await import("./services/email.js");
+    if (isEmailConfigured()) {
+      app.log.info(`[email] SES transactional email enabled (sender=${(env.SES_FROM_EMAIL || "").trim()})`);
     } else {
       app.log.warn(
-        "[email] Brevo not configured: set BREVO_API_KEY and BREVO_SENDER_EMAIL in repo root .env, then restart the API (pm2 restart giveblack-api)."
+        "[email] AWS SES not configured: set AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, and SES_FROM_EMAIL in repo root .env, then restart the API (pm2 restart giveblack-api)."
       );
     }
 

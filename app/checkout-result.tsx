@@ -39,6 +39,10 @@ export default function CheckoutResultScreen() {
   const [donationDate, setDonationDate] = useState<string | null>(null);
   const [realRef, setRealRef] = useState<string | null>(null);
   const [donationDonorName, setDonationDonorName] = useState<string | null>(null);
+  const [platformFee, setPlatformFee] = useState<number | null>(null);
+  const [educationAmount, setEducationAmount] = useState<number | null>(null);
+  const [endowmentAmount, setEndowmentAmount] = useState<number | null>(null);
+  const [netToOrg, setNetToOrg] = useState<number | null>(null);
 
   const checkmarkScale = useRef(new Animated.Value(0)).current;
   const checkmarkOpacity = useRef(new Animated.Value(0)).current;
@@ -82,6 +86,10 @@ export default function CheckoutResultScreen() {
               paid_at?: string | null;
               created_at?: string | null;
               stripe_payment_intent_id?: string | null;
+              platform_fee_amount?: number | null;
+              reinvest_amount?: number | null;
+              endowment_amount?: number | null;
+              net_amount_cents?: number | null;
             } | null;
           }>;
         };
@@ -149,6 +157,28 @@ export default function CheckoutResultScreen() {
           } else if (don.donor_name) {
             setDonationDonorName(don.donor_name);
           }
+
+          const totalAmt = typeof data.amountTotal === "number" ? data.amountTotal : Number(don.amount ?? 0);
+          const pf =
+            don.platform_fee_amount != null
+              ? Number(don.platform_fee_amount)
+              : parseFloat((totalAmt * 0.03).toFixed(2));
+          const edu =
+            don.reinvest_amount != null
+              ? Number(don.reinvest_amount)
+              : parseFloat((totalAmt * 0.05).toFixed(2));
+          const endow =
+            don.endowment_amount != null
+              ? Number(don.endowment_amount)
+              : parseFloat((totalAmt * 0.01).toFixed(2));
+          const net =
+            don.net_amount_cents != null && Number(don.net_amount_cents) >= 0
+              ? Number(don.net_amount_cents) / 100
+              : parseFloat((totalAmt - pf - edu - endow).toFixed(2));
+          setPlatformFee(pf);
+          setEducationAmount(edu);
+          setEndowmentAmount(endow);
+          setNetToOrg(net);
         } else if (data.donation?.org_id) {
           try {
             const orgRes = await fetch(`${base}/api/organizations/${data.donation.org_id}`);
@@ -243,10 +273,11 @@ export default function CheckoutResultScreen() {
   const displayRef = realRef || donationRef;
   const receiptFileName = `GiveBlack-Receipt-${displayRef}.pdf`;
   const total = amount || 0;
-  const platformFee = parseFloat((total * 0.03).toFixed(2));
-  const educationAmount = parseFloat((total * 0.05).toFixed(2));
-  const endowmentAmount = parseFloat((total * 0.01).toFixed(2));
-  const netToOrg = parseFloat((total - platformFee - educationAmount - endowmentAmount).toFixed(2));
+  const displayPlatformFee = platformFee ?? parseFloat((total * 0.03).toFixed(2));
+  const displayEducationAmount = educationAmount ?? parseFloat((total * 0.05).toFixed(2));
+  const displayEndowmentAmount = endowmentAmount ?? parseFloat((total * 0.01).toFixed(2));
+  const displayNetToOrg =
+    netToOrg ?? parseFloat((total - displayPlatformFee - displayEducationAmount - displayEndowmentAmount).toFixed(2));
   const displayAmount = amount != null
     ? amount.toLocaleString(undefined, { style: "currency", currency: currency.toUpperCase() })
     : "";
@@ -259,10 +290,10 @@ export default function CheckoutResultScreen() {
       date: dateStr,
       reference: displayRef,
       amount: String(total),
-      netToOrg: String(netToOrg),
-      platformFee: String(platformFee),
-      educationAmount: String(educationAmount),
-      endowmentAmount: String(endowmentAmount),
+      netToOrg: String(displayNetToOrg),
+      platformFee: String(displayPlatformFee),
+      educationAmount: String(displayEducationAmount),
+      endowmentAmount: String(displayEndowmentAmount),
     });
   }
 
@@ -286,10 +317,10 @@ export default function CheckoutResultScreen() {
       reference: displayRef,
       totalCharged: total,
       currency,
-      orgAmount: netToOrg,
-      platformFee,
-      educationContribution: educationAmount,
-      endowmentContribution: endowmentAmount,
+      orgAmount: displayNetToOrg,
+      platformFee: displayPlatformFee,
+      educationContribution: displayEducationAmount,
+      endowmentContribution: displayEndowmentAmount,
     });
     const { uri } = await Print.printToFileAsync({ html, base64: false });
     const docDir = LegacyFileSystem.documentDirectory;
@@ -464,20 +495,24 @@ export default function CheckoutResultScreen() {
                 <>
                   <View style={styles.row}>
                     <Text style={[styles.rowLabel, { color: c.textMuted }]}>To organization</Text>
-                    <Text style={[styles.rowValue, { color: c.text }]}>${netToOrg.toFixed(2)}</Text>
+                    <Text style={[styles.rowValue, { color: c.text }]}>${displayNetToOrg.toFixed(2)}</Text>
                   </View>
                   <View style={styles.row}>
                     <Text style={[styles.rowLabel, { color: c.textMuted }]}>Platform fee (3%)</Text>
-                    <Text style={[styles.rowValue, { color: c.text }]}>${platformFee.toFixed(2)}</Text>
+                    <Text style={[styles.rowValue, { color: c.text }]}>${displayPlatformFee.toFixed(2)}</Text>
                   </View>
+                  {displayEducationAmount > 0 ? (
                   <View style={styles.row}>
-                    <Text style={[styles.rowLabel, { color: c.textMuted }]}>Education (5%)</Text>
-                    <Text style={[styles.rowValue, { color: c.text }]}>${educationAmount.toFixed(2)}</Text>
+                    <Text style={[styles.rowLabel, { color: c.textMuted }]}>Education reinvestment</Text>
+                    <Text style={[styles.rowValue, { color: c.text }]}>${displayEducationAmount.toFixed(2)}</Text>
                   </View>
+                  ) : null}
+                  {displayEndowmentAmount > 0 ? (
                   <View style={styles.row}>
-                    <Text style={[styles.rowLabel, { color: c.textMuted }]}>Endowment (1%)</Text>
-                    <Text style={[styles.rowValue, { color: c.text }]}>${endowmentAmount.toFixed(2)}</Text>
+                    <Text style={[styles.rowLabel, { color: c.textMuted }]}>Endowment</Text>
+                    <Text style={[styles.rowValue, { color: c.text }]}>${displayEndowmentAmount.toFixed(2)}</Text>
                   </View>
+                  ) : null}
                   <View style={[styles.divider, { backgroundColor: c.border }]} />
                   <View style={styles.row}>
                     <Text style={[styles.totalLabel, { color: c.text }]}>Total charged</Text>

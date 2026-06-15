@@ -67,3 +67,44 @@ CREATE TABLE IF NOT EXISTS guest_stripe_customers (
   stripe_customer_id text not null unique,
   created_at timestamptz not null default now()
 );
+
+-- Organizational fund codes (education_partners linked to organizations)
+ALTER TABLE education_partners ADD COLUMN IF NOT EXISTS organization_id text NULL REFERENCES organizations(id) ON DELETE SET NULL;
+ALTER TABLE education_partners ADD COLUMN IF NOT EXISTS receives_education_fund boolean NOT NULL DEFAULT true;
+ALTER TABLE education_partners ADD COLUMN IF NOT EXISTS receives_endowment_fund boolean NOT NULL DEFAULT true;
+CREATE INDEX IF NOT EXISTS education_partners_organization_id_idx ON education_partners (organization_id);
+
+-- Donation fund slices (endowment + org code payouts)
+ALTER TABLE donations ADD COLUMN IF NOT EXISTS endowment_opt_in boolean NOT NULL DEFAULT false;
+ALTER TABLE donations ADD COLUMN IF NOT EXISTS endowment_pct numeric(5,2) NOT NULL DEFAULT 0;
+ALTER TABLE donations ADD COLUMN IF NOT EXISTS endowment_amount numeric(12,2) NOT NULL DEFAULT 0;
+ALTER TABLE donations ADD COLUMN IF NOT EXISTS partner_endowment_amount numeric(12,2) NOT NULL DEFAULT 0;
+ALTER TABLE donations ADD COLUMN IF NOT EXISTS general_endowment_amount numeric(12,2) NOT NULL DEFAULT 0;
+ALTER TABLE donations ADD COLUMN IF NOT EXISTS fund_code_org_id text NULL REFERENCES organizations(id) ON DELETE SET NULL;
+ALTER TABLE donations ADD COLUMN IF NOT EXISTS platform_fee_amount numeric(12,2) NOT NULL DEFAULT 0;
+ALTER TABLE donations ADD COLUMN IF NOT EXISTS fund_slice_net_cents bigint NULL;
+ALTER TABLE donations ADD COLUMN IF NOT EXISTS fund_slice_transfer_status text NOT NULL DEFAULT 'legacy';
+ALTER TABLE donations ADD COLUMN IF NOT EXISTS fund_slice_stripe_transfer_id text NULL;
+
+-- Campaign participants (Double Good-style seller links)
+CREATE TABLE IF NOT EXISTS campaign_participants (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  campaign_id text NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,
+  user_id uuid NULL REFERENCES users(id) ON DELETE SET NULL,
+  display_name text NOT NULL,
+  code text NOT NULL,
+  active boolean NOT NULL DEFAULT true,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (campaign_id, code)
+);
+CREATE UNIQUE INDEX IF NOT EXISTS campaign_participants_code_lower_idx ON campaign_participants (lower(code));
+CREATE INDEX IF NOT EXISTS campaign_participants_campaign_id_idx ON campaign_participants (campaign_id);
+
+ALTER TABLE donations ADD COLUMN IF NOT EXISTS participant_id uuid NULL;
+DO $$ BEGIN
+  ALTER TABLE donations ADD CONSTRAINT donations_participant_id_fkey
+    FOREIGN KEY (participant_id) REFERENCES campaign_participants(id) ON DELETE SET NULL;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+CREATE INDEX IF NOT EXISTS donations_participant_id_idx ON donations (participant_id);
+CREATE INDEX IF NOT EXISTS donations_fund_code_org_id_idx ON donations (fund_code_org_id);

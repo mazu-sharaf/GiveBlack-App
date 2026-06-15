@@ -169,7 +169,7 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
     // Fire-and-forget: welcome email to new donor
     void (async () => {
       try {
-        const { sendBrevoEmail } = await import("../services/brevo.js");
+        const { sendEmail } = await import("../services/email.js");
         const { emailLayout, ctaButton } = await import("../services/email-template.js");
         const firstName = body.name.trim().split(" ")[0];
         const appUrl = process.env.APP_URL || "https://giveblackapp.com";
@@ -184,7 +184,7 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
           </p>
           ${ctaButton(appUrl, "Start Exploring")}
         `;
-        await sendBrevoEmail({
+        await sendEmail({
           to: email,
           subject: `Welcome to GiveBlack, ${firstName}!`,
           html: emailLayout(content),
@@ -585,7 +585,7 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
     }
 
     try {
-      const { sendBrevoEmail } = await import("../services/brevo.js");
+      const { sendEmail } = await import("../services/email.js");
       const { emailLayout } = await import("../services/email-template.js");
       const content = `
         <h2 style="color:#ffffff;margin:0 0 8px 0;font-size:22px;">Password Reset</h2>
@@ -595,7 +595,7 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
         </div>
         <p style="color:#666666;font-size:13px;">If you did not request this reset, you can safely ignore this email.</p>
       `;
-      await sendBrevoEmail({
+      await sendEmail({
         to: email,
         subject: "Your GiveBlack Password Reset Code",
         html: emailLayout(content),

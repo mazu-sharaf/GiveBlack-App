@@ -12,6 +12,12 @@ import {
   verifyDonationSessionToken,
 } from "../lib/payment-security.js";
 import { z } from "zod";
+import {
+  donationInsertSql,
+  donationInsertValues,
+  fundSliceMetadata,
+  prepareDonationCheckout,
+} from "../lib/donation-checkout.js";
 
 const publicDonateSchema = z.object({
   campaignId: z.string().min(1),
@@ -26,6 +32,14 @@ const publicDonateSchema = z.object({
   message: z.string().max(2000).optional(),
   isAnonymous: z.boolean().default(false),
   donationSessionToken: z.string().optional(),
+  organizationalCode: z.string().optional(),
+  educationPartnerCode: z.string().optional(),
+  sellerCode: z.string().optional(),
+  participantId: z.string().uuid().optional(),
+  reinvestOptIn: z.boolean().optional().default(true),
+  reinvestPct: z.coerce.number().min(0).max(100).optional().default(5),
+  endowmentOptIn: z.boolean().optional().default(true),
+  endowmentPct: z.coerce.number().min(0).max(100).optional().default(1),
 });
 
 async function optionalDonorUserId(
@@ -429,6 +443,26 @@ export const campaignPageRoutes: FastifyPluginAsync = async (app) => {
       return reply.code(400).send({ error: "Email is required unless donating anonymously" });
     }
 
+    const fundCode = body.organizationalCode || body.educationPartnerCode;
+    const reinvestOptIn = body.reinvestOptIn ?? true;
+    const reinvestPct = body.reinvestPct ?? 5;
+    const endowmentOptIn = body.endowmentOptIn ?? true;
+    const endowmentPct = body.endowmentPct ?? 1;
+    const prepared = await prepareDonationCheckout({
+      amount: body.amount,
+      orgId: body.orgId,
+      campaignId: body.campaignId,
+      fundCode,
+      sellerCode: body.sellerCode,
+      participantId: body.participantId,
+      reinvestOptIn,
+      reinvestPct,
+      endowmentOptIn,
+      endowmentPct,
+    });
+
+    const sliceMeta = fundSliceMetadata(prepared, { reinvestPct, endowmentPct });
+
     const sessionParams: Record<string, unknown> = {
       mode: "payment" as const,
       line_items: [
@@ -460,6 +494,7 @@ export const campaignPageRoutes: FastifyPluginAsync = async (app) => {
             ip: paymentClientIp(request),
           }),
           ...(donorUserId ? { donorUserId } : {}),
+          ...sliceMeta,
         },
       },
       success_url: successUrl,
@@ -470,6 +505,7 @@ export const campaignPageRoutes: FastifyPluginAsync = async (app) => {
         source: "campaign_page",
         donationSessionId: sessionCheck.payload.sessionId,
         ...(donorUserId ? { donorUserId } : {}),
+        ...sliceMeta,
       },
     };
 
@@ -484,24 +520,25 @@ export const campaignPageRoutes: FastifyPluginAsync = async (app) => {
     const campPiId = stripeId(session.payment_intent);
 
     const donInsCamp = await db.query(
-      `INSERT INTO donations (
-         org_id, campaign_id, user_id, amount, currency, status, stripe_payment_intent_id,
-         donor_name, donor_email, message, is_anonymous
-       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-       RETURNING id`,
-      [
-        body.orgId,
-        body.campaignId,
-        donorUserId,
-        body.amount,
-        body.currency,
-        "pending",
-        donationStripeKey,
-        body.isAnonymous ? "Anonymous" : (resolvedName || null),
-        body.isAnonymous ? null : resolvedEmail,
-        body.message || null,
-        body.isAnonymous,
-      ]
+      donationInsertSql(),
+      donationInsertValues(
+        {
+          orgId: body.orgId,
+          campaignId: body.campaignId,
+          userId: donorUserId,
+          donorEmail: body.isAnonymous ? null : resolvedEmail,
+          donorName: body.isAnonymous ? "Anonymous" : resolvedName,
+          amount: body.amount,
+          currency: body.currency,
+          status: "pending",
+          stripePaymentIntentId: donationStripeKey,
+          prepared,
+          reinvestOptIn,
+          endowmentOptIn,
+        },
+        reinvestPct,
+        endowmentPct
+      )
     );
     const donationRowIdCamp = (donInsCamp.rows[0] as { id: string } | undefined)?.id;
     if (campPiId && donationRowIdCamp) {
@@ -527,6 +564,7 @@ export const campaignPageRoutes: FastifyPluginAsync = async (app) => {
         }),
       };
       if (donorUserId) piMeta.donorUserId = donorUserId;
+      Object.assign(piMeta, sliceMeta);
       await stripe.paymentIntents.update(campPiId, { metadata: piMeta });
     }
     if (donationRowIdCamp) {

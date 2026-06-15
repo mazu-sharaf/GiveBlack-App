@@ -39,10 +39,12 @@ function generateReference() {
 }
 
 export default function DonateScreen() {
-  const { orgId, campaignId: campaignIdParam, partner: partnerParam, amount: amountParam } = useLocalSearchParams<{
+  const { orgId, campaignId: campaignIdParam, partner: partnerParam, code: codeParam, seller: sellerParam, amount: amountParam } = useLocalSearchParams<{
     orgId: string;
     campaignId?: string | string[];
     partner?: string | string[];
+    code?: string | string[];
+    seller?: string | string[];
     amount?: string | string[];
   }>();
   const suggestedAmount = (() => {
@@ -109,8 +111,19 @@ export default function DonateScreen() {
 
   const [donationRef, setDonationRef] = useState("");
 
-  const [resolvedPartner, setResolvedPartner] = useState<{ id: string; code: string; name: string } | null>(null);
+  const [resolvedPartner, setResolvedPartner] = useState<{
+    id: string;
+    code: string;
+    name: string;
+    organizationId?: string | null;
+    organizationName?: string | null;
+    receivesEducation?: boolean;
+    receivesEndowment?: boolean;
+  } | null>(null);
+  const [orgCodeInput, setOrgCodeInput] = useState("");
   const [partnerLookupError, setPartnerLookupError] = useState<string | null>(null);
+  const [resolvedParticipant, setResolvedParticipant] = useState<{ id: string; display_name: string; code: string } | null>(null);
+  const [participantLookupError, setParticipantLookupError] = useState<string | null>(null);
 
   const checkmarkScale = useRef(new Animated.Value(0)).current;
   const checkmarkOpacity = useRef(new Animated.Value(0)).current;
@@ -234,34 +247,108 @@ export default function DonateScreen() {
     }).start();
   }, [amountGuideStep, step, amountGuidePulse]);
 
+  const fundOrgLabel = resolvedPartner?.organizationName || resolvedPartner?.name || null;
+
+  function paymentExtras() {
+    const code = resolvedPartner?.code || orgCodeInput.trim() || undefined;
+    return {
+      reinvestOptIn: educationEnabled,
+      reinvestPct: Math.round(educationRate * 1000) / 10,
+      endowmentOptIn: endowmentEnabled,
+      endowmentPct: Math.round(endowmentRate * 1000) / 10,
+      ...(code ? { organizationalCode: code } : {}),
+      ...(campaignId ? { campaignId } : {}),
+      ...(resolvedParticipant ? { participantId: resolvedParticipant.id } : {}),
+      ...(!resolvedParticipant && sellerParam
+        ? { sellerCode: Array.isArray(sellerParam) ? sellerParam[0] : sellerParam }
+        : {}),
+    };
+  }
+
+  function appendDonateQueryParams(qp: URLSearchParams) {
+    if (campaignId) qp.set("campaignId", campaignId);
+    if (suggestedAmount) qp.set("amount", String(suggestedAmount));
+    const rawCode =
+      (Array.isArray(codeParam) ? codeParam[0] : codeParam) ||
+      (Array.isArray(partnerParam) ? partnerParam[0] : partnerParam);
+    if (rawCode) {
+      qp.set("code", rawCode);
+    }
+    const rawSeller = Array.isArray(sellerParam) ? sellerParam[0] : sellerParam;
+    if (rawSeller) qp.set("seller", rawSeller);
+  }
+
   useEffect(() => {
     let cancelled = false;
-    const raw = Array.isArray(partnerParam) ? partnerParam[0] : partnerParam;
-    if (!raw || !String(raw).trim()) {
-      setResolvedPartner(null);
-      setPartnerLookupError(null);
+    const rawCode =
+      (Array.isArray(codeParam) ? codeParam[0] : codeParam) ||
+      (Array.isArray(partnerParam) ? partnerParam[0] : partnerParam) ||
+      orgCodeInput.trim();
+    if (!rawCode || !String(rawCode).trim()) {
+      if (!orgCodeInput.trim()) {
+        setResolvedPartner(null);
+        setPartnerLookupError(null);
+      }
       return;
     }
-    (async () => {
+    const timer = setTimeout(() => {
+      void (async () => {
+        try {
+          const data = await apiGet<{
+            id: string;
+            code: string;
+            name: string;
+            organizationId?: string | null;
+            organizationName?: string | null;
+            receivesEducation?: boolean;
+            receivesEndowment?: boolean;
+          }>(`/api/fund-codes/lookup?code=${encodeURIComponent(String(rawCode).trim())}`);
+          if (!cancelled) {
+            setResolvedPartner(data);
+            setPartnerLookupError(null);
+          }
+        } catch {
+          if (!cancelled) {
+            setResolvedPartner(null);
+            setPartnerLookupError("This organizational code is not recognized.");
+          }
+        }
+      })();
+    }, orgCodeInput.trim() ? 400 : 0);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [codeParam, partnerParam, orgCodeInput]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const rawSeller = Array.isArray(sellerParam) ? sellerParam[0] : sellerParam;
+    if (!rawSeller || !campaignId) {
+      setResolvedParticipant(null);
+      setParticipantLookupError(null);
+      return;
+    }
+    void (async () => {
       try {
-        const data = await apiGet<{ id: string; code: string; name: string }>(
-          `/api/education-partners/lookup?code=${encodeURIComponent(String(raw).trim())}`
+        const data = await apiGet<{ participant: { id: string; display_name: string; code: string } }>(
+          `/api/campaigns/${encodeURIComponent(campaignId)}/participant/${encodeURIComponent(String(rawSeller).trim())}`
         );
         if (!cancelled) {
-          setResolvedPartner(data);
-          setPartnerLookupError(null);
+          setResolvedParticipant(data.participant);
+          setParticipantLookupError(null);
         }
       } catch {
         if (!cancelled) {
-          setResolvedPartner(null);
-          setPartnerLookupError("This partner link is not recognized.");
+          setResolvedParticipant(null);
+          setParticipantLookupError("This fundraiser link is not recognized.");
         }
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [partnerParam]);
+  }, [sellerParam, campaignId]);
 
   if (!org) {
     return (
@@ -299,10 +386,7 @@ export default function DonateScreen() {
                   style={[styles.authGatePrimaryBtn, { backgroundColor: c.green }]}
                   onPress={async () => {
                     const qp = new URLSearchParams();
-                    if (campaignId) qp.set("campaignId", campaignId);
-                    if (suggestedAmount) qp.set("amount", String(suggestedAmount));
-                    const rawPartner = Array.isArray(partnerParam) ? partnerParam[0] : partnerParam;
-                    if (rawPartner) qp.set("partner", rawPartner);
+                    appendDonateQueryParams(qp);
                     const qs = qp.toString();
                     const returnTo = `/donate/${orgId}${qs ? `?${qs}` : ""}`;
                     await saveDonationIntent({ orgId, campaignId, amount: suggestedAmount ?? undefined });
@@ -316,10 +400,7 @@ export default function DonateScreen() {
                   style={[styles.authGateSecondaryBtn, { borderColor: c.border }]}
                   onPress={async () => {
                     const qp = new URLSearchParams();
-                    if (campaignId) qp.set("campaignId", campaignId);
-                    if (suggestedAmount) qp.set("amount", String(suggestedAmount));
-                    const rawPartner = Array.isArray(partnerParam) ? partnerParam[0] : partnerParam;
-                    if (rawPartner) qp.set("partner", rawPartner);
+                    appendDonateQueryParams(qp);
                     const qs = qp.toString();
                     const returnTo = `/donate/${orgId}${qs ? `?${qs}` : ""}`;
                     await saveDonationIntent({ orgId, campaignId, amount: suggestedAmount ?? undefined });
@@ -436,10 +517,7 @@ export default function DonateScreen() {
         {
           orgId: org!.id,
           amount: value,
-          reinvestOptIn: educationEnabled,
-          reinvestPct: Math.round(educationRate * 1000) / 10,
-          ...(resolvedPartner ? { educationPartnerCode: resolvedPartner.code } : {}),
-          ...(campaignId ? { campaignId } : {}),
+          ...paymentExtras(),
         },
         token
       );
@@ -488,10 +566,7 @@ export default function DonateScreen() {
           amount: value,
           email: guestEmail,
           donationSessionToken,
-          reinvestOptIn: educationEnabled,
-          reinvestPct: Math.round(educationRate * 1000) / 10,
-          ...(resolvedPartner ? { educationPartnerCode: resolvedPartner.code } : {}),
-          ...(campaignId ? { campaignId } : {}),
+          ...paymentExtras(),
         }
       );
       if (res.url) {
@@ -524,10 +599,7 @@ export default function DonateScreen() {
           amount: value,
           email: guestEmail,
           donationSessionToken,
-          reinvestOptIn: educationEnabled,
-          reinvestPct: Math.round(educationRate * 1000) / 10,
-          ...(resolvedPartner ? { educationPartnerCode: resolvedPartner.code } : {}),
-          ...(campaignId ? { campaignId } : {}),
+          ...paymentExtras(),
         }
       );
 
@@ -705,10 +777,7 @@ export default function DonateScreen() {
               amount: value,
               email: guestEmail,
               donationSessionToken,
-              reinvestOptIn: educationEnabled,
-              reinvestPct: Math.round(educationRate * 1000) / 10,
-              ...(resolvedPartner ? { educationPartnerCode: resolvedPartner.code } : {}),
-              ...(campaignId ? { campaignId } : {}),
+              ...paymentExtras(),
             }
           );
           if (!res.url) {
@@ -749,10 +818,7 @@ export default function DonateScreen() {
               orgId: org!.id,
               amount: value,
               currency: "usd",
-              reinvestOptIn: educationEnabled,
-              reinvestPct: Math.round(educationRate * 1000) / 10,
-              ...(resolvedPartner ? { educationPartnerCode: resolvedPartner.code } : {}),
-              ...(campaignId ? { campaignId } : {}),
+              ...paymentExtras(),
             },
             token
           );
@@ -1198,6 +1264,22 @@ export default function DonateScreen() {
         <View style={[styles.container, { backgroundColor: c.background }]}>
           <AppHeader showBack title="Donate" showSearch={false} />
           <ScrollView style={styles.content} contentContainerStyle={{ paddingBottom: 40 }}>
+            {participantLookupError ? (
+              <View style={[styles.partnerBanner, { backgroundColor: c.cardBg, borderColor: "#c44" }]}>
+                <Ionicons name="alert-circle-outline" size={18} color="#c44" />
+                <Text style={{ color: c.text, fontSize: 13, marginLeft: 8, flex: 1 }}>{participantLookupError}</Text>
+              </View>
+            ) : null}
+            {resolvedParticipant && !participantLookupError ? (
+              <View style={[styles.partnerBanner, { backgroundColor: c.cardBg, borderColor: c.green }]}>
+                <Ionicons name="heart-outline" size={18} color={c.green} />
+                <Text style={{ color: c.text, fontSize: 13, marginLeft: 8, flex: 1 }}>
+                  Supporting{" "}
+                  <Text style={{ fontFamily: "SpaceGrotesk_600SemiBold" }}>{resolvedParticipant.display_name}</Text>
+                  {"'s fundraiser"}
+                </Text>
+              </View>
+            ) : null}
             {partnerLookupError ? (
               <View style={[styles.partnerBanner, { backgroundColor: c.cardBg, borderColor: "#c44" }]}>
                 <Ionicons name="alert-circle-outline" size={18} color="#c44" />
@@ -1208,11 +1290,38 @@ export default function DonateScreen() {
               <View style={[styles.partnerBanner, { backgroundColor: c.cardBg, borderColor: c.green }]}>
                 <Ionicons name="school-outline" size={18} color={c.green} />
                 <Text style={{ color: c.text, fontSize: 13, marginLeft: 8, flex: 1 }}>
-                  Reinvest attribution:{" "}
-                  <Text style={{ fontFamily: "SpaceGrotesk_600SemiBold" }}>{resolvedPartner.name}</Text>
+                  Organizational code:{" "}
+                  <Text style={{ fontFamily: "SpaceGrotesk_600SemiBold" }}>
+                    {fundOrgLabel || resolvedPartner.name}
+                  </Text>
                 </Text>
               </View>
             ) : null}
+            <View style={[styles.card, { backgroundColor: c.cardBg }]}>
+              <Text style={[styles.sectionTitle, { color: c.text }]}>Organizational Code</Text>
+              <Text style={[styles.guideText, { color: c.textMuted, marginBottom: 10 }]}>
+                Optional — directs education and endowment contributions to an approved organization.
+              </Text>
+              <TextInput
+                value={orgCodeInput}
+                onChangeText={setOrgCodeInput}
+                placeholder="Enter code (e.g. HARLEM2026)"
+                placeholderTextColor={c.textMuted}
+                autoCapitalize="characters"
+                autoCorrect={false}
+                style={{
+                  borderWidth: 1.5,
+                  borderColor: c.border,
+                  borderRadius: 12,
+                  paddingHorizontal: 16,
+                  paddingVertical: 12,
+                  fontFamily: "SpaceGrotesk_400Regular",
+                  fontSize: 15,
+                  color: c.text,
+                  backgroundColor: c.background,
+                }}
+              />
+            </View>
             <View style={[styles.card, { backgroundColor: c.cardBg }]}>
               <Text style={[styles.sectionTitle, { color: c.text }]}>Fee Breakdown</Text>
 
@@ -1261,7 +1370,11 @@ export default function DonateScreen() {
               )}
 
               <View style={styles.feeRow}>
-                <Text style={[styles.feeLabel, { color: c.textMuted }]}>Education Contribution</Text>
+                <Text style={[styles.feeLabel, { color: c.textMuted }]}>
+                  {fundOrgLabel && resolvedPartner?.organizationId
+                    ? `Education → ${fundOrgLabel}`
+                    : "Education Contribution"}
+                </Text>
                 <Text style={[styles.feeValue, { color: c.text }]}>${educationContribution.toFixed(2)}</Text>
               </View>
 
@@ -1305,7 +1418,11 @@ export default function DonateScreen() {
               )}
 
               <View style={styles.feeRow}>
-                <Text style={[styles.feeLabel, { color: c.textMuted }]}>Endowment Contribution</Text>
+                <Text style={[styles.feeLabel, { color: c.textMuted }]}>
+                  {fundOrgLabel && resolvedPartner?.organizationId
+                    ? `Endowment → ${fundOrgLabel}`
+                    : "Endowment Contribution"}
+                </Text>
                 <Text style={[styles.feeValue, { color: c.text }]}>${endowmentContribution.toFixed(2)}</Text>
               </View>
 

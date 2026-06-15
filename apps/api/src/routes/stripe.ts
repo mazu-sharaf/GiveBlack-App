@@ -5,7 +5,13 @@ import { db } from "../lib/db.js";
 import { env } from "../config/env.js";
 import { getStripe, verifyStripeWebhook } from "../services/stripe.js";
 import { broadcastChannel } from "../realtime/hub.js";
-import { computeReinvestAllocation } from "../lib/education-reinvest.js";
+import {
+  donationInsertFromMetadata,
+  donationInsertSql,
+  donationInsertValues,
+  fundSliceMetadata,
+  prepareDonationCheckout,
+} from "../lib/donation-checkout.js";
 import {
   incrementOrgTotalsFromDonation,
   markDonationSucceededWithPayout,
@@ -131,15 +137,6 @@ function normalizeKey(value: string | null | undefined): string {
   return (value || "").toLowerCase().replace(/[^a-z0-9]/g, "");
 }
 
-async function resolveEducationPartnerId(code: string | undefined | null): Promise<string | null> {
-  const key = normalizeKey(code ?? "");
-  if (!key) return null;
-  const res = await db.query(
-    `select id::text from education_partners where lower(code) = $1 and active = true`,
-    [key]
-  );
-  return (res.rows[0] as { id: string } | undefined)?.id ?? null;
-}
 
 function tierForSubscriptionStatus(status: string, paidTier: string): string {
   // Only grant paid features once Stripe confirms the subscription is active/trialing.
@@ -282,16 +279,96 @@ async function upsertOrgSubscriptionFromStripe(
   };
 }
 
+const fundCodeFields = {
+  organizationalCode: z.string().optional(),
+  educationPartnerCode: z.string().optional(),
+  sellerCode: z.string().optional(),
+  participantId: z.string().uuid().optional(),
+  endowmentOptIn: z.boolean().optional().default(false),
+  endowmentPct: z.coerce.number().min(0).max(100).optional().default(1),
+};
+
 const createIntentSchema = z.object({
   orgId: z.string().min(1),
   campaignId: z.string().optional(),
   // Coerce from string to number so mobile/web JSON bodies are forgiving
   amount: z.coerce.number().positive(),
   currency: z.string().default("usd"),
-  educationPartnerCode: z.string().optional(),
+  ...fundCodeFields,
   reinvestOptIn: z.boolean().optional().default(false),
   reinvestPct: z.coerce.number().min(0).max(100).optional().default(5),
 });
+
+function resolveFundCodeInput(body: {
+  organizationalCode?: string;
+  educationPartnerCode?: string;
+}): string | undefined {
+  return body.organizationalCode || body.educationPartnerCode;
+}
+
+async function insertPendingDonation(input: {
+  orgId: string;
+  campaignId?: string | null;
+  userId: string | null;
+  donorEmail: string | null;
+  donorName: string | null;
+  amount: number;
+  currency: string;
+  stripePaymentIntentId: string;
+  prepared?: Awaited<ReturnType<typeof prepareDonationCheckout>>;
+  organizationalCode?: string;
+  educationPartnerCode?: string;
+  sellerCode?: string;
+  participantId?: string;
+  reinvestOptIn?: boolean;
+  reinvestPct?: number;
+  endowmentOptIn?: boolean;
+  endowmentPct?: number;
+}) {
+  const reinvestPct = input.reinvestPct ?? 5;
+  const endowmentPct = input.endowmentPct ?? 1;
+  const prepared =
+    input.prepared ??
+    (await prepareDonationCheckout({
+    amount: input.amount,
+    orgId: input.orgId,
+    campaignId: input.campaignId,
+    fundCode: resolveFundCodeInput(input),
+    sellerCode: input.sellerCode,
+    participantId: input.participantId,
+    reinvestOptIn: input.reinvestOptIn,
+    reinvestPct,
+    endowmentOptIn: input.endowmentOptIn,
+    endowmentPct,
+  }));
+
+  const donIns = await db.query(
+    donationInsertSql(),
+    donationInsertValues(
+      {
+        orgId: input.orgId,
+        campaignId: input.campaignId || null,
+        userId: input.userId,
+        donorEmail: input.donorEmail,
+        donorName: input.donorName,
+        amount: input.amount,
+        currency: input.currency,
+        status: "pending",
+        stripePaymentIntentId: input.stripePaymentIntentId,
+        prepared,
+        reinvestOptIn: input.reinvestOptIn ?? false,
+        endowmentOptIn: input.endowmentOptIn ?? false,
+      },
+      reinvestPct,
+      endowmentPct
+    )
+  );
+
+  return {
+    donationId: (donIns.rows[0] as { id: string } | undefined)?.id,
+    prepared,
+  };
+}
 
 const donationSessionSchema = z.object({
   orgId: z.string().min(1),
@@ -311,7 +388,7 @@ const donationCheckoutSchema = z.object({
   currency: z.string().default("usd"),
   // Optional return URL for mobile deep link back into the app after web checkout
   returnUrl: z.string().min(1).optional(),
-  educationPartnerCode: z.string().optional(),
+  ...fundCodeFields,
   reinvestOptIn: z.boolean().optional().default(false),
   reinvestPct: z.coerce.number().min(0).max(100).optional().default(5),
   donationSessionToken: z.string().optional(),
@@ -350,7 +427,7 @@ const guestCreateIntentSchema = z.object({
   currency: z.string().default("usd"),
   email: z.string().email(),
   name: z.string().optional(),
-  educationPartnerCode: z.string().optional(),
+  ...fundCodeFields,
   reinvestOptIn: z.boolean().optional().default(false),
   reinvestPct: z.coerce.number().min(0).max(100).optional().default(5),
   donationSessionToken: z.string().optional(),
@@ -368,7 +445,7 @@ const guestDonateCheckoutSchema = z.object({
   currency: z.string().default("usd"),
   email: z.string().email(),
   name: z.string().optional(),
-  educationPartnerCode: z.string().optional(),
+  ...fundCodeFields,
   reinvestOptIn: z.boolean().optional().default(false),
   reinvestPct: z.coerce.number().min(0).max(100).optional().default(5),
   returnUrl: z.string().optional(),
@@ -699,10 +776,23 @@ document.getElementById('devBtn')?.addEventListener('click',()=>finish('dev-bypa
         }
       }
 
-      const partnerId = await resolveEducationPartnerId(body.educationPartnerCode);
       const reinvestOptIn = body.reinvestOptIn ?? false;
       const reinvestPct = body.reinvestPct ?? 5;
-      const alloc = computeReinvestAllocation(body.amount, reinvestOptIn, reinvestPct, partnerId);
+      const endowmentOptIn = body.endowmentOptIn ?? false;
+      const endowmentPct = body.endowmentPct ?? 1;
+
+      const prepared = await prepareDonationCheckout({
+        amount: body.amount,
+        orgId: body.orgId,
+        campaignId: body.campaignId,
+        fundCode: resolveFundCodeInput(body),
+        sellerCode: body.sellerCode,
+        participantId: body.participantId,
+        reinvestOptIn,
+        reinvestPct,
+        endowmentOptIn,
+        endowmentPct,
+      });
 
       const donorRow = await db.query(
         `select lower(trim(coalesce(email, ''))) as e, nullif(trim(full_name), '') as full_name
@@ -718,8 +808,6 @@ document.getElementById('devBtn')?.addEventListener('click',()=>finish('dev-bypa
         currency: body.currency,
         customer: customerId,
         payment_method_types: ["card"],
-        // Save the payment method to the Customer so the next donation can reuse the saved card.
-        // Without this, Stripe will typically require card entry every time.
         setup_future_usage: "on_session",
         metadata: {
           orgId: body.orgId,
@@ -735,15 +823,9 @@ document.getElementById('devBtn')?.addEventListener('click',()=>finish('dev-bypa
             source: "native_donation_intent",
             ip: paymentClientIp(request),
           }),
-          epId: partnerId || "",
-          reinvest: reinvestOptIn ? "1" : "0",
-          rAmt: String(alloc.reinvest_amount),
-          pAmt: String(alloc.partner_reinvest_amount),
-          gAmt: String(alloc.general_reinvest_amount),
+          ...fundSliceMetadata(prepared, { reinvestPct, endowmentPct }),
         },
       };
-
-      // Platform collects full charge; manual Transfer to Connect after hold period (see webhooks + admin release).
 
       const intent = await stripe.paymentIntents.create(intentParams as any);
 
@@ -752,30 +834,25 @@ document.getElementById('devBtn')?.addEventListener('click',()=>finish('dev-bypa
         { apiVersion: "2024-04-10" }
       );
 
-      const donIns = await db.query(
-        `insert into donations (
-           org_id, campaign_id, user_id, donor_email, donor_name, amount, currency, status, stripe_payment_intent_id,
-           education_partner_id, reinvest_opt_in, reinvest_amount, partner_reinvest_amount, general_reinvest_amount
-         ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
-         returning id`,
-        [
-          body.orgId,
-          body.campaignId || null,
-          user.sub,
-          donorEmail,
-          donorName,
-          body.amount,
-          body.currency,
-          "pending",
-          intent.id,
-          partnerId || null,
-          reinvestOptIn,
-          alloc.reinvest_amount,
-          alloc.partner_reinvest_amount,
-          alloc.general_reinvest_amount,
-        ]
-      );
-      const donationRowId = (donIns.rows[0] as { id: string } | undefined)?.id;
+      const { donationId: donationRowId } = await insertPendingDonation({
+        orgId: body.orgId,
+        campaignId: body.campaignId || null,
+        userId: user.sub,
+        donorEmail,
+        donorName,
+        amount: body.amount,
+        currency: body.currency,
+        stripePaymentIntentId: intent.id,
+        prepared,
+        organizationalCode: body.organizationalCode,
+        educationPartnerCode: body.educationPartnerCode,
+        sellerCode: body.sellerCode,
+        participantId: body.participantId,
+        reinvestOptIn,
+        reinvestPct,
+        endowmentOptIn,
+        endowmentPct,
+      });
       if (donationRowId) {
         await stripe.paymentIntents.update(intent.id, {
           metadata: {
@@ -841,10 +918,22 @@ document.getElementById('devBtn')?.addEventListener('click',()=>finish('dev-bypa
       const successUrl = `${baseUrl}/payment/success?session_id={CHECKOUT_SESSION_ID}`;
       const cancelUrl = `${baseUrl}/payment/cancel`;
 
-      const partnerId = await resolveEducationPartnerId(body.educationPartnerCode);
       const reinvestOptIn = body.reinvestOptIn ?? false;
       const reinvestPct = body.reinvestPct ?? 5;
-      const alloc = computeReinvestAllocation(body.amount, reinvestOptIn, reinvestPct, partnerId);
+      const endowmentOptIn = body.endowmentOptIn ?? false;
+      const endowmentPct = body.endowmentPct ?? 1;
+      const prepared = await prepareDonationCheckout({
+        amount: body.amount,
+        orgId: body.orgId,
+        campaignId: body.campaignId,
+        fundCode: resolveFundCodeInput(body),
+        sellerCode: body.sellerCode,
+        participantId: body.participantId,
+        reinvestOptIn,
+        reinvestPct,
+        endowmentOptIn,
+        endowmentPct,
+      });
 
       const checkoutDonorRow = await db.query(
         `select lower(trim(coalesce(email, ''))) as e, nullif(trim(full_name), '') as full_name
@@ -869,11 +958,7 @@ document.getElementById('devBtn')?.addEventListener('click',()=>finish('dev-bypa
           source: "donate_checkout",
           ip: paymentClientIp(request),
         }),
-        epId: partnerId || "",
-        reinvest: reinvestOptIn ? "1" : "0",
-        rAmt: String(alloc.reinvest_amount),
-        pAmt: String(alloc.partner_reinvest_amount),
-        gAmt: String(alloc.general_reinvest_amount),
+        ...fundSliceMetadata(prepared, { reinvestPct, endowmentPct }),
       };
 
       const session = await stripe.checkout.sessions.create({
@@ -912,30 +997,25 @@ document.getElementById('devBtn')?.addEventListener('click',()=>finish('dev-bypa
         });
       }
 
-      const donInsCheckout = await db.query(
-        `insert into donations (
-           org_id, campaign_id, user_id, donor_email, donor_name, amount, currency, status, stripe_payment_intent_id,
-           education_partner_id, reinvest_opt_in, reinvest_amount, partner_reinvest_amount, general_reinvest_amount
-         ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
-         returning id`,
-        [
-          body.orgId,
-          body.campaignId || null,
-          user.sub,
-          checkoutDonorEmail,
-          checkoutDonorName,
-          body.amount,
-          body.currency,
-          "pending",
-          donationStripeKey,
-          partnerId || null,
-          reinvestOptIn,
-          alloc.reinvest_amount,
-          alloc.partner_reinvest_amount,
-          alloc.general_reinvest_amount,
-        ]
-      );
-      const donationRowIdCheckout = (donInsCheckout.rows[0] as { id: string } | undefined)?.id;
+      const { donationId: donationRowIdCheckout } = await insertPendingDonation({
+        orgId: body.orgId,
+        campaignId: body.campaignId || null,
+        userId: user.sub,
+        donorEmail: checkoutDonorEmail,
+        donorName: checkoutDonorName,
+        amount: body.amount,
+        currency: body.currency,
+        stripePaymentIntentId: donationStripeKey,
+        prepared,
+        organizationalCode: body.organizationalCode,
+        educationPartnerCode: body.educationPartnerCode,
+        sellerCode: body.sellerCode,
+        participantId: body.participantId,
+        reinvestOptIn,
+        reinvestPct,
+        endowmentOptIn,
+        endowmentPct,
+      });
       if (donationRowIdCheckout) {
         const sec = stripeSecurityMetadata({
           donationId: donationRowIdCheckout,
@@ -993,6 +1073,10 @@ document.getElementById('devBtn')?.addEventListener('click',()=>finish('dev-bypa
         paid_at: string | null;
         created_at: string | null;
         stripe_payment_intent_id: string | null;
+        platform_fee_amount: number | null;
+        reinvest_amount: number | null;
+        endowment_amount: number | null;
+        net_amount_cents: number | null;
       };
       let donationOut: DonationRow | null = null;
 
@@ -1001,6 +1085,7 @@ document.getElementById('devBtn')?.addEventListener('click',()=>finish('dev-bypa
           `select d.id, d.org_id, d.campaign_id, d.amount, d.currency, d.status,
                   d.stripe_payment_intent_id,
                   d.donor_name, d.is_anonymous, d.paid_at, d.created_at,
+                  d.platform_fee_amount, d.reinvest_amount, d.endowment_amount, d.net_amount_cents,
                   o.name as org_name
            from donations
            d
@@ -1012,6 +1097,7 @@ document.getElementById('devBtn')?.addEventListener('click',()=>finish('dev-bypa
         );
         if (donRes.rowCount && donRes.rows[0]) {
           const row = donRes.rows[0] as Record<string, unknown>;
+          const netCents = row.net_amount_cents != null ? Number(row.net_amount_cents) : null;
           donationOut = {
             id: String(row.id ?? ""),
             status: String(row.status ?? ""),
@@ -1025,6 +1111,10 @@ document.getElementById('devBtn')?.addEventListener('click',()=>finish('dev-bypa
             paid_at: row.paid_at ? String(row.paid_at) : null,
             created_at: row.created_at ? String(row.created_at) : null,
             stripe_payment_intent_id: row.stripe_payment_intent_id ? String(row.stripe_payment_intent_id) : null,
+            platform_fee_amount: row.platform_fee_amount != null ? Number(row.platform_fee_amount) : null,
+            reinvest_amount: row.reinvest_amount != null ? Number(row.reinvest_amount) : null,
+            endowment_amount: row.endowment_amount != null ? Number(row.endowment_amount) : null,
+            net_amount_cents: netCents,
           };
         }
       };
@@ -1311,7 +1401,7 @@ document.getElementById('devBtn')?.addEventListener('click',()=>finish('dev-bypa
               amountForReceipt = session.amount_total ? session.amount_total / 100 : null;
 
               if (orgNameForReceipt && amountForReceipt !== null) {
-                const { sendBrevoEmail } = await import("../services/brevo.js");
+                const { sendEmail } = await import("../services/email.js");
                 const { emailLayout, ctaButton } = await import("../services/email-template.js");
                 const amountStr = `$${amountForReceipt.toFixed(2)}`;
                 const content = `
@@ -1326,7 +1416,7 @@ document.getElementById('devBtn')?.addEventListener('click',()=>finish('dev-bypa
                   ${ctaButton("https://giveblackapp.com", "Create Free Account")}
                   <p style="color:#999999;margin:24px 0 0 0;font-size:13px;">Thank you for making a difference in your community.</p>
                 `;
-                await sendBrevoEmail({
+                await sendEmail({
                   to: guestEmailForReceipt,
                   subject: `Your donation to ${orgNameForReceipt} - Receipt`,
                   html: emailLayout(content),
@@ -2164,7 +2254,7 @@ document.getElementById('devBtn')?.addEventListener('click',()=>finish('dev-bypa
             );
             const org = orgRes.rows[0] as Record<string, unknown> | undefined;
             if (org?.contact_email) {
-              const { sendBrevoEmail } = await import("../services/brevo.js");
+              const { sendEmail } = await import("../services/email.js");
               const { emailLayout } = await import("../services/email-template.js");
               const content = `
                         <h2 style="color:#ffffff;margin:0 0 8px 0;font-size:22px;">Goal Reached!</h2>
@@ -2175,7 +2265,7 @@ document.getElementById('devBtn')?.addEventListener('click',()=>finish('dev-bypa
                         </div>
                         <p style="color:#999999;font-size:14px;">The campaign has been automatically marked as completed. Thank you for making a difference!</p>
                       `;
-              await sendBrevoEmail({
+              await sendEmail({
                 to: org.contact_email as string,
                 subject: `${camp.title} has reached its goal!`,
                 html: emailLayout(content),
@@ -2597,10 +2687,22 @@ document.getElementById('devBtn')?.addEventListener('click',()=>finish('dev-bypa
       );
     }
 
-    const partnerId = await resolveEducationPartnerId(body.educationPartnerCode);
     const reinvestOptIn = body.reinvestOptIn ?? false;
     const reinvestPct = body.reinvestPct ?? 5;
-    const alloc = computeReinvestAllocation(body.amount, reinvestOptIn, reinvestPct, partnerId);
+    const endowmentOptIn = body.endowmentOptIn ?? false;
+    const endowmentPct = body.endowmentPct ?? 1;
+    const prepared = await prepareDonationCheckout({
+      amount: body.amount,
+      orgId: body.orgId,
+      campaignId: body.campaignId,
+      fundCode: resolveFundCodeInput(body),
+      sellerCode: body.sellerCode,
+      participantId: body.participantId,
+      reinvestOptIn,
+      reinvestPct,
+      endowmentOptIn,
+      endowmentPct,
+    });
 
     const baseUrl = env.EXPO_PUBLIC_API_URL
       ? env.EXPO_PUBLIC_API_URL.replace(/\/app\/?$/, "").replace(/\/$/, "")
@@ -2624,11 +2726,7 @@ document.getElementById('devBtn')?.addEventListener('click',()=>finish('dev-bypa
         source: "guest_donate_checkout",
         ip: paymentClientIp(request),
       }),
-      epId: partnerId || "",
-      reinvest: reinvestOptIn ? "1" : "0",
-      rAmt: String(alloc.reinvest_amount),
-      pAmt: String(alloc.partner_reinvest_amount),
-      gAmt: String(alloc.general_reinvest_amount),
+      ...fundSliceMetadata(prepared, { reinvestPct, endowmentPct }),
     };
 
     const session = await stripe.checkout.sessions.create({
@@ -2661,28 +2759,25 @@ document.getElementById('devBtn')?.addEventListener('click',()=>finish('dev-bypa
       });
     }
 
-    const donInsGuest = await db.query(
-      `insert into donations (
-         org_id, campaign_id, user_id, donor_email, donor_name, amount, currency, status, stripe_payment_intent_id,
-         education_partner_id, reinvest_opt_in, reinvest_amount, partner_reinvest_amount, general_reinvest_amount
-       ) values ($1, $2, NULL, $3, $4, $5, $6, 'pending', $7, $8, $9, $10, $11, $12)
-       returning id`,
-      [
-        body.orgId,
-        body.campaignId || null,
-        guestEmail,
-        guestName,
-        body.amount,
-        body.currency,
-        donationStripeKey,
-        partnerId || null,
-        reinvestOptIn,
-        alloc.reinvest_amount,
-        alloc.partner_reinvest_amount,
-        alloc.general_reinvest_amount,
-      ]
-    );
-    const donationRowIdGuest = (donInsGuest.rows[0] as { id: string } | undefined)?.id;
+    const { donationId: donationRowIdGuest } = await insertPendingDonation({
+      orgId: body.orgId,
+      campaignId: body.campaignId || null,
+      userId: null,
+      donorEmail: guestEmail,
+      donorName: guestName,
+      amount: body.amount,
+      currency: body.currency,
+      stripePaymentIntentId: donationStripeKey,
+      prepared,
+      organizationalCode: body.organizationalCode,
+      educationPartnerCode: body.educationPartnerCode,
+      sellerCode: body.sellerCode,
+      participantId: body.participantId,
+      reinvestOptIn,
+      reinvestPct,
+      endowmentOptIn,
+      endowmentPct,
+    });
     if (donationRowIdGuest) {
       const secG = stripeSecurityMetadata({
         donationSessionId: sessionPayload.sessionId,
@@ -2795,10 +2890,22 @@ document.getElementById('devBtn')?.addEventListener('click',()=>finish('dev-bypa
       );
     }
 
-    const partnerId = await resolveEducationPartnerId(body.educationPartnerCode);
     const reinvestOptIn = body.reinvestOptIn ?? false;
     const reinvestPct = body.reinvestPct ?? 5;
-    const alloc = computeReinvestAllocation(body.amount, reinvestOptIn, reinvestPct, partnerId);
+    const endowmentOptIn = body.endowmentOptIn ?? false;
+    const endowmentPct = body.endowmentPct ?? 1;
+    const prepared = await prepareDonationCheckout({
+      amount: body.amount,
+      orgId: body.orgId,
+      campaignId: body.campaignId,
+      fundCode: resolveFundCodeInput(body),
+      sellerCode: body.sellerCode,
+      participantId: body.participantId,
+      reinvestOptIn,
+      reinvestPct,
+      endowmentOptIn,
+      endowmentPct,
+    });
 
     const intent = await stripe.paymentIntents.create({
       amount: Math.round(body.amount * 100),
@@ -2820,11 +2927,7 @@ document.getElementById('devBtn')?.addEventListener('click',()=>finish('dev-bypa
           source: "guest_create_intent",
           ip: paymentClientIp(request),
         }),
-        epId: partnerId || "",
-        reinvest: reinvestOptIn ? "1" : "0",
-        rAmt: String(alloc.reinvest_amount),
-        pAmt: String(alloc.partner_reinvest_amount),
-        gAmt: String(alloc.general_reinvest_amount),
+        ...fundSliceMetadata(prepared, { reinvestPct, endowmentPct }),
       },
     } as any);
 
@@ -2833,28 +2936,25 @@ document.getElementById('devBtn')?.addEventListener('click',()=>finish('dev-bypa
       { apiVersion: "2024-04-10" }
     );
 
-    const donInsGuestPi = await db.query(
-      `insert into donations (
-         org_id, campaign_id, user_id, donor_email, donor_name, amount, currency, status, stripe_payment_intent_id,
-         education_partner_id, reinvest_opt_in, reinvest_amount, partner_reinvest_amount, general_reinvest_amount
-       ) values ($1, $2, NULL, $3, $4, $5, $6, 'pending', $7, $8, $9, $10, $11, $12)
-       returning id`,
-      [
-        body.orgId,
-        body.campaignId || null,
-        guestEmail,
-        guestName,
-        body.amount,
-        body.currency,
-        intent.id,
-        partnerId || null,
-        reinvestOptIn,
-        alloc.reinvest_amount,
-        alloc.partner_reinvest_amount,
-        alloc.general_reinvest_amount,
-      ]
-    );
-    const donationRowGuestPi = (donInsGuestPi.rows[0] as { id: string } | undefined)?.id;
+    const { donationId: donationRowGuestPi, prepared: preparedGuest } = await insertPendingDonation({
+      orgId: body.orgId,
+      campaignId: body.campaignId || null,
+      userId: null,
+      donorEmail: guestEmail,
+      donorName: guestName,
+      amount: body.amount,
+      currency: body.currency,
+      stripePaymentIntentId: intent.id,
+      prepared,
+      organizationalCode: body.organizationalCode,
+      educationPartnerCode: body.educationPartnerCode,
+      sellerCode: body.sellerCode,
+      participantId: body.participantId,
+      reinvestOptIn,
+      reinvestPct,
+      endowmentOptIn,
+      endowmentPct,
+    });
     if (donationRowGuestPi) {
       await stripe.paymentIntents.update(intent.id, {
         metadata: {
@@ -2873,11 +2973,7 @@ document.getElementById('devBtn')?.addEventListener('click',()=>finish('dev-bypa
             source: "guest_create_intent",
             ip: paymentClientIp(request),
           }),
-          epId: partnerId || "",
-          reinvest: reinvestOptIn ? "1" : "0",
-          rAmt: String(alloc.reinvest_amount),
-          pAmt: String(alloc.partner_reinvest_amount),
-          gAmt: String(alloc.general_reinvest_amount),
+          ...fundSliceMetadata(prepared, { reinvestPct, endowmentPct }),
         },
       });
     }
@@ -2949,7 +3045,7 @@ document.getElementById('devBtn')?.addEventListener('click',()=>finish('dev-bypa
       );
       const donInfo = donationInfoRes.rows[0] as { amount: string; org_name: string } | undefined;
       if (donInfo) {
-        const { sendBrevoEmail } = await import("../services/brevo.js");
+        const { sendEmail } = await import("../services/email.js");
         const { emailLayout, ctaButton } = await import("../services/email-template.js");
         const amountStr = `$${Number(donInfo.amount).toFixed(2)}`;
         const content = `
@@ -2964,7 +3060,7 @@ document.getElementById('devBtn')?.addEventListener('click',()=>finish('dev-bypa
           ${ctaButton("https://giveblackapp.com", "Create Free Account")}
           <p style="color:#999999;margin:24px 0 0 0;font-size:13px;">Thank you for making a difference in your community.</p>
         `;
-        await sendBrevoEmail({
+        await sendEmail({
           to: guestEmail,
           subject: `Your donation to ${donInfo.org_name} - Receipt`,
           html: emailLayout(content),
@@ -3051,11 +3147,6 @@ document.getElementById('devBtn')?.addEventListener('click',()=>finish('dev-bypa
             if (updateRes.rowCount === 0) {
               const md = (session.metadata || {}) as Record<string, string>;
               if (md.orgId) {
-                const epId = md.epId && md.epId.length > 0 ? md.epId : null;
-                const reinvestOptIn = md.reinvest === "1";
-                const rAmt = Number.parseFloat(md.rAmt || "0") || 0;
-                const pAmt = Number.parseFloat(md.pAmt || "0") || 0;
-                const gAmt = Number.parseFloat(md.gAmt || "0") || 0;
                 const donorUserId = md.donorUserId && md.donorUserId.length > 0 ? md.donorUserId : null;
                 let whDonorEmail: string | null = null;
                 let whDonorName: string | null = null;
@@ -3070,26 +3161,17 @@ document.getElementById('devBtn')?.addEventListener('click',()=>finish('dev-bypa
                   whDonorName = String(ur?.full_name || "").trim() || null;
                 }
                 await client.query(
-                  `insert into donations (
-                     org_id, campaign_id, user_id, donor_email, donor_name, amount, currency, status, stripe_payment_intent_id,
-                     education_partner_id, reinvest_opt_in, reinvest_amount, partner_reinvest_amount, general_reinvest_amount
-                   ) values ($1, $2, $3, $4, $5, $6, $7, 'pending', $8, $9, $10, $11, $12, $13)
-                   on conflict (stripe_payment_intent_id) do nothing`,
-                  [
-                    md.orgId,
-                    md.campaignId || null,
-                    donorUserId,
-                    whDonorEmail,
-                    whDonorName,
-                    Number(session.amount_total ?? 0) / 100,
-                    "usd",
-                    sessionPaymentIntent,
-                    epId,
-                    reinvestOptIn,
-                    rAmt,
-                    pAmt,
-                    gAmt,
-                  ]
+                  donationInsertSql({ onConflictDoNothing: true }),
+                  donationInsertFromMetadata(md, {
+                    orgId: md.orgId,
+                    campaignId: md.campaignId || null,
+                    userId: donorUserId,
+                    donorEmail: whDonorEmail,
+                    donorName: whDonorName,
+                    amount: Number(session.amount_total ?? 0) / 100,
+                    currency: "usd",
+                    stripePaymentIntentId: sessionPaymentIntent,
+                  })
                 );
               }
             }
@@ -3134,7 +3216,7 @@ document.getElementById('devBtn')?.addEventListener('click',()=>finish('dev-bypa
                       );
                       const org = orgRes.rows[0] as Record<string, unknown> | undefined;
                       if (org?.contact_email) {
-                        const { sendBrevoEmail } = await import("../services/brevo.js");
+                        const { sendEmail } = await import("../services/email.js");
                         const { emailLayout } = await import("../services/email-template.js");
                         const content = `
                           <h2 style="color:#ffffff;margin:0 0 8px 0;font-size:22px;">Goal Reached!</h2>
@@ -3145,7 +3227,7 @@ document.getElementById('devBtn')?.addEventListener('click',()=>finish('dev-bypa
                           </div>
                           <p style="color:#999999;font-size:14px;">The campaign has been automatically marked as completed. Thank you for making a difference!</p>
                         `;
-                        await sendBrevoEmail({
+                        await sendEmail({
                           to: org.contact_email as string,
                           subject: `${cCamp.title} has reached its goal!`,
                           html: emailLayout(content),

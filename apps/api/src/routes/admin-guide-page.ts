@@ -51,7 +51,9 @@ export const adminGuidePageRoutes: FastifyPluginAsync = async (app) => {
       siteLabel = "giveblackapp.com";
     }
     const origin = originFromAppUrl();
-    const backofficeUrl = `${origin}/backoffice/`;
+    const backofficeUrl = env.ADMIN_PANEL_URL
+      ? `${env.ADMIN_PANEL_URL.replace(/\/$/, "")}/`
+      : `${origin}/`;
     const adminguideUrl = publicAdminguideUrl(origin);
     let supportPageUrl = `${origin}/support/`;
     try {

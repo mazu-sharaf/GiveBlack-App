@@ -324,7 +324,7 @@ pm2 restart giveblack-api
 - `EXPO_PUBLIC_DOMAIN=giveblackapp.com`
 - `EXPO_PUBLIC_API_URL=https://giveblackapp.com/app`
 - `APP_URL=https://giveblackapp.com`
-- `ADMIN_PANEL_URL=https://giveblackapp.com` (admin UI: `https://giveblackapp.com/admin/`)
+- `ADMIN_PANEL_URL=https://admin.giveblackapp.com` (admin UI: `https://admin.giveblackapp.com/`)
 - Admin build: `VITE_API_URL=https://giveblackapp.com/app`
 
 Then: `pm2 restart giveblack-api --update-env`, rebuild admin (`npm run build:admin`), rebuild mobile with updated `EXPO_PUBLIC_*`.
